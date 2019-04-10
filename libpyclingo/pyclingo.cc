@@ -8109,12 +8109,13 @@ static char const *clingoModuleDoc =
 "The clingo-" CLINGO_VERSION R"( module.
 
 This module provides functions and classes to work with ground terms and to
-control the instantiation process.  In clingo builts, additional functions to
-control and inspect the solving process are available.
+control the instantiation process.
 
-Functions defined in a python script block are callable during the
-instantiation process using `@`-syntax. The default grounding/solving process
-can be customized if a main function is provided.
+If the clingo application is build with Python support, clingo will also be
+able to execute Python code embedded in logic programs.  Functions defined in a
+Python script block are callable during the instantiation process using
+`@`-syntax.  The default grounding/solving process can be customized if a main
+function is provided.
 
 Note that gringo's precomputed terms (terms without variables and interpreted
 functions), called symbols in the following, are wrapped in the Symbol class.
