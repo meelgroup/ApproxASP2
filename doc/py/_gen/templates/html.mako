@@ -1,8 +1,10 @@
 <%
   import pdoc
   import re
+  import clingo
   from pdoc.html_helpers import extract_toc, glimpse, to_html as _to_html
 
+  base_url = "/clingo/python-api/{}".format(".".join(clingo.__version__.split(".")[0:2]))
 
   def link(d, name=None, fmt='{}'):
     name = fmt.format(name or d.qualname + ('()' if isinstance(d, pdoc.Function) else ''))
@@ -10,8 +12,8 @@
         return name
     url = d.url(relative_to=module, link_prefix=link_prefix,
                 top_ancestor=not show_inherited_members)
-    url = re.sub('.*clingo.html', '/clingo/python-api/5.4/clingo/', url)
-    url = re.sub('.*ast.html', '/clingo/python-api/5.4/clingo/ast/', url)
+    url = re.sub('.*clingo.html', '{}/clingo/'.format(base_url), url)
+    url = re.sub('.*ast.html', '{}/clingo/ast/'.format(base_url), url)
     return '<a title="{}" href="{}">{}</a>'.format(d.refname, url, name)
 
 
@@ -395,7 +397,7 @@ description: ${module.docstring | glimpse, trim, h}
 css:
   - /css/pdoc.css
   - /css/github.min.css
-permalink: /clingo/python-api/5.4/${module_path}/
+permalink: ${base_url}/${module_path}/
 ---
 
 <main>

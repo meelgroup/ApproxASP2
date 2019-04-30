@@ -16,6 +16,6 @@ cmod.doc["Infimum"] = pdoc.Variable("Infimum", cmod, "represents a `clingo.Symbo
 cmod.doc["Supremum"] = pdoc.Variable("Supremum", cmod, "represents a `clingo.Symbol` of type `clingo.SymbolType.Supremum`")
 pdoc.link_inheritance(ctx)
 
-os.makedirs("clingo/ast", exist_ok=True)
+os.makedirs("../clingo/ast", exist_ok=True)
 open("../clingo/index.html", "w").write(cmod.html(external_links=True))
 open("../clingo/ast/index.html", "w").write(amod.html(external_links=True))
