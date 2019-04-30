@@ -2281,7 +2281,8 @@ R"(add_clause(self, literals) -> None
 
 Add a clause that applies to the current solving step during the search.
 
-Arguments:
+Parameters
+----------
 literals -- list of literals either represented as pairs of symbolic atoms and
             Booleans or as program literals
 
@@ -2293,7 +2294,8 @@ R"(add_nogood(self, literals) -> None
 
 Equivalent to add_clause with the literals inverted.
 
-Arguments:
+Parameters
+----------
 literals -- list of pairs of Booleans and atoms representing the nogood)"},
     {nullptr, nullptr, 0, nullptr}
 };
@@ -2740,7 +2742,8 @@ If a timeout is given, the function waits at most timeout seconds and returns a
 Boolean indicating whether the search has finished. Otherwise, the function
 blocks until the search is finished and returns nothing.
 
-Arguments:
+Parameters
+----------
 timeout -- optional timeout in seconds
            (permits floating point values))"},
     {"cancel", to_function<&SolveHandle::cancel>(), METH_NOARGS,
@@ -3172,7 +3175,8 @@ Add a watch for the solver literal in the given phase.
 
 If the thread_id is None then all active threads will watch the literal.
 
-Arguments:
+Parameters
+----------
 literal -- the literal to watch
 
 Keyword Arguments:
@@ -3295,12 +3299,14 @@ Add a watch for the solver literal in the given phase.
 Unlike PropagateInit.add_watch() this does not add a watch to all solver
 threads but just the current one.
 
-Arguments:
+Parameters
+----------
 literal -- the target literal)"},
     {"has_watch", to_function<&PropagateControl::has_watch>(), METH_O, R"(has_watch(self, literal) -> bool
 Check whether a literal is watched in the current solver thread.
 
-Arguments:
+Parameters
+----------
 literal -- the target literal)"},
     {"remove_watch", to_function<&PropagateControl::remove_watch>(), METH_O, R"(remove_watch(self, literal) -> None
 Removes the watch (if any) for the given solver literal.
@@ -3308,7 +3314,8 @@ Removes the watch (if any) for the given solver literal.
 Similar to PropagateInit.add_watch() this just removes the watch in the current
 solver thread.
 
-Arguments:
+Parameters
+----------
 literal -- the target literal)"},
     {"add_clause", to_function<&PropagateControl::addClause>(), METH_KEYWORDS | METH_VARARGS, R"(add_clause(self, clause, tag, lock) -> bool
 
@@ -3316,7 +3323,8 @@ Add the given clause to the solver.
 
 This method returns False if the current propagation must be stopped.
 
-Arguments:
+Parameters
+----------
 clause -- sequence of solver literals
 
 Keyword Arguments:
@@ -3772,7 +3780,8 @@ Mark an atom as external optionally fixing its truth value.
 
 Can also be used to unmark an external atom.
 
-Arguments:
+Parameters
+----------
 atom -- the atom to mark as external
 
 Keyword Arguments:
@@ -3784,7 +3793,8 @@ R"(add_rule(self, head, body, choice) -> None
 
 Add a disjuntive or choice rule to the program.
 
-Arguments:
+Parameters
+----------
 head -- list of program atoms
 
 Keyword Arguments:
@@ -3799,7 +3809,8 @@ R"(add_weight_rule(self, head, lower, body, choice) -> None
 Add a disjuntive or choice rule with one weight constraint with a lower bound
 in the body to the program.
 
-Arguments:
+Parameters
+----------
 head  -- list of program atoms
 lower -- integer for the lower bound
 body  -- list of pairs of program literals and weights
@@ -3812,7 +3823,8 @@ choice -- whether to add a disjunctive or choice rule (Default: False)
 R"(add_minimize(self, priority, literals) -> None
 Add a minimize constraint to the program.
 
-Arguments:
+Parameters
+----------
 priority -- integer for the priority
 literals -- list of pairs of program literals and weights
 )"},
@@ -3821,7 +3833,8 @@ literals -- list of pairs of program literals and weights
 R"(add_project(self, atoms) -> None
 Add a project statement to the program.
 
-Arguments:
+Parameters
+----------
 atoms -- list of atoms
 )"},
     // add_assume
@@ -3829,7 +3842,8 @@ atoms -- list of atoms
 R"(add_assume(self, literals) -> None
 Add assumptions to the program.
 
-Arguments:
+Parameters
+----------
 literals -- list of literals
 )"},
     // add_heuristic
@@ -3837,7 +3851,8 @@ literals -- list of literals
 R"(add_heuristic(self, atom, type, bias, priority, condition) -> None
 Add a heuristic directive to the program.
 
-Arguments:
+Parameters
+----------
 atom      -- atom to heuristically modify
 type      -- type of modification (see HeuristicType)
 bias      -- a signed integer
@@ -3849,7 +3864,8 @@ condition -- list of literals
 R"(add_acyc_edge(self, node_u, node_v, condition) -> None
 Add an edge directive to the program.
 
-Arguments:
+Parameters
+----------
 node_u    -- start node
 node_v    -- end node
 condition -- list of literals
@@ -4359,7 +4375,8 @@ struct AST : ObjectBase<AST> {
 
 Node in the abstract syntax tree.
 
-Arguments:
+Parameters
+----------
 type -- value in the enumeration ASTType
 
 Additionally, the functions takes an arbitrary number of keyword arguments.
@@ -6769,7 +6786,8 @@ R"(add(self, name, params, program) -> None
 
 Extend the logic program with the given non-ground logic program in string form.
 
-Arguments:
+Parameters
+----------
 name    -- name of program block to add
 params  -- parameters of program block
 program -- non-ground program as string
@@ -6794,7 +6812,8 @@ R"(load(self, path) -> None
 
 Extend the logic program with a (non-ground) logic program in a file.
 
-Arguments:
+Parameters
+----------
 path -- path to program)"},
     // solve
     {"solve", to_function<&ControlWrap::solve>(), METH_KEYWORDS | METH_VARARGS,
@@ -6923,7 +6942,8 @@ function has no effect.
 For convenience, the truth assigned to atoms over negative program literals is
 inverted.
 
-Arguments:
+Parameters
+----------
 external -- symbol or program literal representing the external atom
 truth    -- bool or None indicating the truth value
 
@@ -6967,7 +6987,8 @@ R"(register_observer(self, observer, replace) -> None
 
 Registers the given observer to inspect the produced grounding.
 
-Arguments:
+Parameters
+----------
 observer -- the observer to register
 
 Keyword Arguments:
@@ -7143,7 +7164,8 @@ R"(register_propagator(self, propagator) -> None
 
 Registers the given propagator with all solvers.
 
-Arguments:
+Parameters
+----------
 propagator -- the propagator to register
 
 A propagator should be a class of the form below. Not all functions have to be
@@ -7395,7 +7417,8 @@ false depending on whether the option was parsed successively.
 
 Note that an error is raised if an option with the same name already exists.
 
-Arguments:
+Parameters
+----------
 options     -- object to register the option with
 group       -- options are grouped into sections as given by this string
 option      -- specifies the command line option
@@ -7416,7 +7439,8 @@ This function is similar to add() but simpler because it only supports flags,
 which do not have values. Note that the target parameter must be of type Flag,
 which is set to true if the flag is passed on the command line.
 
-Arguments:
+Parameters
+----------
 group       -- options are grouped into sections as given by this string
 option      -- name on the command line
 description -- description of the option
@@ -7969,77 +7993,126 @@ statement = Rule
 
 static PyMethodDef clingoModuleMethods[] = {
     {"parse_term", to_function<parseTerm>(), METH_VARARGS | METH_KEYWORDS,
-R"(parse_term(string, logger, message_limit) -> Symbol
+R"(parse_term(string, logger, message_limit)
 
-Parse the given string using gringo's term parser for ground terms. The
-function also evaluates arithmetic functions.
+Parse the given string using gringo's term parser for ground terms.
 
-Arguments:
-string -- the string to be parsed
+The function also evaluates arithmetic functions.
 
-Keyword Arguments:
-logger        -- function to intercept messages normally printed to standard
-                 error (default: None)
-message_limit -- maximum number of messages passed to the logger (default: 20)
+Parameters
+----------
+string : string
+    The string to be parsed.
+logger : Callback[[MessageCode,str],None] = None
+    Function to intercept messages normally printed to standard error.
+message_limit : int = 20
+    Maximum number of messages passed to the logger.
 
-Example:
+Returns
+-------
+Symbol
 
-clingo.parse_term('p(1+2)') == clingo.Function("p", [3])
+Examples
+--------
+    >>> clingo.parse_term('p(1+2)')
+    p(3)
 )"},
     {"clingo_main", to_function<clingoMain>(), METH_VARARGS | METH_KEYWORDS,
-R"(clingo_main(application, files) -> int
+R"(clingo_main(application, files=[])
 
-Runs the given applications using clingo's default output and signal handling.
+Runs the given application using clingo's default output and signal handling.
 
 The application can overwrite clingo's default behaviour by registering
 additional options and overriding its default main function.
 
-Arguments:
-application -- the Application object
+Parameters
+----------
+application : Application
+    The Application object (see notes).
+files : List[str]
+    The files to pass to the main function of the application.
 
-Keyword Arguments:
-files -- files passed on the command line
-
+Notes
+-----
 The application object must implement a main function and additionally can
 override the other functions.
 
-class Application(object):
-    main(self, control, files) -> None
-        Function to replace clingo's default main function.
+    class Application(object):
+        """
+        Interface that has to be implemented to customize clingo.
 
-    register_options(self, options) -> None
-        Function to register custom options.
+        Attributes
+        ----------
+        program_name : str = 'clingo'
+            Optional program name to be used in the help output.
 
-        Arguments:
-        options -- ApplicationOptions object that can be used to register
-                   different kind of options
+        message_limit : int = 20
+            Maximum number of messages passed to the logger.
+        """
 
-    validate_options(self) -> bool
-        Function to validate custom options.
+        def main(self, control, files):
+            """
+            Function to replace clingo's default main function.
 
-        This function should throw an exception if option validation fails.
+            Parameters
+            ----------
+            control : Control
+                The main control object.
+            files : List[str]
+                The files passed to clingo_main.
 
-        Note: this function should not raise execptions
+            Returns
+            -------
+            None
+            """
 
-    logger(self, code, message) -> None
-        Function to intercept messages normally printed to standard error.
-        (Default: messages are printed to stdandard error)
+        def register_options(self, options):
+            """
+            Function to register custom options.
 
-        Arguments:
-        code    -- MessageCode object
-        message -- message string
+            Parameters
+            ----------
+            options : ApplicationOptions
+                Object to register additional options
 
-        Note: this function should not raise execptions
+            Returns
+            -------
+            None
+            """
 
-    program_name -> String:
-        Optional program name to be used in the help output.
-        (Default: clingo)
+        def validate_options(self):
+            """
+            Function to validate custom options.
 
-    message_limit -> Int:
-        Maximum number of messages passed to the logger.
-        (Default: 20)
+            This function should return ralse or throw an exception if option validation fails.
 
-Example reproducing the default clingo behaviour:
+            Returns
+            -------
+            bool
+            """
+
+        def logger(self, code, message):
+            """
+            Function to intercept messages normally printed to standard error.
+
+            By default, messages are printed to stdandard error.
+
+            Parameters
+            ----------
+            code : MessageCode
+                The message code.
+            message : str
+                The message string.
+
+            Notes
+            -----
+            This function should not raise exceptions.
+            """
+
+Examples
+--------
+
+The following example reproduces the default clingo application:
 
     import sys
     import clingo
@@ -8060,49 +8133,115 @@ Example reproducing the default clingo behaviour:
     clingo.clingo_main(Application(sys.argv[0]), sys.argv[1:])
 )"},
     {"parse_program", to_function<parseProgram>(), METH_VARARGS | METH_KEYWORDS,
-R"(parse_program(program, callback) -> None
+R"(parse_program(program, callback)
 
 Parse the given program and return an abstract syntax tree for each statement
 via a callback.
 
-Arguments:
-program  -- string representation of program
-callback -- callback taking an ast as argument
+Parameters
+----------
+program : str
+    String representation of the program.
+callback : Callable[[ast.AST], None]
+    Callback taking an ast as argument.
+
+Returns
+-------
+None
 )"},
-    {"Function", to_function<Symbol::new_function>(), METH_VARARGS | METH_KEYWORDS, R"(Function(name, arguments, positive) -> Symbol
+    {"Function", to_function<Symbol::new_function>(), METH_VARARGS | METH_KEYWORDS, R"(Function(name, arguments=[], positive=True)
 
 Construct a function symbol.
 
-Arguments:
-name -- the name of the function (empty for tuples)
-
-Keyword Arguments:
-arguments -- the arguments in form of a list of symbols
-positive  -- the sign of the function (tuples must not have signs)
-             (Default: True)
-
 This includes constants and tuples. Constants have an empty argument list and
 tuples have an empty name. Functions can represent classically negated atoms.
-Argument positive has to be set to False to represent such atoms.)"},
-    {"Tuple", to_function<Symbol::new_tuple>(), METH_O, R"(Tuple(arguments) -> Symbol
+Argument `positive` has to be set to `False` to represent such atoms.
 
-Shortcut for Function("", arguments).
+Parameters
+----------
+name : str
+    The name of the function (empty for tuples).
+arguments: List[Symbol] = []
+    The arguments in form of a list of symbols.
+positive: bool = True
+    The sign of the function (tuples must not have signs).
+
+Returns
+-------
+Symbol
 )"},
-    {"Number", to_function<Symbol::new_number>(), METH_O, R"(Number(number) -> Symbol
+    {"Tuple", to_function<Symbol::new_tuple>(), METH_O, R"(Tuple(arguments)
 
-Construct a numeric symbol given a number.)"},
-    {"String", to_function<Symbol::new_string>(), METH_O, R"(String(string) -> Symbol
+A shortcut for `Function("", arguments)`.
 
-Construct a string symbol given a string.)"},
-    {"_Symbol", to_function<Symbol::new_symbol>(), METH_O, R"(_Symbol(value) -> Symbol
+Parameters
+----------
+arguments: List[Symbol]
+    The arguments in form of a list of symbols.
 
-Construct a symbol from its numeric C representation.)"},
-    {"_error_message", to_function<clingoErrorMessage>(), METH_NOARGS, R"(_error_message() -> str
+Returns
+-------
+Symbol
 
-Get internal error message.)"},
-    {"_error_code", to_function<clingoErrorCode>(), METH_NOARGS, R"(_error_code() -> int
+See Also
+--------
+clingo.Function
+)"},
+    {"Number", to_function<Symbol::new_number>(), METH_O, R"(Number(number)
 
-Get internal error code.)"},
+Construct a numeric symbol given a number.
+
+Parameters
+----------
+number : int
+    The given number.
+
+Returns
+-------
+Symbol
+)"},
+    {"String", to_function<Symbol::new_string>(), METH_O, R"(String(string)
+
+Construct a string symbol given a string.
+
+Parameters
+----------
+string : str
+    The given string.
+
+Returns
+-------
+Symbol
+)"},
+    {"_Symbol", to_function<Symbol::new_symbol>(), METH_O, R"(_Symbol(value)
+
+Construct a symbol from its numeric C representation.
+
+Parameters
+----------
+value : int
+    The internal value of the symbol.
+
+Returns
+-------
+Symbol
+)"},
+    {"_error_message", to_function<clingoErrorMessage>(), METH_NOARGS, R"(_error_message()
+
+Get the internal error message.
+
+Returns
+-------
+str
+)"},
+    {"_error_code", to_function<clingoErrorCode>(), METH_NOARGS, R"(_error_code()
+
+Get the internal error code.
+
+Returns
+-------
+int
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 static char const *clingoModuleDoc =
