@@ -19,6 +19,79 @@
 
   def to_html(text):
     return _to_html(text, module=module, link=link)
+
+  def parse_docstring(f):
+    try:
+        lines = f.docstring.splitlines()
+        line = lines[0]
+        result = []
+        state = 0
+        nesting = 0
+        current = ""
+        delim = None
+        rettype = None
+        for c in line:
+            if c == " ":
+                continue
+            if state == 0:
+                if c == "(":
+                    name = current
+                    current = ""
+                    state = 1
+                else:
+                    current += c
+            elif state == 1:
+                if c == ")" and nesting == 0:
+                    if current:
+                        result.append(current)
+                        current = ""
+                    state = 3
+                elif c == "," and nesting == 0:
+                    result.append(current)
+                    current = ""
+                elif c == ":" and nesting == 0:
+                    current += ": "
+                elif c in ("]", ")"):
+                    if nesting == 0:
+                        raise RuntimeError("not a signature")
+                    nesting -= 1
+                    current += c
+                elif c in ("(", "["):
+                    nesting += 1
+                    current += c
+                elif c in ('"', "'"):
+                    state = 2
+                    delim = c
+                    current += c
+                else:
+                    current += c
+            elif state == 2:
+                current += c
+                if c == delim:
+                    state = 1
+            elif state == 3:
+                if c == "-":
+                    state = 4
+                else:
+                    raise RuntimeError("not a signature")
+            elif state == 4:
+                if c == ">":
+                    state = 5
+                else:
+                    raise RuntimeError("not a signature")
+            elif state == 5:
+                current += c
+        if state == 3:
+            rettype = None
+        elif state == 5 and current:
+            rettype = current
+        else:
+            raise RuntimeError("not a signature")
+        return ("\n".join(lines[1:]).strip(), result, rettype)
+    except:
+        pass
+    return (f.docstring, f.params(), None)
+
 %>
 
 ## Import template configuration from potentially-overridden config.mako.
@@ -70,6 +143,10 @@
   % endif
 </%def>
 
+<%def name="show_str_desc(docstring)">
+  <section class="desc">${docstring | to_html}</section>
+</%def>
+
 <%def name="show_module_list(modules)">
 <h1>Python module list</h1>
 
@@ -107,10 +184,13 @@
   %>
 
   <%def name="show_func(f)">
+    <%
+    docstring, params, rettype = parse_docstring(f)
+    %>
     <dt id="${f.refname}"><code class="name flex">
-        <span>${f.funcdef()} ${ident(f.name)}</span>(<span>${', '.join(f.params()) | h})</span>
+        <span>${f.funcdef()} ${ident(f.name)}</span>(<span>${', '.join(params) | h})${" -> {}".format(rettype) if rettype else ""}</span>
     </code></dt>
-    <dd>${show_desc(f)}</dd>
+    <dd>${show_str_desc(docstring)}</dd>
   </%def>
 
   <header>

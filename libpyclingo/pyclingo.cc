@@ -7993,7 +7993,7 @@ statement = Rule
 
 static PyMethodDef clingoModuleMethods[] = {
     {"parse_term", to_function<parseTerm>(), METH_VARARGS | METH_KEYWORDS,
-R"(parse_term(string, logger, message_limit)
+R"(parse_term(string: str, logger: Callback[[MessageCode,str],None]=None, message_limit: int=20) -> Symbol
 
 Parse the given string using gringo's term parser for ground terms.
 
@@ -8018,7 +8018,7 @@ Examples
     p(3)
 )"},
     {"clingo_main", to_function<clingoMain>(), METH_VARARGS | METH_KEYWORDS,
-R"(clingo_main(application, files=[])
+R"(clingo_main(application: Application, files: List[str]=[]) -> int
 
 Runs the given application using clingo's default output and signal handling.
 
@@ -8032,6 +8032,10 @@ application : Application
 files : List[str]
     The files to pass to the main function of the application.
 
+Returns
+-------
+int
+    The exit code of the application.
 Notes
 -----
 The application object must implement a main function and additionally can
@@ -8043,14 +8047,14 @@ override the other functions.
 
         Attributes
         ----------
-        program_name : str = 'clingo'
+        program_name: str = 'clingo'
             Optional program name to be used in the help output.
 
-        message_limit : int = 20
+        message_limit: int = 20
             Maximum number of messages passed to the logger.
         """
 
-        def main(self, control, files):
+        def main(self, control: Control, files: List[str]) -> None:
             """
             Function to replace clingo's default main function.
 
@@ -8066,7 +8070,7 @@ override the other functions.
             None
             """
 
-        def register_options(self, options):
+        def register_options(self, options: ApplicationOptions) -> None:
             """
             Function to register custom options.
 
@@ -8080,18 +8084,18 @@ override the other functions.
             None
             """
 
-        def validate_options(self):
+        def validate_options(self) -> bool:
             """
             Function to validate custom options.
 
-            This function should return ralse or throw an exception if option validation fails.
+            This function should return false or throw an exception if option validation fails.
 
             Returns
             -------
             bool
             """
 
-        def logger(self, code, message):
+        def logger(self, code: MessageCode, message: str) -> None:
             """
             Function to intercept messages normally printed to standard error.
 
@@ -8103,6 +8107,10 @@ override the other functions.
                 The message code.
             message : str
                 The message string.
+
+            Returns
+            -------
+            None
 
             Notes
             -----
@@ -8133,7 +8141,7 @@ The following example reproduces the default clingo application:
     clingo.clingo_main(Application(sys.argv[0]), sys.argv[1:])
 )"},
     {"parse_program", to_function<parseProgram>(), METH_VARARGS | METH_KEYWORDS,
-R"(parse_program(program, callback)
+R"(parse_program(program: str, callback: Callable[[ast.AST], None]) -> None
 
 Parse the given program and return an abstract syntax tree for each statement
 via a callback.
@@ -8149,7 +8157,7 @@ Returns
 -------
 None
 )"},
-    {"Function", to_function<Symbol::new_function>(), METH_VARARGS | METH_KEYWORDS, R"(Function(name, arguments=[], positive=True)
+    {"Function", to_function<Symbol::new_function>(), METH_VARARGS | METH_KEYWORDS, R"(Function(name: str, arguments: List[Symbol]=[], positive: bool=True) -> Symbol
 
 Construct a function symbol.
 
@@ -8170,7 +8178,7 @@ Returns
 -------
 Symbol
 )"},
-    {"Tuple", to_function<Symbol::new_tuple>(), METH_O, R"(Tuple(arguments)
+    {"Tuple", to_function<Symbol::new_tuple>(), METH_O, R"(Tuple(arguments: List[Symbol]) -> Symbol
 
 A shortcut for `Function("", arguments)`.
 
@@ -8187,7 +8195,7 @@ See Also
 --------
 clingo.Function
 )"},
-    {"Number", to_function<Symbol::new_number>(), METH_O, R"(Number(number)
+    {"Number", to_function<Symbol::new_number>(), METH_O, R"(Number(number: int) -> Symbol
 
 Construct a numeric symbol given a number.
 
@@ -8200,7 +8208,7 @@ Returns
 -------
 Symbol
 )"},
-    {"String", to_function<Symbol::new_string>(), METH_O, R"(String(string)
+    {"String", to_function<Symbol::new_string>(), METH_O, R"(String(string: str) -> Symbol
 
 Construct a string symbol given a string.
 
@@ -8213,7 +8221,7 @@ Returns
 -------
 Symbol
 )"},
-    {"_Symbol", to_function<Symbol::new_symbol>(), METH_O, R"(_Symbol(value)
+    {"_Symbol", to_function<Symbol::new_symbol>(), METH_O, R"(_Symbol(value: int) -> Symbol
 
 Construct a symbol from its numeric C representation.
 
@@ -8226,7 +8234,7 @@ Returns
 -------
 Symbol
 )"},
-    {"_error_message", to_function<clingoErrorMessage>(), METH_NOARGS, R"(_error_message()
+    {"_error_message", to_function<clingoErrorMessage>(), METH_NOARGS, R"(_error_message() -> int
 
 Get the internal error message.
 
@@ -8234,7 +8242,7 @@ Returns
 -------
 str
 )"},
-    {"_error_code", to_function<clingoErrorCode>(), METH_NOARGS, R"(_error_code()
+    {"_error_code", to_function<clingoErrorCode>(), METH_NOARGS, R"(_error_code() -> int
 
 Get the internal error code.
 
