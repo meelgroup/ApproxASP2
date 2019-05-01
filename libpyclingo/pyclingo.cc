@@ -7344,7 +7344,7 @@ struct ApplicationOptions : ObjectBase<ApplicationOptions> {
     std::vector<Object> *refs;
     static constexpr char const *tp_type = "ApplicationOptions";
     static constexpr char const *tp_name = "clingo.ApplicationOptions";
-    static constexpr char const *tp_doc = R"(Object add custom options to a clingo based application.)";
+    static constexpr char const *tp_doc = R"(Object to add custom options to a clingo based application.)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
@@ -7399,52 +7399,59 @@ struct ApplicationOptions : ObjectBase<ApplicationOptions> {
 };
 
 PyMethodDef ApplicationOptions::tp_methods[] = {
-    {"add", to_function<&ApplicationOptions::add>(), METH_VARARGS | METH_KEYWORDS, R"(add_flag(self, group, option, description, parser, multi, argument) -> None
+    {"add", to_function<&ApplicationOptions::add>(), METH_VARARGS | METH_KEYWORDS, R"(add_flag(self, group: str, option: str, description: str, parser: Callback[[str], bool], multi: bool=False, argument: str=None) -> None
 
 Add an option that is processed with a custom parser.
 
-Note that the parser also has to take care of storing the semantic value of
-the option somewhere.
-
-Parameter option specifies the name(s) of the option. For example, "ping,p"
-adds the short option "-p" and its long form "--ping". It is also possible to
-associate an option with a help level by adding "@l" to the option
-specification. Options with a level greater than zero are only shown if the
-argument to help is greater or equal to l.
-
-An option parser is a function that takes a string as input and returns true or
-false depending on whether the option was parsed successively.
-
-Note that an error is raised if an option with the same name already exists.
-
 Parameters
 ----------
-options     -- object to register the option with
-group       -- options are grouped into sections as given by this string
-option      -- specifies the command line option
-description -- the description of the option
-parser      -- callback to parse the value of the option
+group: str
+    Options are grouped into sections as given by this string.
+option: str
+    Parameter option specifies the name(s) of the option. For example,
+    `"ping,p"` adds the short option `-p` and its long form `--ping`. It is
+    also possible to associate an option with a help level by adding `"@l"` to
+    the option specification. Options with a level greater than zero are only
+    shown if the argument to help is greater or equal to `l`.
+description: str
+    The description of the option shown in the help output.
+parser: Callback[[str], bool]
+    An option parser is a function that takes a string as input and returns
+    true or false depending on whether the option was parsed successively.
+multi: bool=False
+    Whether the option can appear multiple times on the command-line.
+argument: str=None
+    Otional string to change the value name in the generated help.
 
-Keyword Arguments:
-multi    -- whether the option can appear multiple times on the command-line
-            (Default: False)
-argument -- optional string to change the value name in the generated help
-            output
+Raises
+------
+RuntimeError
+    An error is raised if an option with the same name already exists.
+
+Notes
+-----
+The parser also has to take care of storing the semantic value of the option
+somewhere.
 )"},
-    {"add_flag", to_function<&ApplicationOptions::add_flag>(), METH_VARARGS | METH_KEYWORDS, R"(add_flag(self, group, option, description, target) -> None
+    {"add_flag", to_function<&ApplicationOptions::add_flag>(), METH_VARARGS | METH_KEYWORDS, R"(add_flag(self, group: str, option: str, description: str, target: Flag) -> None
 
 Add an option that is a simple flag.
 
-This function is similar to add() but simpler because it only supports flags,
-which do not have values. Note that the target parameter must be of type Flag,
-which is set to true if the flag is passed on the command line.
+This function is similar to `clingo.ApplicationOptions.add` but simpler because
+it only supports flags, which do not have values. Note that the target
+parameter must be of type Flag, which is set to true if the flag is passed on
+the command line.
 
 Parameters
 ----------
-group       -- options are grouped into sections as given by this string
-option      -- name on the command line
-description -- description of the option
-target      -- Flag object
+group: str
+    Options are grouped into sections as given by this string.
+option: str
+    Same as for `clingo.ApplicationOptions.add`.
+description: str
+    The description of the option shown in the help output.
+target:
+    A `clingo.Flag` object that receives the value.
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
@@ -8255,8 +8262,8 @@ int
 static char const *clingoModuleDoc =
 "The clingo-" CLINGO_VERSION R"( module.
 
-This module provides functions and classes to work with ground terms and to
-control the instantiation process.
+This module provides functions and classes to control the grounding and solving
+process.
 
 If the clingo application is build with Python support, clingo will also be
 able to execute Python code embedded in logic programs.  Functions defined in a
