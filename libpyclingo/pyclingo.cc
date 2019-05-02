@@ -2937,8 +2937,8 @@ struct Assignment : ObjectBase<Assignment> {
     static constexpr char const *tp_doc = R"(Object to inspect the (parital) assignment of an associated solver.
 
 Assigns truth values to solver literals.  Each solver literal is either true,
-false, or undefined, represented by the python constants True, False, or None,
-respectively.)";
+false, or undefined, represented by the python constants `True`, `False`, or
+`None`, respectively.)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
@@ -3020,41 +3020,120 @@ respectively.)";
 };
 
 PyMethodDef Assignment::tp_methods[] = {
-    {"has_literal", to_function<&Assignment::hasLit>(), METH_O, R"(has_literal(self, lit) -> bool
+    {"has_literal", to_function<&Assignment::hasLit>(), METH_O, R"(has_literal(self, literal : int) -> bool
 
-Determine if the literal is valid in this solver.)"},
-    {"value", to_function<&Assignment::truthValue>(), METH_O, R"(value(self, lit) -> bool or None
+Determine if the given literal is valid in this solver.
 
-The truth value of the given literal or None if it has none.)"},
-    {"level", to_function<&Assignment::level>(), METH_O, R"(level(self, lit) -> int
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+bool
+)"},
+    {"value", to_function<&Assignment::truthValue>(), METH_O, R"(value(self, literal) -> Optional[bool]
+
+Get the truth value of the given literal or `None` if it has none.
+
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+Optional[bool]
+)"},
+    {"level", to_function<&Assignment::level>(), METH_O, R"(level(self, literal: int) -> int
 
 The decision level of the given literal.
 
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+int
+
+Notes
+-----
 Note that the returned value is only meaningful if the literal is assigned -
-i.e., value(lit) is not None.)"},
-    {"is_fixed", to_function<&Assignment::isFixed>(), METH_O, R"(is_fixed(self, lit) -> bool
+i.e., `value(lit) is not None`.
+)"},
+    {"is_fixed", to_function<&Assignment::isFixed>(), METH_O, R"(is_fixed(self, literal: int) -> bool
 
-Determine if the literal is assigned on the top level.)"},
-    {"is_true", to_function<&Assignment::isTrue>(), METH_O, R"(is_true(self, lit) -> bool
+Determine if the literal is assigned on the top level.
 
-Determine if the literal is true.)"},
-    {"is_false", to_function<&Assignment::isFalse>(), METH_O, R"(is_false(self, lit) -> bool
+Parameters
+----------
+literal : int
+    The solver literal.
 
-Determine if the literal is false.)"},
-    {"decision", to_function<&Assignment::decision>(), METH_O, R"(decision(self, level) -> int
+Returns
+-------
+bool
+)"},
+    {"is_true", to_function<&Assignment::isTrue>(), METH_O, R"(is_true(self, literal: int) -> bool
 
-    Return the decision literal of the given level.)"},
+Determine if the literal is true.
+
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+bool
+)"},
+    {"is_false", to_function<&Assignment::isFalse>(), METH_O, R"(is_false(self, literal: int) -> bool
+
+Determine if the literal is false.
+
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+bool
+)"},
+    {"decision", to_function<&Assignment::decision>(), METH_O, R"(decision(self, level: int) -> int
+
+Return the decision literal of the given level.
+
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+int
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef Assignment::tp_getset[] = {
-    {(char *)"has_conflict", to_getter<&Assignment::hasConflict>(), nullptr, (char *)R"(True if the assignment is conflicting.)", nullptr},
-    {(char *)"decision_level", to_getter<&Assignment::decisionLevel>(), nullptr, (char *)R"(The current decision level.)", nullptr},
-    {(char *)"root_level", to_getter<&Assignment::rootLevel>(), nullptr, (char *)R"(The current root level.)", nullptr},
-    {(char *)"size", to_getter<&Assignment::size>(), nullptr, (char *)R"(The number of assigned literals.)", nullptr},
-    {(char *)"max_size", to_getter<&Assignment::max_size>(), nullptr, (char *)R"(The maximum size of the assignment (if all literals are assigned).)", nullptr},
-    {(char *)"is_total", to_getter<&Assignment::isTotal>(), nullptr, (char *)R"(Whether the assignment is total.)", nullptr},
-    {(char *)"_to_c", to_getter<&Assignment::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_assignment_t struct.)", nullptr},
+    {(char *)"has_conflict", to_getter<&Assignment::hasConflict>(), nullptr, (char *)R"(has_conflict: bool
+True if the assignment is conflicting.)", nullptr},
+    {(char *)"decision_level", to_getter<&Assignment::decisionLevel>(), nullptr, (char *)R"(decision_level: int
+The current decision level.)", nullptr},
+    {(char *)"root_level", to_getter<&Assignment::rootLevel>(), nullptr, (char *)R"(root_level: int
+The current root level.)", nullptr},
+    {(char *)"size", to_getter<&Assignment::size>(), nullptr, (char *)R"(size: int
+The number of assigned literals.)", nullptr},
+    {(char *)"max_size", to_getter<&Assignment::max_size>(), nullptr, (char *)R"(max_size: int
+The maximum size of the assignment (if all literals are assigned).)", nullptr},
+    {(char *)"is_total", to_getter<&Assignment::isTotal>(), nullptr, (char *)R"(is_total: bool
+Whether the assignment is total.)", nullptr},
+    {(char *)"_to_c", to_getter<&Assignment::to_c>(), nullptr, (char *)R"(_to_c: int
+An int representing the pointer to the underlying C clingo_assignment_t struct.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 

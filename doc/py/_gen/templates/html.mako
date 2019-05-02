@@ -20,6 +20,15 @@
   def to_html(text):
     return _to_html(text, module=module, link=link)
 
+  def parse_var_docstring(f):
+    try:
+        lines = f.docstring.splitlines()
+        name, rettype = lines[0].split(":")
+        return ("\n".join(lines[1:]).strip(), rettype.strip())
+    except:
+        pass
+    return (f.docstring, None)
+
   def parse_docstring(f):
     try:
         lines = f.docstring.splitlines()
@@ -303,8 +312,11 @@
           <h3>Instance variables</h3>
           <dl>
           % for v in inst_vars:
-              <dt id="${v.refname}"><code class="name">var ${ident(v.name)}</code></dt>
-              <dd>${show_desc(v)}</dd>
+              <%
+              docstring, rettype = parse_var_docstring(v)
+              %>
+              <dt id="${v.refname}"><code class="name">var ${ident(v.name)}${"<span> : {}</span>".format(rettype) if rettype else ""}</code></dt>
+              <dd>${show_str_desc(docstring)}</dd>
           % endfor
           </dl>
       % endif

@@ -3,5 +3,6 @@ jekyll serve -l &
 trap "kill $!" EXIT
 cd _gen
 while inotifywait -e DELETE_SELF templates/html.mako ../../../build/*/bin/python/clingo*.so; do
+    sleep 1
     python3 gen.py
 done
