@@ -7405,23 +7405,27 @@ Add an option that is processed with a custom parser.
 
 Parameters
 ----------
-group: str
+group : str
     Options are grouped into sections as given by this string.
-option: str
+option : str
     Parameter option specifies the name(s) of the option. For example,
     `"ping,p"` adds the short option `-p` and its long form `--ping`. It is
     also possible to associate an option with a help level by adding `"@l"` to
     the option specification. Options with a level greater than zero are only
     shown if the argument to help is greater or equal to `l`.
-description: str
+description : str
     The description of the option shown in the help output.
-parser: Callback[[str], bool]
+parser : Callback[[str], bool]
     An option parser is a function that takes a string as input and returns
     true or false depending on whether the option was parsed successively.
-multi: bool=False
+multi : bool=False
     Whether the option can appear multiple times on the command-line.
-argument: str=None
+argument : str=None
     Otional string to change the value name in the generated help.
+
+Returns
+-------
+None
 
 Raises
 ------
@@ -7444,14 +7448,18 @@ the command line.
 
 Parameters
 ----------
-group: str
+group : str
     Options are grouped into sections as given by this string.
-option: str
+option : str
     Same as for `clingo.ApplicationOptions.add`.
-description: str
+description : str
     The description of the option shown in the help output.
-target:
+target : Flag
     A `clingo.Flag` object that receives the value.
+
+Returns
+-------
+None
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
@@ -8008,7 +8016,7 @@ The function also evaluates arithmetic functions.
 
 Parameters
 ----------
-string : string
+string : str
     The string to be parsed.
 logger : Callback[[MessageCode,str],None] = None
     Function to intercept messages normally printed to standard error.
