@@ -2157,7 +2157,7 @@ PyMethodDef SymbolicAtoms::tp_methods[] = {
     {"by_signature", to_function<&SymbolicAtoms::by_signature>(), METH_KEYWORDS | METH_VARARGS,
 R"(`by_signature(self, name, arity, positive) -> SymbolicAtomIter`
 
-Return a `clingo.SymbolicAtomIter` to iterate over the symbolic atoms with the
+Return a `SymbolicAtomIter` to iterate over the symbolic atoms with the
 given signature.
 
 ### Arguments
@@ -7520,7 +7520,7 @@ somewhere.
 
 Add an option that is a simple flag.
 
-This function is similar to `clingo.ApplicationOptions.add` but simpler because
+This function is similar to `ApplicationOptions.add` but simpler because
 it only supports flags, which do not have values. Note that the target
 parameter must be of type Flag, which is set to true if the flag is passed on
 the command line.
@@ -7530,11 +7530,11 @@ Parameters
 group : str
     Options are grouped into sections as given by this string.
 option : str
-    Same as for `clingo.ApplicationOptions.add`.
+    Same as for `ApplicationOptions.add`.
 description : str
     The description of the option shown in the help output.
 target : Flag
-    A `clingo.Flag` object that receives the value.
+    The object that receives the value.
 
 Returns
 -------
