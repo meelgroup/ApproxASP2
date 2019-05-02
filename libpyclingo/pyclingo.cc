@@ -3507,6 +3507,8 @@ static bool propagator_decide(clingo_id_t solverId, clingo_assignment_t const *a
 
 // {{{1 wrap observer
 
+#pragma message "add aliases for backward compatibility"
+
 struct TruthValue : EnumType<TruthValue> {
     using Type = clingo_external_type;
     static constexpr char const *tp_type = "TruthValue";
@@ -3517,8 +3519,8 @@ R"(Enumeration of the different truth values.
 TruthValue objects cannot be constructed from python. Instead the following
 preconstructed objects are available:
 
-TruthValue._True   -- truth value true
-TruthValue._False  -- truth value false
+TruthValue.True_   -- truth value true
+TruthValue.False_  -- truth value false
 TruthValue.Free    -- no truth value
 TruthValue.Release -- indicates that an atom is to be released)";
 
@@ -3529,10 +3531,10 @@ TruthValue.Release -- indicates that an atom is to be released)";
         clingo_external_type_release
     };
     static constexpr const char * const strings[] = {
-        "_True",
-        "_False",
+        "True_",
+        "False_",
         "Free",
-        "Release"
+        "Release",
     };
 };
 
@@ -3561,8 +3563,6 @@ HeuristicType.Release -- indicates that an atom is to be released)";
         clingo_heuristic_type_init,
         clingo_heuristic_type_true,
         clingo_heuristic_type_false,
-        clingo_heuristic_type_true,
-        clingo_heuristic_type_false
     };
     static constexpr const char * const strings[] = {
         "Level",
@@ -3571,8 +3571,6 @@ HeuristicType.Release -- indicates that an atom is to be released)";
         "Init",
         "True_",
         "False_",
-        "True",
-        "False"
     };
 };
 
@@ -3686,8 +3684,19 @@ struct Backend : ObjectBase<Backend> {
     static constexpr char const *tp_doc =
     R"(Backend object providing a low level interface to extend a logic program.
 
-This class provides an interface that allows for adding statements in ASPIF
-format.)";
+This class allows for adding statements in ASPIF format.
+
+Notes
+-----
+Statements added with the backend are added directly to the solver.
+For example, the grounding componenet will not be aware if facts were added to a program via the backend.
+The only exception are atoms added with `Backend.add_atom`, which will subsequently be used to instantiate rules.
+Furthermore, the `Control.cleanup` method can be used to transfer information about facts back to the grounder.
+
+See Also
+--------
+Control.backend
+)";
 
     static Object construct(clingo_backend_t *backend) {
         if (!backend) {
@@ -3831,57 +3840,79 @@ R"(__enter__(self) -> Backend
 
 Initialize the backend.
 
-Must be called before using the backend.)"},
+Notes
+-----
+Must be called before using the backend.
+)"},
     {"__exit__", to_function<&Backend::exit>(), METH_VARARGS,
-R"(__exit__(self, type, value, traceback) -> bool
+R"(__exit__(self, type : Optional[Type[BaseException]], value : Optional[BaseException], traceback : Optional[TracebackType]) -> bool
 
 Finalize the backend.
 
+Notes
+-----
 Follows python __exit__ conventions. Does not suppress exceptions.
 )"},
     // add_atom
     {"add_atom", to_function<&Backend::addAtom>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_atom(self, symbol) -> Int
+R"(add_atom(self, symbol : Optional[Symbol]=None) -> int
 
 Return a fresh program atom or the atom associated with the given symbol.
 
 If the given symbol does not exist in the atom base, it is added first. Such
-atoms will be used in susequents calls to ground for instantiation.
-
-Keyword Arguments:
-symbol -- optional symbol (Default: None)
-)"},
-    // add_external
-    {"add_external", to_function<&Backend::addExternal>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_external(self, atom, value) -> Int
-
-Mark an atom as external optionally fixing its truth value.
-
-Can also be used to unmark an external atom.
+atoms will be used in subequents calls to ground for instantiation.
 
 Parameters
 ----------
-atom -- the atom to mark as external
+symbol : Optional[Symbol]=None
+    The symbol associated with the atom.
 
-Keyword Arguments:
-value -- optional truth value (Default: TruthValue._False)
+Returns
+-------
+int
+    The program atom representing the atom.
+)"},
+    // add_external
+    {"add_external", to_function<&Backend::addExternal>(), METH_VARARGS | METH_KEYWORDS,
+R"(add_external(self, atom : int, value : TruthValue=TruthValue.False_) -> None
+
+Mark a program atom as external optionally fixing its truth value.
+
+Parameters
+----------
+atom : int
+    The program atom to mark as external.
+value : TruthValue=TruthValue.False_
+    Optional truth value.
+
+Returns
+-------
+None
+
+Notes
+-----
+Can also be used to release an external atom using `TruthValue.Release`.
 )"},
     // add_rule
     {"add_rule", to_function<&Backend::addRule>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_rule(self, head, body, choice) -> None
+R"(add_rule(self, head: List[int], body: List[int]=[], choice: bool=False) -> None
 
 Add a disjuntive or choice rule to the program.
 
 Parameters
 ----------
-head -- list of program atoms
+head : List[int]
+    The program atoms forming the rule head.
+body : List[int]=[]
+    The program literals forming the rule body.
+choice : bool=False
+    Whether to add a disjunctive or choice rule.
 
-Keyword Arguments:
-body   -- list of program literals (Default: [])
-choice -- whether to add a disjunctive or choice rule (Default: False)
-
+Notes
+-----
 Integrity constraints and normal rules can be added by using an empty or
-singleton head list, respectively.)"},
+singleton head list, respectively.
+)"},
     // add_weight_rule
     {"add_weight_rule", to_function<&Backend::addWeightRule>(), METH_VARARGS | METH_KEYWORDS,
 R"(add_weight_rule(self, head, lower, body, choice) -> None

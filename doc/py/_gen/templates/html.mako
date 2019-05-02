@@ -16,14 +16,18 @@
     url = re.sub('.*ast.html', '{}/clingo/ast/'.format(base_url), url)
     return '<a title="{}" href="{}">{}</a>'.format(d.refname, url, name)
 
-  _re_returns = re.compile(r"^(?<=Returns\n-{7}\n)(?P<type>[^\n]*)(?=(\Z|\n\Z|\n[^ ]))", re.MULTILINE)
-  def _rep_returns(match):
-    return '{}\n    DUMMY DESRIPTION TO REMOVE'.format(match.group('type'))
+  _re_returns = re.compile(r"^(?<=Returns\n-{7}\n)(?P<type>[^\n]*)(?P<desc>(\n    )?)", re.MULTILINE)
+  def _sub_returns(match):
+    desc = match.group("desc")
+    if not desc:
+        desc = "\n    DUMMY DESRIPTION TO REMOVE"
+    return 'DUMMYNAME : {}{}'.format(match.group('type'), desc)
 
   def to_html(text):
-    text = _re_returns.sub(_rep_returns, text)
+    text = _re_returns.sub(_sub_returns, text)
     text = _to_html(text, module=module, link=link, _code_refs=re.compile(r'(?<![\\])`(?!])(?:[^`]|(?<=\\)`)+`').sub)
     text = text.replace('<dd>DUMMY DESRIPTION TO REMOVE</dd>', '')
+    text = text.replace('<strong><code>DUMMYNAME</code></strong> :&ensp;', '')
     return text
 
   def parse_var_docstring(f):
