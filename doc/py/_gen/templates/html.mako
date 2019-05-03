@@ -25,11 +25,13 @@
 
   def to_html(text):
     text = text.replace('Tuple[', '_Tuple[')
+    text = text.replace('Answer:', 'AnswerDUMMY')
     text = _re_returns.sub(_sub_returns, text)
     text = _to_html(text, module=module, link=link, _code_refs=re.compile(r'(?<![\\])`(?!])(?:[^`]|(?<=\\)`)+`').sub)
     text = text.replace('<dd>DUMMY DESRIPTION TO REMOVE</dd>', '')
     text = text.replace('<strong><code>DUMMYNAME</code></strong> :&ensp;', '')
     text = text.replace('_Tuple', 'Tuple')
+    text = text.replace('AnswerDUMMY', 'Answer:')
     return text
 
   def parse_var_docstring(f):
