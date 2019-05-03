@@ -2933,11 +2933,16 @@ SAT
 
 PyGetSetDef Configuration::tp_getset[] = {
     // keys
-    {(char *)"keys", to_getter<&Configuration::keys>(), nullptr,
-(char *)R"(The list of names of sub-option groups or options.
+    {(char *)"keys", to_getter<&Configuration::keys>(), nullptr, (char *)R"(keys: Optional[List[str]]
 
-The list is None if the current object is not an option group.)", nullptr},
-    {(char *)"_to_c", to_getter<&Configuration::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_configuration_t struct.)", nullptr},
+The list of names of sub-option groups or options.
+
+The list is `None` if the current object is not an option group.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&Configuration::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C clingo_configuration_t struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -3526,8 +3531,6 @@ static bool propagator_decide(clingo_id_t solverId, clingo_assignment_t const *a
 }
 
 // {{{1 wrap observer
-
-#pragma message "add aliases for backward compatibility"
 
 struct TruthValue : EnumType<TruthValue> {
     using Type = clingo_external_type;
@@ -6603,19 +6606,25 @@ struct ControlWrap : ObjectBase<ControlWrap> {
     static constexpr char const *tp_type = "Control";
     static constexpr char const *tp_name = "clingo.Control";
     static constexpr char const *tp_doc =
-    R"(Control(arguments) -> Control
+    R"(Control(arguments: List[str]=[], logger: Callback[[MessageCode,str],None]=None, message_limit: int=20) -> Control
 
 Control object for the grounding/solving process.
 
-Keyword Arguments:
-arguments     -- arguments to the grounder and solver (default: []).
-logger        -- function to intercept messages normally printed to standard
-                 error (default: None)
-message_limit -- maximum number of messages passed to the logger (default: 20)
+Parameters
+----------
+arguments : List[str]
+    Arguments to the grounder and solver.
+logger : Callback[[MessageCode,str],None]=None
+    Function to intercept messages normally printed to standard error.
+message_limit : int
+    The maximum number of messages passed to the logger.
 
-Note that only gringo options (without --text) and clasp's search options are
+Notes
+-----
+Note that only gringo options (without `--text`) and clasp's search options are
 supported. Furthermore, a Control object is blocked while a search call is
-active; you must not call any member function during search.)";
+active; you must not call any member function during search.
+)";
     struct Block {
         Block(bool &blocked, char const *function) : blocked_(blocked) {
             if (blocked) {

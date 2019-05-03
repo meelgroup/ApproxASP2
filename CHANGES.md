@@ -8,8 +8,8 @@
   * fix python memleaks
   * make compatible with msvc 15
   * C ABI changes regarding propagators
-  * TruthValue.{\_True,\_False} becomes TruthValue.{True\_,\False\_} in python API
-    * the old values are still available as aliases
+  * TruthValue.{\_True,\_False} becomes TruthValue.{True\_,False\_} in python API
+  * HeuristicType.{True,False} becomes TruthValue.{True\_,False\_} in python API
 ## clingo 5.3.0
   * change C API to use numeric instead of symbolic literals
     * affects assumptions and assigning/releasing externals
