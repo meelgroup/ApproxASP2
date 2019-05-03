@@ -43,6 +43,17 @@
         pass
     return (f.docstring, None)
 
+  def parse_class_docstring(f):
+    try:
+        lines = f.docstring.splitlines()
+        signature = lines[0]
+        print (signature)
+        if signature.startswith(f.name) and signature.find("->") >= 0:
+            return ("\n".join(lines[1:]).strip(), signature[len(f.name):])
+    except:
+        pass
+    return (f.docstring, None)
+
   def parse_docstring(f):
     try:
         lines = f.docstring.splitlines()
@@ -287,6 +298,7 @@
       methods = c.methods(show_inherited_members, sort=sort_identifiers)
       mro = c.mro()
       subclasses = c.subclasses()
+      docstring, signature = parse_class_docstring(c)
       %>
       <dt id="${c.refname}"><code class="flex name class">
           <span>class ${ident(c.name)}</span>
@@ -295,7 +307,8 @@
           %endif
       </code></dt>
 
-      <dd>${show_desc(c)}
+      <dd>
+      ${show_str_desc(docstring)}
 
       % if subclasses:
           <h3>Subclasses</h3>
@@ -338,7 +351,16 @@
           <h3>Methods</h3>
           <dl>
           % for f in methods:
-              ${show_func(f)}
+              % if f.name == "__init__":
+                  <dt id="${f.refname}"><code class="name flex">
+                  <span>def <span class="ident">__init__</span></span>${signature}</span>
+                  </code></dt>
+                  <dd>
+                  <section class="desc"><p>See the class description for more information.</p></section>
+                  </dd>
+              % else:
+                  ${show_func(f)}
+              % endif
           % endfor
           </dl>
       % endif
