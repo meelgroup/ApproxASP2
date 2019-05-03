@@ -3121,18 +3121,25 @@ int
 
 PyGetSetDef Assignment::tp_getset[] = {
     {(char *)"has_conflict", to_getter<&Assignment::hasConflict>(), nullptr, (char *)R"(has_conflict: bool
+
 True if the assignment is conflicting.)", nullptr},
     {(char *)"decision_level", to_getter<&Assignment::decisionLevel>(), nullptr, (char *)R"(decision_level: int
+
 The current decision level.)", nullptr},
     {(char *)"root_level", to_getter<&Assignment::rootLevel>(), nullptr, (char *)R"(root_level: int
+
 The current root level.)", nullptr},
     {(char *)"size", to_getter<&Assignment::size>(), nullptr, (char *)R"(size: int
+
 The number of assigned literals.)", nullptr},
     {(char *)"max_size", to_getter<&Assignment::max_size>(), nullptr, (char *)R"(max_size: int
+
 The maximum size of the assignment (if all literals are assigned).)", nullptr},
     {(char *)"is_total", to_getter<&Assignment::isTotal>(), nullptr, (char *)R"(is_total: bool
+
 Whether the assignment is total.)", nullptr},
     {(char *)"_to_c", to_getter<&Assignment::to_c>(), nullptr, (char *)R"(_to_c: int
+
 An int representing the pointer to the underlying C clingo_assignment_t struct.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
@@ -3840,6 +3847,11 @@ R"(__enter__(self) -> Backend
 
 Initialize the backend.
 
+Returns
+-------
+Backend
+    Returns the backend itself.
+
 Notes
 -----
 Must be called before using the backend.
@@ -3908,6 +3920,10 @@ body : List[int]=[]
 choice : bool=False
     Whether to add a disjunctive or choice rule.
 
+Returns
+-------
+None
+
 Notes
 -----
 Integrity constraints and normal rules can be added by using an empty or
@@ -3915,76 +3931,123 @@ singleton head list, respectively.
 )"},
     // add_weight_rule
     {"add_weight_rule", to_function<&Backend::addWeightRule>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_weight_rule(self, head, lower, body, choice) -> None
+R"(add_weight_rule(self, head: List[int], lower: int, body: List[Tuple[int,int]], choice: bool=False) -> None
+
 Add a disjuntive or choice rule with one weight constraint with a lower bound
 in the body to the program.
 
 Parameters
 ----------
-head  -- list of program atoms
-lower -- integer for the lower bound
-body  -- list of pairs of program literals and weights
+head : List[int]
+    The program atoms forming the rule head.
+lower : int
+    The lower bound.
+body : List[Tuple[int,int]]
+    The pairs of program literals and weights forming the elements of the
+    weight constraint.
+choice : bool=False
+    Whether to add a disjunctive or choice rule.
 
-Keyword Arguments:
-choice -- whether to add a disjunctive or choice rule (Default: False)
+Returns
+-------
+None
 )"},
     // add_minimize
     {"add_minimize", to_function<&Backend::addMinimize>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_minimize(self, priority, literals) -> None
+R"(add_minimize(self, priority: int, literals: List[Tuple[int,int]]) -> None
+
 Add a minimize constraint to the program.
 
 Parameters
 ----------
-priority -- integer for the priority
-literals -- list of pairs of program literals and weights
+priority : int
+    Integer for the priority.
+literals : List[Tuple[int,int]]
+    List of pairs of program literals and weights.
+
+Returns
+-------
+None
 )"},
     // add_project
     {"add_project", to_function<&Backend::addProject>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_project(self, atoms) -> None
+R"(add_project(self, atoms: List[int]) -> None
+
 Add a project statement to the program.
 
 Parameters
 ----------
-atoms -- list of atoms
+atoms : List[int]
+    List of program atoms to project on.
+
+Returns
+-------
+None
 )"},
     // add_assume
     {"add_assume", to_function<&Backend::addAssume>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_assume(self, literals) -> None
+R"(add_assume(self, literals: List[int]) -> None
+
 Add assumptions to the program.
 
 Parameters
 ----------
-literals -- list of literals
+literals : List[int]
+    The list of literals to assume true.
+
+Returns
+-------
+None
 )"},
     // add_heuristic
     {"add_heuristic", to_function<&Backend::addHeuristic>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_heuristic(self, atom, type, bias, priority, condition) -> None
+R"(add_heuristic(self, atom: int, type: HeuristicType, bias: int, priority: int, condition: List[int]) -> None
+
 Add a heuristic directive to the program.
 
 Parameters
 ----------
-atom      -- atom to heuristically modify
-type      -- type of modification (see HeuristicType)
-bias      -- a signed integer
-priority  -- an unsigned integer
-condition -- list of literals
+atom : int
+    Program atom to heuristically modify.
+type : HeuristicType
+    The type of modification.
+bias : int
+    A signed integer.
+priority : int
+    An unsigned integer.
+condition : List[int]
+    List of program literals.
+
+Returns
+-------
+None
 )"},
     // add_acyc_edge
     {"add_acyc_edge", to_function<&Backend::addAcycEdge>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_acyc_edge(self, node_u, node_v, condition) -> None
+R"(add_acyc_edge(self, node_u: int, node_v: int, condition: List[int]) -> None
+
 Add an edge directive to the program.
 
 Parameters
 ----------
-node_u    -- start node
-node_v    -- end node
-condition -- list of literals
+node_u : int
+    The start node represented as an unsigned integer.
+node_v : int
+    The end node represented as an unsigned integer.
+condition : List[int]
+    List of program literals.
+
+Returns
+-------
+None
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef Backend::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&Backend::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_backend_t struct.)", nullptr},
+    {(char *)"_to_c", to_getter<&Backend::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C clingo_backend_t struct.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
