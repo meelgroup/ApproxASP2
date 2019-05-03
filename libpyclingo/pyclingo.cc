@@ -7194,7 +7194,7 @@ SolveControl.release_external, SolveControl.symbolic_atoms, SymbolicAtom.is_exte
 )"},
     // release_external
     {"release_external", to_function<&ControlWrap::release_external>(), METH_VARARGS,
-R"(release_external(self, symbol) -> None
+R"(release_external(self, symbol: Union[Symbol,int]) -> None
 
 Release an external atom represented by the given symbol or program literal.
 
@@ -7202,46 +7202,55 @@ This function causes the corresponding atom to become permanently false if
 there is no definition for the atom in the program. Otherwise, the function has
 no effect.
 
+Parameters
+----------
+symbol : Union[Symbol,int]
+    The symbolic atom or program atom to release.
+
+Notes
+-----
 If the program literal is negative, the corresponding atom is released.
 
-Example:
+Examples
+--------
+The following example shows the effect of assigning and releasing and external
+atom.
 
-#script (python)
-from clingo import function
-
-def main(prg):
-    prg.ground([("base", [])])
-    prg.assign_external(Function("b"), True)
-    prg.solve()
-    prg.release_external(Function("b"))
-    prg.solve()
-
-#end.
-
-a.
-#external b.
-
-Expected Answer Sets:
-a b
-a
+```python
+>>> import clingo
+>>> ctl = clingo.Control()
+>>> ctl.add("base", [], "a. #external b.")
+>>> ctl.ground([("base", [])])
+>>> ctl.assign_external(clingo.Function("b"), True)
+>>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+Answer: b a
+SAT
+>>> ctl.release_external(clingo.Function("b"))
+>>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+Answer: a
+SAT
+```
 )"},
     {"register_observer", to_function<&ControlWrap::registerObserver>(), METH_VARARGS | METH_KEYWORDS,
-R"(register_observer(self, observer, replace) -> None
+R"(register_observer(self, observer: Observer, replace: bool=False) -> None
 
 Registers the given observer to inspect the produced grounding.
 
 Parameters
 ----------
-observer -- the observer to register
+observer : Observer
+    The observer to register. See below for a description of the requirede
+    interface.
+replace : bool=False
+    If set to true, the output is just passed to the observer and nolonger to
+    the underlying solver (or any previously registered observers).
 
-Keyword Arguments:
-replace  -- if set to true, the output is just passed to the observer and no
-            longer to the underlying solver
-            (Default: False)
-
+Notes
+-----
 An observer should be a class of the form below. Not all functions have to be
 implemented and can be omitted if not needed.
 
+```python
 class GroundProgramObserver:
     init_program(self, incremental) -> None
         Called once in the beginning.
@@ -7401,7 +7410,9 @@ class GroundProgramObserver:
     end_step(self) -> None
         Marks the end of a block of directives passed to the solver.
 
-        This function is called right before solving starts.)"},
+        This function is called right before solving starts.
+```
+)"},
     {"register_propagator", to_function<&ControlWrap::registerPropagator>(), METH_O,
 R"(register_propagator(self, propagator) -> None
 
