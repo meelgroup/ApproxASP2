@@ -6920,190 +6920,228 @@ PyMethodDef ControlWrap::tp_methods[] = {
     {"builder", to_function<&ControlWrap::builder>(), METH_NOARGS,
 R"(builder(self) -> ProgramBuilder
 
-Return a builder to construct non-ground logic programs.
+Return a builder to construct a non-ground logic programs.
 
-Example:
+Returns
+-------
+ProgramBuilder
 
-#script (python)
+See Also
+--------
+clingo.parse_program
 
-import clingo
+Examples
+--------
+The following example parses a program from a string and passes the resulting
+AST to the builder:
 
-def main(prg):
-    s = "a."
-    with prg.builder() as b:
-        clingo.parse_program(s, lambda stm: b.add(stm))
-    prg.ground([("base", [])])
-    prg.solve()
-
-#end.
+```python
+>>> import clingo
+>>> ctl = clingo.Control()
+>>> s = "a."
+>>> with ctl.builder() as b:
+...    clingo.parse_program(s, lambda stm: b.add(stm))
+...
+>>> ctl.ground([("base", [])])
+>>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+Answer: a
+SAT
+```
 )"},
     // ground
     {"ground", to_function<&ControlWrap::ground>(), METH_KEYWORDS | METH_VARARGS,
-R"(ground(self, parts, context) -> None
+R"(ground(self, parts: List[Tuple[str,List[Symbol]]], context: Any=None) -> None
 
 Ground the given list of program parts specified by tuples of names and arguments.
 
-Keyword Arguments:
-parts   -- list of tuples of program names and program arguments to ground
-context -- context object whose methods are called during grounding using
-           the `@`-syntax (if omitted methods from the main module are used)
+Parameters
+----------
+parts : List[Tuple[str,List[Symbol]]]
+    List of tuples of program names and program arguments to ground.
+context : Any=None
+    A context object whose methods are called during grounding using the
+    `@`-syntax (if omitted methods, from the main module are used).
 
-Note that parts of a logic program without an explicit #program specification
-are by default put into a program called base without arguments.
+Notes
+-----
+Note that parts of a logic program without an explicit `#program` specification
+are by default put into a program called `base` without arguments.
 
-Example:
+Examples
+--------
 
-#script (python)
-import clingo
-
-def main(prg):
-    parts = []
-    parts.append(("p", [1]))
-    parts.append(("p", [2]))
-    prg.ground(parts)
-    prg.solve()
-
-#end.
-
-#program p(t).
-q(t).
-
-Expected Answer Set:
-q(1) q(2))"},
+```python
+>>> import clingo
+>>> ctl = clingo.Control()
+>>> ctl.add("p", ["t"], "q(t).")
+>>> parts = []
+>>> parts.append(("p", [1]))
+>>> parts.append(("p", [2]))
+>>> ctl.ground(parts)
+>>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+Answer: q(1) q(2)
+SAT
+```
+)"},
     // get_const
     {"get_const", to_function<&ControlWrap::getConst>(), METH_VARARGS,
-R"(get_const(self, name) -> Symbol
+R"(get_const(self, name: str) -> Optional[Symbol]
 
-Return the symbol for a constant definition of form: #const name = symbol.)"},
+Return the symbol for a constant definition of form: `#const name = symbol.`
+
+Parameters
+----------
+name : str
+    The name of the constant to retrieve.
+
+Returns
+-------
+Optional[Symbol]
+    The function returns `None` if no matching constant definition exists.
+)"},
     // add
     {"add", to_function<&ControlWrap::add>(), METH_VARARGS,
-R"(add(self, name, params, program) -> None
+R"(add(self, name: str, parameters: List[str], program: str) -> None
 
 Extend the logic program with the given non-ground logic program in string form.
 
 Parameters
 ----------
-name    -- name of program block to add
-params  -- parameters of program block
-program -- non-ground program as string
+name : str
+    The name of program block to add.
+parameters : List[str]
+    The parameters of the program block to add.
+program : str
+    The non-ground program in string form.
 
-Example:
+Returns
+-------
+None
 
-#script (python)
-import clingo
-
-def main(prg):
-    prg.add("p", ["t"], "q(t).")
-    prg.ground([("p", [2])])
-    prg.solve()
-
-#end.
-
-Expected Answer Set:
-q(2))"},
+See Also
+--------
+Control.ground
+)"},
     // load
     {"load", to_function<&ControlWrap::load>(), METH_VARARGS,
-R"(load(self, path) -> None
+R"(load(self, path: str) -> None
 
 Extend the logic program with a (non-ground) logic program in a file.
 
 Parameters
 ----------
-path -- path to program)"},
+path : str
+    The path of the file to load.
+
+Returns
+-------
+None
+)"},
     // solve
     {"solve", to_function<&ControlWrap::solve>(), METH_KEYWORDS | METH_VARARGS,
-R"(solve(self, assumptions, on_model, on_finish, yield_, async_) -> SolveHandle|SolveResult
+R"(solve(self, assumptions: List[Union[Tuple[Symbol,bool],int]]=[], on_model: Callback[[Model],Optional[bool]]=None, on_statistics : Callback[[StatisticsMap,StatisticsMap],None]=None, on_finish: Callback[[SolveResult,bool],None]=None, yield_: bool=False, async_: bool=False) -> Union[SolveHandle,SolveResult]
 
 Starts a search.
 
-Keyword Arguments:
-on_model      -- Optional callback for intercepting models.
-                 A Model object is passed to the callback.
-                 The search can be interruped from the model callback by
-                 returning False.
-                 (Default: None)
-on_statistics -- Optional callback to update statistics.
-                 The step and accumulated statistics are passed as arguments.
-                 (Default: None)
-on_finish     -- Optional callback called once search has finished.
-                 A SolveResult and a Boolean indicating whether the solve call
-                 has been canceled is passed to the callback.
-                 (Default: None)
-assumptions   -- List of (atom, boolean) tuples or program literals that serve
-                 as assumptions for the solve call, e.g. - solving under
-                 assumptions [(Function("a"), True)] only admits answer sets
-                 that contain atom a.
-                 (Default: [])
-yield_        -- The resulting SolveHandle is iterable yielding Model objects.
-                 (Default: False)
-async_        -- The solve call and SolveHandle.resume() are non-blocking.
-                 (Default: False)
+Parameters
+----------
+assumptions : List[Union[Tuple[Symbol,bool],int]]=[]
+    List of (atom, boolean) tuples or program literals that serve
+    as assumptions for the solve call, e.g. - solving under
+    assumptions `[(Function("a"), True)]` only admits answer sets
+    that contain atom `a`.
+on_model : Callback[[Model],Optional[bool]]=None
+    Optional callback for intercepting models.
+    A `Model` object is passed to the callback.
+    The search can be interruped from the model callback by
+    returning False.
+on_statistics : Callback[[StatisticsMap,StatisticsMap],None]=None
+    Optional callback to update statistics.
+    The step and accumulated statistics are passed as arguments.
+on_finish : Callback[[SolveResult,bool],None]=None
+    Optional callback called once search has finished.
+    A `SolveResult` and a `bool` indicating whether the solve call
+    has been intrrupted or canceled are passed to the callback.
+yield_ : bool=False
+    The resulting `SolveHandle` is iterable yielding `Model` objects.
+async_ : bool=False
+    The solve call and the method `SolveHandle.resume` of the returned handle
+    are non-blocking.
 
-If neither yield_ nor async_ is set, the function returns a SolveResult right
+Returns
+-------
+Union[SolveHandle,SolveResult]
+    The return value depends on the parameters. If either `yield_` or `async_`
+    is true, then a handle is returned. Otherwise, a `SolveResult` is returned.
+
+Notes
+-----
+If neither `yield_` nor `async_` is set, the function returns a SolveResult right
 away.
 
 Note that in gringo or in clingo with lparse or text output enabled this
-function just grounds and returns a SolveResult where SolveResult.satisfiable
-is True.
+function just grounds and returns a SolveResult where `SolveResult.unknown`
+is true.
 
-You might want to start clingo using the --outf=3 option to disable all output
-from clingo.
+If this function is used in embedded python code, you might want to start
+clingo using the `--outf=3` option to disable all output from clingo.
 
 Note that asynchronous solving is only available in clingo with thread support
 enabled. Furthermore, the on_model and on_finish callbacks are called from
-another thread.  To ensure that the methods can be called, make sure to not use
-any functions that block the GIL indefinitely.
+another thread. To ensure that the methods can be called, make sure to not use
+any functions that block python's GIL indefinitely.
 
-This function as well as blocking functions on the SolveHandle release the GIL
+This function as well as blocking functions on the `SolveHandle` release the GIL
 but are not thread-safe.
 
-Example:
+Examples
+--------
 
-#script (python)
-import clingo
+The following example shows how to intercept models with a callback:
 
-def main(prg):
-    prg.add("p", [], "{a;b;c}.")
-    prg.ground([("p", [])])
-    ret = prg.solve()
-    print(ret)
+```python
+>>> import clingo
+>>> ctl = clingo.Control("0")
+>>> ctl.add("p", [], "1 { a; b } 1.")
+>>> ctl.ground([("p", [])])
+>>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+Answer: a
+Answer: b
+SAT
+```
 
-#end.
+The following example shows how to yield models:
 
-Yielding Example:
+```python
+>>> import clingo
+>>> ctl = clingo.Control("0")
+>>> ctl.add("p", [], "1 { a; b } 1.")
+>>> ctl.ground([("p", [])])
+>>> with ctl.solve(yield_=True) as handle:
+...     for m in handle: print("Answer: {}".format(m))
+...     handle.get()
+...
+Answer: a
+Answer: b
+SAT
+```
 
-#script (python)
-import clingo
+The following example shows how to solve asynchronously:
 
-def main(prg):
-    prg.add("p", [], "{a;b;c}.")
-    prg.ground([("p", [])])
-    with prg.solve(yield_=True) as handle:
-        for m in handle: print m
-        print(handle.get())
-
-#end.
-
-Asynchronous Example:
-
-#script (python)
-import clingo
-
-def on_model(model):
-    print model
-
-def on_finish(res, canceled):
-    print res, canceled
-
-def main(prg):
-    prg.add("p", [], "{a;b;c}.")
-    prg.ground([("base", [])])
-    with prg.solve(on_model=on_model, on_finish=on_finish, async_=True) as handle:
-        while not handle.wait(0):
-            # do something asynchronously
-        print(handle.get())
-
-#end.)"},
+```python
+>>> import clingo
+>>> ctl = clingo.Control("0")
+>>> ctl.add("p", [], "1 { a; b } 1.")
+>>> ctl.ground([("p", [])])
+>>> with ctl.solve(on_model=lambda m: print("Answer: {}".format(m)), async_=True) as handle:
+...     while not handle.wait(0): pass
+...     handle.get()
+...
+Answer: a
+Answer: b
+SAT
+```
+)"},
     // cleanup
     {"cleanup", to_function<&ControlWrap::cleanup>(), METH_NOARGS,
 R"(cleanup(self) -> None
@@ -7116,35 +7154,44 @@ simplifying the current program representation (falsifying released external
 atoms).  Afterwards, the top-level implications are used to either remove atoms
 from the domain or mark them as facts.
 
-Note that any atoms falsified are completely removed from the logic program.
-Hence, a definition for such an atom in a successive step introduces a fresh atom.)"},
+Returns
+-------
+None
+
+Notes
+-----
+Any atoms falsified are completely removed from the logic program. Hence, a
+definition for such an atom in a successive step introduces a fresh atom.
+)"},
     // assign_external
     {"assign_external", to_function<&ControlWrap::assign_external>(), METH_VARARGS,
-R"(assign_external(self, external, truth) -> None
+R"(assign_external(self, external: Union[Symbol,int], truth: Optional[bool]) -> None
 
-Assign a truth value to an external atom (represented as a function symbol or
-program literal).
+Assign a truth value to an external atom.
 
-It is possible to assign a Boolean or None.  A Boolean fixes the external to the
-respective truth value; and None leaves its truth value open.
+Parameters
+----------
+external : Union[Symbol,int]
+    A symbol or program literal representing the external atom.
+truth : Optional[bool]
+    A Boolean fixes the external to the respective truth value; and None leaves
+    its truth value open.
 
+Notes
+-----
 The truth value of an external atom can be changed before each solve call. An
-atom is treated as external if it has been declared using an #external
-directive, and has not been forgotten by calling release_external() or defined
+atom is treated as external if it has been declared using an `#external`
+directive, and has not been released by calling release_external() or defined
 in a logic program with some rule. If the given atom is not external, then the
 function has no effect.
 
 For convenience, the truth assigned to atoms over negative program literals is
 inverted.
 
-Parameters
-----------
-external -- symbol or program literal representing the external atom
-truth    -- bool or None indicating the truth value
-
-To determine whether an atom a is external, inspect the symbolic_atoms using
-SolveControl.symbolic_atoms[a].is_external. See release_external() for an
-example.)"},
+See Also
+--------
+SolveControl.release_external, SolveControl.symbolic_atoms, SymbolicAtom.is_external
+)"},
     // release_external
     {"release_external", to_function<&ControlWrap::release_external>(), METH_VARARGS,
 R"(release_external(self, symbol) -> None
@@ -7176,7 +7223,8 @@ a.
 
 Expected Answer Sets:
 a b
-a)"},
+a
+)"},
     {"register_observer", to_function<&ControlWrap::registerObserver>(), METH_VARARGS | METH_KEYWORDS,
 R"(register_observer(self, observer, replace) -> None
 
