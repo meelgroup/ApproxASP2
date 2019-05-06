@@ -7177,6 +7177,10 @@ truth : Optional[bool]
     A Boolean fixes the external to the respective truth value; and None leaves
     its truth value open.
 
+Returns
+-------
+None
+
 Notes
 -----
 The truth value of an external atom can be changed before each solve call. An
@@ -7206,6 +7210,10 @@ Parameters
 ----------
 symbol : Union[Symbol,int]
     The symbolic atom or program atom to release.
+
+Returns
+-------
+None
 
 Notes
 -----
@@ -7245,6 +7253,10 @@ replace : bool=False
     If set to true, the output is just passed to the observer and nolonger to
     the underlying solver (or any previously registered observers).
 
+Returns
+-------
+None
+
 Notes
 -----
 An observer should be a class of the form below. Not all functions have to be
@@ -7252,165 +7264,359 @@ implemented and can be omitted if not needed.
 
 ```python
 class GroundProgramObserver:
-    init_program(self, incremental) -> None
+    def init_program(self, incremental: bool) -> None:
+        """
         Called once in the beginning.
 
-        If the incremental flag is true, there can be multiple calls to
-        Control.solve().
+        Parameters
+        ----------
+        incremental : bool
+            Whether the program is incremental. If the incremental flag is
+            true, there can be multiple calls to `Control.solve`.
 
-        Arguments:
-        incremental -- whether the program is incremental
+        Returns
+        -------
+        None
+        """
 
-    begin_step(self) -> None
+    def begin_step(self) -> None:
+        """
         Marks the beginning of a block of directives passed to the solver.
 
-    rule(self, choice, head, body) -> None
+        Returns
+        -------
+        None
+        """
+
+    def rule(self, choice: bool, head: List[int], body: List[int]) -> None:
+        """
         Observe rules passed to the solver.
 
-        Arguments:
-        choice -- determines if the head is a choice or a disjunction
-        head   -- list of program atoms
-        body   -- list of program literals
+        Parameters
+        ----------
+        choice : bool
+            Determines if the head is a choice or a disjunction.
+        head : List[int]
+            List of program atoms forming the rule head.
+        body : List[int]
+            List of program literals forming the rule body.
 
-    weight_rule(self, choice, head, lower_bound, body) -> None
-        Observe weight rules passed to the solver.
+        Returns
+        -------
+        None
+        """
 
-        Arguments:
-        choice      -- determines if the head is a choice or a disjunction
-        head        -- list of program atoms
-        lower_bound -- the lower bound of the weight rule
-        body        -- list of weighted literals (pairs of literal and weight)
-
-    minimize(self, priority, literals) -> None
-        Observe minimize constraints (or weak constraints) passed to the
+    def weight_rule(self, choice: bool, head: List[int], lower_bound: int,
+                    body: List[Tuple[int,int]]) -> None:
+        """
+        Observe rules with one weight constraint in the body passed to the
         solver.
 
-        Arguments:
-        priority -- the priority of the constraint
-        literals -- list of weighted literals whose sum to minimize
-                    (pairs of literal and weight)
+        Parameters
+        ----------
+        choice : bool
+            Determines if the head is a choice or a disjunction.
+        head : List[int]
+            List of program atoms forming the head of the rule.
+        lower_bound:
+            The lower bound of the weight constraint in the rule body.
+        body : List[Tuple[int,int]]
+            List of weighted literals (pairs of literal and weight) forming the
+            elements of the weight constraint.
 
-    project(self, atoms) -> None
+        Returns
+        -------
+        None
+        """
+
+    def minimize(self, priority: int, literals: List[Tuple[int,int]]) -> None:
+        """
+        Observe minimize directives (or weak constraints) passed to the
+        solver.
+
+        Parameters
+        ----------
+        priority : int
+            The priority of the directive.
+        literals : List[Tuple[int,int]]
+            List of weighted literals whose sum to minimize (pairs of literal
+            and weight).
+
+        Returns
+        -------
+        None
+        """
+
+    def project(self, atoms: List[int]) -> None:
+        """
         Observe projection directives passed to the solver.
 
-        Arguments:
-        atoms -- the program atoms to project on
+        Parameters
+        ----------
+        atoms : List[int]
+            The program atoms to project on.
 
-    output_atom(self, symbol, atom) -> None
+        Returns
+        -------
+        None
+        """
+
+    def output_atom(self, symbol: Symbol, atom: int) -> None:
+        """
         Observe shown atoms passed to the solver.  Facts do not have an
-        associated program atom.  The value of the atom is set to zero.
+        associated program atom. The value of the atom is set to zero.
 
-        Arguments:
-        symbol -- the symbolic representation of the atom
-        atom   -- the program atom (0 for facts)
+        Parameters
+        ----------
+        symbol : Symbolic
+            The symbolic representation of the atom.
+        atom : int
+            The associated program atom (0 for facts).
 
-    output_term(self, symbol, condition) -> None
+        Returns
+        -------
+        None
+        """
+
+    def output_term(self, symbol: Symbol, condition: List[int]) -> None:
+        """
         Observe shown terms passed to the solver.
 
-        Arguments:
-        symbol    -- the symbolic representation of the term
-        condition -- list of program literals
+        Parameters
+        ----------
+        symbol : Symbol
+            The symbolic representation of the term.
+        condition : List[int]
+            List of program literals forming the condition when to show the
+            term.
 
-    output_csp(self, symbol, value, condition) -> None
+        Returns
+        -------
+        None
+        """
+
+    def output_csp(self, symbol: Symbol, value: int,
+                   condition: List[int]) -> None:
+        """
         Observe shown csp variables passed to the solver.
 
-        Arguments:
-        symbol    -- the symbolic representation of the variable
-        value     -- the integer value of the variable
-        condition -- list of program literals
+        Parameters
+        ----------
+        symbol : Symbol
+            The symbolic representation of the variable.
+        value : int
+            The integer value of the variable.
+        condition : List[int]
+            List of program literals forming the condition when to show the
+            variable with its value.
 
-    external(self, atom, value) -> None
+        Returns
+        -------
+        None
+        """
+
+    def external(self, atom: int, value: TruthValue) -> None:
+        """
         Observe external statements passed to the solver.
 
-        Arguments:
-        atom  -- the external atom in form of a literal
-        value -- the TruthValue of the external statement
+        Parameters
+        ----------
+        atom : int
+            The external atom in form of a program literal.
+        value : TruthValue
+            The truth value of the external statement.
 
-    assume(self, literals) -> None
+        Returns
+        -------
+        None
+        """
+
+    def assume(self, literals: List[int]) -> None:
+        """
         Observe assumption directives passed to the solver.
 
-        Arguments:
-        literals -- the program literals to assume (positive literals are true
-                    and negative literals false for the next solve call)
+        Parameters
+        ----------
+        literals : List[int]
+            The program literals to assume (positive literals are true and
+            negative literals false for the next solve call).
 
-    heuristic(self, atom, type, bias, priority, condition) -> None
+        Returns
+        -------
+        None
+        """
+
+    def heuristic(self, atom: int, type: HeuristicType, bias: int,
+                  priority: int, condition: List[int]) -> None:
+        """
         Observe heuristic directives passed to the solver.
 
-        Arguments:
-        atom      -- the target atom
-        type      -- the HeuristicType
-        bias      -- the heuristic bias
-        priority  -- the heuristic priority
-        condition -- list of program literals
+        Parameters
+        ----------
+        atom : int
+            The program atom heuristically modified.
+        type : HeuristicType
+            The type of the modification.
+        bias : int
+            A signed integer.
+        priority : int
+            An unsigned integer.
+        condition : List[int]
+            List of program literals.
 
-    acyc_edge(self, node_u, node_v, condition) -> None
+        Returns
+        -------
+        None
+        """
+
+    def acyc_edge(self, node_u: int, node_v: int,
+                  condition: List[int]) -> None:
+        """
         Observe edge directives passed to the solver.
 
-        Arguments:
-        node_u    -- the start vertex of the edge (in form of an integer)
-        node_v    -- the end vertex of the edge (in form of an integer)
-        condition -- list of program literals
+        Parameters
+        ----------
+        node_u : int
+            The start vertex of the edge (in form of an integer).
+        node_v : int
+            Тhe end vertex of the edge (in form of an integer).
+        condition : List[int]
+            The list of program literals forming th condition under which to
+            add the edge.
 
-    theory_term_number(self, term_id, number) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_term_number(self, term_id: int, number: int) -> None:
+        """
         Observe numeric theory terms.
 
-        Arguments:
-        term_id -- the id of the term
-        number  -- the (integer) value of the term
+        Parameters
+        ----------
+        term_id : int
+            The id of the term.
+        number : int
+            The value of the term.
 
-    theory_term_string(self, term_id, name) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_term_string(self, term_id : int, name : str) -> None:
+        """
         Observe string theory terms.
 
-        Arguments:
-        term_id -- the id of the term
-        name    -- the string value of the term
+        Parameters
+        ----------
+        term_id : int
+            The id of the term.
+        name : str
+            The string value of the term.
 
-    theory_term_compound(self, term_id, name_id_or_type, arguments) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_term_compound(self, term_id: int, name_id_or_type: int,
+                             arguments: List[int]) -> None:
+        """
         Observe compound theory terms.
 
-        The name_id_or_type gives the type of the compound term:
-        - if it is -1, then it is a tuple
-        - if it is -2, then it is a set
-        - if it is -3, then it is a list
-        - otherwise, it is a function and name_id_or_type refers to the id of
-          the name (in form of a string term)
+        Parameters
+        ----------
+        term_id : int
+            The id of the term.
+        name_id_or_type : int
+            The name or type of the term where
+            - if it is -1, then it is a tuple
+            - if it is -2, then it is a set
+            - if it is -3, then it is a list
+            - otherwise, it is a function and name_id_or_type refers to the id
+            of the name (in form of a string term)
+        arguments : List[int]
+            The arguments of the term in form of a list of term ids.
 
-        Arguments:
-        term_id         -- the id of the term
-        name_id_or_type -- the name or type of the term
-        arguments       -- the arguments of the term
+        Returns
+        -------
+        None
+        """
 
-    theory_element(self, element_id, terms, condition) -> None
+    def theory_element(self, element_id: int, terms: List[int],
+                       condition: List[int]) -> None:
+        """
         Observe theory elements.
 
-        Arguments:
-        element_id -- the id of the element
-        terms      -- term tuple of the element
-        condition  -- list of program literals
+        Parameters
+        ----------
+        element_id : int
+            The id of the element.
+        terms : List[int]
+            The term tuple of the element in form of a list of term ids.
+        condition : List[int]
+            The list of program literals forming the condition.
 
-    theory_atom(self, atom_id_or_zero, term_id, elements) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_atom(self, atom_id_or_zero: int, term_id: int,
+                    elements: List[int]) -> None:
+        """
         Observe theory atoms without guard.
 
-        Arguments:
-        atom_id_or_zero -- the id of the atom or zero for directives
-        term_id         -- the term associated with the atom
-        elements        -- the list of elements of the atom
+        Parameters
+        ----------
+        atom_id_or_zero : int
+            The id of the atom or zero for directives.
+        term_id : int
+            The term associated with the atom.
+        elements : List[int]
+            The elements of the atom in form of a list of element ids.
 
-    theory_atom_with_guard(self, atom_id_or_zero, term_id, elements,
-                           operator_id, right_hand_side_id) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_atom_with_guard(self, atom_id_or_zero: int, term_id: int,
+                               elements: List[int], operator_id: int,
+                               right_hand_side_id: int) -> None:
+        """
         Observe theory atoms with guard.
 
-        Arguments:
-        atom_id_or_zero    -- the id of the atom or zero for directives
-        term_id            -- the term associated with the atom
-        elements           -- the elements of the atom
-        operator_id        -- the id of the operator (a string term)
-        right_hand_side_id -- the id of the term on the right hand side of the atom
+        Parameters
+        ----------
+        atom_id_or_zero : int
+            The id of the atom or zero for directives.
+        term_id : int
+            The term associated with the atom.
+        elements : List[int]
+            The elements of the atom in form of a list of element ids.
+        operator_id : int
+            The id of the operator (a string term).
+        right_hand_side_id : int
+            The id of the term on the right hand side of the atom.
 
-    end_step(self) -> None
+        Returns
+        -------
+        None
+        """
+
+    def end_step(self) -> None:
+        """
         Marks the end of a block of directives passed to the solver.
 
         This function is called right before solving starts.
+
+        Returns
+        -------
+        None
+        """
 ```
 )"},
     {"register_propagator", to_function<&ControlWrap::registerPropagator>(), METH_O,
