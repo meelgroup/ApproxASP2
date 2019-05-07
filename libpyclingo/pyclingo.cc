@@ -1302,7 +1302,7 @@ struct TheoryTermType : EnumType<TheoryTermType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of theory terms.
 
-TheoryTermType objects cannot be constructed from python. Instead the
+`TheoryTermType` objects cannot be constructed from Python. Instead the
 following preconstructed objects are available:
 
 TheoryTermType.Function -- a function theory term
@@ -1615,7 +1615,7 @@ struct SymbolType : EnumType<SymbolType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of symbols.
 
-SymbolType objects cannot be constructed from python. Instead the following
+`SymbolType` objects cannot be constructed from Python. Instead the following
 preconstructed objects are available:
 
 SymbolType.Number   -- a numeric symbol, e.g., 1
@@ -1872,8 +1872,8 @@ struct SolveResult : ObjectBase<SolveResult> {
     static constexpr char const *tp_doc =
 R"(Captures the result of a solve call.
 
-SolveResult objects cannot be constructed from python. Instead they
-are returned by the solve methods of the Control object.)";
+`SolveResult` objects cannot be constructed from Python. Instead they are
+returned by the solve methods of the Control object.)";
     static Object construct(clingo_solve_result_bitset_t result) {
         auto self = new_();
         self->result = result;
@@ -2238,7 +2238,7 @@ struct SolveControl : ObjectBase<SolveControl> {
     static constexpr char const *tp_doc =
 R"(Object that allows for controlling a running search.
 
-Note that SolveControl objects cannot be constructed from python.  Instead
+Note that `SolveControl` objects cannot be constructed from Python. Instead
 they are available as properties of Model objects.)";
 
     static Object construct(clingo_solve_control_t *ctl) {
@@ -2314,12 +2314,18 @@ struct ModelType : EnumType<ModelType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of models.
 
-ModelType objects cannot be constructed from python. Instead the following
-preconstructed objects are available:
+`ModelType` objects cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
-SymbolType.StableModel          -- a stable model
-SymbolType.BraveConsequences    -- set of brave consequences
-SymbolType.CautiousConsequences -- set of cautious consequences)";
+Attributes
+----------
+StableModel : ModelType
+    The model captures a stable model.
+BraveConsequences : ModelType
+    The model stores the set of brave consequences.
+CautiousConsequences : ModelType
+    The model stores the set of cautious consequences.
+)";
 
     static constexpr enum clingo_model_type const values[] = {
         clingo_model_type_stable_model,
@@ -2341,15 +2347,19 @@ struct Model : ObjectBase<Model> {
     static constexpr char const *tp_type = "Model";
     static constexpr char const *tp_name = "clingo.Model";
     static constexpr char const *tp_doc =
-R"(Provides access to a model during a solve call.
+R"(Provides access to a model during a solve call and provides a `SolveContext`
+object to provided limited support to influence the running search.
 
+Notes
+-----
 The string representation of a model object is similar to the output of models
 by clingo using the default output.
 
-Note that model objects cannot be constructed from python. Instead they are
-passed as argument to a model callback (see Control.solve()). Furthermore, the
-lifetime of a model object is limited to the scope of the callback. They must
-not be stored for later use in other places like, e.g., the main function.)";
+`Model` objects cannot be constructed from Python. Instead they are obained
+during solving (see `Control.solve`). Furthermore, the lifetime of a model
+object is limited to the scope of the callback it was passed to or until the
+search for the next model is started. They must not be stored for later use.
+)";
 
     static Object construct(clingo_model_t *model) {
         auto self = new_();
@@ -2478,58 +2488,123 @@ not be stored for later use in other places like, e.g., the main function.)";
 };
 
 PyGetSetDef Model::tp_getset[] = {
-    {(char *)"thread_id", to_getter<&Model::thread_id>(), nullptr, (char*)"The id of the thread which found the model.", nullptr},
-    {(char *)"context", to_getter<&Model::getContext>(), nullptr, (char*)"SolveControl object that allows for controlling the running search.", nullptr},
-    {(char *)"cost", to_getter<&Model::cost>(), nullptr,
-(char *)R"(Return the list of integer cost values of the model.
+    {(char *)"thread_id", to_getter<&Model::thread_id>(), nullptr, (char*)R"(thread_id: int
 
-The return values correspond to clasp's cost output.)", nullptr},
-    {(char *)"optimality_proven", to_getter<&Model::optimality_proven>(), nullptr, (char*)"Whether the optimality of the model has been proven.", nullptr},
-    {(char *)"number", to_getter<&Model::number>(), nullptr, (char*)"The running number of the model.", nullptr},
-    {(char *)"type", to_getter<&Model::model_type>(), nullptr, (char*)"The type of the model.", nullptr},
+The id of the thread which found the model.
+)", nullptr},
+    {(char *)"context", to_getter<&Model::getContext>(), nullptr, (char*)R"(
+context: SolveControl
+
+`SolveControl` object that allows for controlling the running search.
+)", nullptr},
+    {(char *)"cost", to_getter<&Model::cost>(), nullptr,
+(char *)R"(cost: List[int]
+
+Return the list of integer cost values of the model.
+
+The return values correspond to clasp's cost output.
+)", nullptr},
+    {(char *)"optimality_proven", to_getter<&Model::optimality_proven>(), nullptr, (char*)R"(optimality_proven: bool
+
+Whether the optimality of the model has been proven.
+)", nullptr},
+    {(char *)"number", to_getter<&Model::number>(), nullptr, (char*)R"(number: int
+
+The running number of the model.
+)", nullptr},
+    {(char *)"type", to_getter<&Model::model_type>(), nullptr, (char*)R"(type: ModelType
+
+The type of the model.
+
+See Also
+--------
+ModelType
+)", nullptr},
     {(char *)"_to_c", to_getter<&Model::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_model_t struct.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 PyMethodDef Model::tp_methods[] = {
     {"symbols", to_function<&Model::atoms>(), METH_VARARGS | METH_KEYWORDS,
-R"(symbols(self, atoms, terms, shown, csp, complement)
-        -> list of terms
+R"(symbols(self, atoms: bool=False, terms: bool=False, shown: bool=False, csp: bool=False, complement: bool=False) -> List[Symbol]
 
 Return the list of atoms, terms, or CSP assignments in the model.
 
-Keyword Arguments:
-atoms      -- select all atoms in the model (independent of #show statements)
-              (Default: False)
-terms      -- select all terms displayed with #show statements in the model
-              (Default: False)
-shown      -- select all atoms and terms as outputted by clingo
-              (Default: False)
-csp        -- select all csp assignments (independent of #show statements)
-              (Default: False)
-complement -- return the complement of the answer set w.r.t. to the Herbrand
-              base accumulated so far (does not affect csp assignments)
-              (Default: False)
+Parameters
+----------
+atoms : bool=False
+    Select all atoms in the model (independent of `#show` statements).
+terms : bool=False
+    Select all terms displayed with `#show` statements in the model.
+shown : bool
+    Select all atoms and terms as outputted by clingo.
+csp : bool
+    Select all csp assignments (independent of `#show` statements).
+complement : bool
+    Return the complement of the answer set w.r.t. to the atoms known to the
+    grounder. (Does not affect csp assignments.)
 
-Note that atoms are represented using functions (Symbol objects), and that CSP
-assignments are represented using functions with name "$" where the first
-argument is the name of the CSP variable and the second its value.)"},
+Returns
+-------
+List[Symbol]
+    The selected symbols.
+
+Notes
+-----
+Atoms are represented using functions (`Symbol` objects), and CSP assignments
+are represented using functions with name `"$"` where the first argument is the
+name of the CSP variable and the second its value.
+)"},
     {"contains", to_function<&Model::contains>(), METH_O,
-R"(contains(self, atom) -> bool
+R"(contains(self, atom: Symbol) -> bool
 
-Check if an atom is contained in the model.
+Efficiently check if an atom is contained in the model.
 
-The atom must be represented using a function symbol.)"},
+Parameters
+----------
+atom : Symbol
+    The atom to lookup.
+
+Returns
+-------
+bool
+    Whether the given atom is contained in the model.
+
+Notes
+-----
+The atom must be represented using a function symbol.
+)"},
     {"is_true", to_function<&Model::is_true>(), METH_O,
-R"(is_true(self, a) -> bool
+R"(is_true(self, literal: int) -> bool
 
 Check if the given program literal is true.
+
+Parameters
+----------
+literal : int
+    The given program literal.
+
+Returns
+-------
+bool
+    Whether the given program literal is true.
 )"},
     {"extend", to_function<&Model::extend>(), METH_O,
-R"(extend(self, symbols) -> None
+R"(extend(self, symbols: List[Symbol]) -> None
 
 Extend a model with the given symbols.
 
+Parameters
+----------
+symbols : List[Symbol]
+    The symbols to add to the model.
+
+Returns
+-------
+None
+
+Notes
+-----
 This only has an effect if there is an underlying clingo application, which
 will print the added symbols.
 )"},
@@ -2553,8 +2628,8 @@ struct SolveHandle : ObjectBase<SolveHandle> {
     static constexpr char const *tp_doc =
 R"(Handle for solve calls.
 
-SolveHandle objects cannot be created from python. Instead they are returned by
-Control.solve.  A SolveHandle object can be used to control solving, like,
+`SolveHandle` objects cannot be created from Python. Instead they are returned
+by Control.solve.  A SolveHandle object can be used to control solving, like,
 retrieving models or cancelling a search.
 
 Blocking functions in this object release the GIL. They are not thread-safe though.
@@ -3171,7 +3246,7 @@ struct PropagatorCheckMode : EnumType<PropagatorCheckMode> {
     static constexpr char const *tp_doc =
 R"(Enumeration of supported check modes for propagators.
 
-PropagatorCheckMode objects cannot be constructed from python. Instead the
+`PropagatorCheckMode` objects cannot be constructed from Python. Instead the
 following preconstructed objects are available:
 
 PropagatorCheckMode.None     -- do not call Propagator.check() at all
@@ -3539,13 +3614,20 @@ struct TruthValue : EnumType<TruthValue> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different truth values.
 
-TruthValue objects cannot be constructed from python. Instead the following
-preconstructed objects are available:
+`TruthValue` objects cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
-TruthValue.True_   -- truth value true
-TruthValue.False_  -- truth value false
-TruthValue.Free    -- no truth value
-TruthValue.Release -- indicates that an atom is to be released)";
+Attributes
+----------
+True_ : TruthValue
+    Represents truth value true.
+False_ : TruthValue
+    Represents truth value true.
+Free : TruthValue
+    Represents absence of a truth value.
+Release : TruthValue
+    Indicates that an atom is to be released
+)";
 
     static constexpr Type const values[] = {
         clingo_external_type_true,
@@ -3571,13 +3653,24 @@ struct HeuristicType : EnumType<HeuristicType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different heuristic types.
 
-HeuristicType objects cannot be constructed from python. Instead the following
-preconstructed objects are available:
+`HeuristicType` objects cannot be constructed from Python. Instead the following
+preconstructed class attributes  are available:
 
-HeuristicType.True_   -- truth value true
-HeuristicType.False_  -- truth value false
-HeuristicType.Free    -- no truth value
-HeuristicType.Release -- indicates that an atom is to be released)";
+Attributes
+----------
+Level : HeuristicType
+    Heuristic modification to set the level of an atom.
+Sign : HeuristicType
+    Heuristic modification to set the sign of an atom.
+Factor : HeuristicType
+    Heuristic modification to set the decaying factor of an atom.
+Init : HeuristicType
+    Heuristic modification to set the inital score of an atom.
+True_ : HeuristicType
+    Heuristic modification to make an atom true.
+False_ : HeuristicType
+    Heuristic modification to make an atom false.
+)";
 
     static constexpr Type const values[] =          {
         clingo_heuristic_type_level,
@@ -6222,16 +6315,24 @@ struct MessageCode : EnumType<MessageCode> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of messages.
 
-MessageCode objects cannot be constructed from python. Instead the following
-preconstructed objects are available:
+`MessageCode` objects cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
-MessageCode.OperationUndefined -- undefined arithmetic operation or weight of aggregate
-MessageCode.RuntimeError       -- to report multiple errors; a corresponding runtime error is raised later
-MessageCode.AtomUndefined      -- undefined atom in program
-MessageCode.FileIncluded       -- same file included multiple times
-MessageCode.VariableUnbounded  -- CSP variable with unbounded domain
-MessageCode.GlobalVariable     -- global variable in tuple of aggregate element
-MessageCode.Other              -- other kinds of messages
+OperationUndefined : MessageCode
+    Inform about an undefined arithmetic operation or unsupported weight of an
+    aggregate.
+RuntimeError : MessageCode
+    To report multiple errors; a corresponding runtime error is raised later.
+AtomUndefined : MessageCode
+    Informs about an undefined atom in program.
+FileIncluded : MessageCode
+    Indicates that the same file was included multiple times.
+VariableUnbounded : MessageCode
+    Informs about a CSP variable with an unbounded domain.
+GlobalVariable : MessageCode
+    Informs about a global variable in a tuple of an aggregate element.
+Other : MessageCode
+    Reports other kinds of messages.
 )";
     static constexpr clingo_warning const values[] = {
         clingo_warning_operation_undefined,
@@ -7931,10 +8032,14 @@ struct Flag : ObjectBase<Flag> {
     bool flag;
     static constexpr char const *tp_type = "Flag";
     static constexpr char const *tp_name = "clingo.Flag";
-    static constexpr char const *tp_doc = R"(Helper object to parse flags.
+    static constexpr char const *tp_doc = R"(Flag(value: bool=False) -> Flag
 
-Keyword Arguments:
-value -- initial value of the flag
+Helper object to parse command-line flags.
+
+Parameters
+----------
+value : bool=False
+    The initial value of the flag.
 )";
     static PyGetSetDef tp_getset[];
     static Object tp_new(PyTypeObject *type) {
@@ -7957,7 +8062,10 @@ value -- initial value of the flag
 };
 
 PyGetSetDef Flag::tp_getset[] = {
-    {(char*)"value", to_getter<&Flag::get_value>(), to_setter<&Flag::set_value>(), (char*)"The value of the flag.", nullptr},
+    {(char*)"value", to_getter<&Flag::get_value>(), to_setter<&Flag::set_value>(), (char*)R"(flag: bool
+
+The value of the flag.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 

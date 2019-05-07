@@ -47,7 +47,6 @@
     try:
         lines = f.docstring.splitlines()
         signature = lines[0]
-        print (signature)
         if signature.startswith(f.name) and signature.find("->") >= 0:
             return ("\n".join(lines[1:]).strip(), signature[len(f.name):])
     except:
