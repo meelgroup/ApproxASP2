@@ -8836,7 +8836,8 @@ override the other functions.
             """
             Function to validate custom options.
 
-            This function should return false or throw an exception if option validation fails.
+            This function should return false or throw an exception if option
+            validation fails.
 
             Returns
             -------
