@@ -1618,9 +1618,9 @@ R"(Enumeration of the different types of symbols.
 SymbolType objects cannot be constructed from python. Instead the following
 preconstructed objects are available:
 
-SymbolType.Number   -- a numeric symbol - e.g., 1
-SymbolType.String   -- a string symbol - e.g., "a"
-SymbolType.Function -- a numeric symbol - e.g., c, (1, "a"), or f(1,"a")
+SymbolType.Number   -- a numeric symbol, e.g., 1
+SymbolType.String   -- a string symbol, e.g., "a"
+SymbolType.Function -- a numeric symbol, e.g., c, (1, "a"), or f(1,"a")
 SymbolType.Infimum  -- the #inf symbol
 SymbolType.Supremum -- the #sup symbol)";
 
@@ -2349,7 +2349,7 @@ by clingo using the default output.
 Note that model objects cannot be constructed from python. Instead they are
 passed as argument to a model callback (see Control.solve()). Furthermore, the
 lifetime of a model object is limited to the scope of the callback. They must
-not be stored for later use in other places like - e.g., the main function.)";
+not be stored for later use in other places like, e.g., the main function.)";
 
     static Object construct(clingo_model_t *model) {
         auto self = new_();
@@ -3711,14 +3711,41 @@ This class allows for adding statements in ASPIF format.
 
 Notes
 -----
-Statements added with the backend are added directly to the solver.
-For example, the grounding componenet will not be aware if facts were added to a program via the backend.
-The only exception are atoms added with `Backend.add_atom`, which will subsequently be used to instantiate rules.
-Furthermore, the `Control.cleanup` method can be used to transfer information about facts back to the grounder.
+The `Backend` is a context manager and must be used with python's `with`
+statement.
+
+Statements added with the backend are added directly to the solver. For
+example, the grounding componenet will not be aware if facts were added to a
+program via the backend. The only exception are atoms added with
+`Backend.add_atom`, which will subsequently be used to instantiate rules.
+Furthermore, the `Control.cleanup` method can be used to transfer information
+about facts back to the grounder.
 
 See Also
 --------
 Control.backend
+
+Examples
+--------
+The following example shows how to add a fact to a program and the effect of
+the `Control.cleanup` function:
+```python
+>>> import clingo
+>>> ctl = clingo.Control()
+>>> sym_a = clingo.Function("a")
+>>> with ctl.backend() as backend:
+...     atm_a = backend.add_atom(sym_a)
+...     backend.add_rule([atm_a])
+...
+>>> ctl.symbolic_atoms[sym_a].is_fact
+False
+>>> ctl.cleanup()
+>>> ctl.symbolic_atoms[sym_a].is_fact
+True
+>>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+Answer: a
+SAT
+```
 )";
 
     static Object construct(clingo_backend_t *backend) {
@@ -6622,7 +6649,7 @@ message_limit : int
 Notes
 -----
 Note that only gringo options (without `--text`) and clasp's search options are
-supported. Furthermore, a Control object is blocked while a search call is
+supported. Furthermore, a `Control` object is blocked while a search call is
 active; you must not call any member function during search.
 )";
     struct Block {
@@ -6659,6 +6686,8 @@ active; you must not call any member function during search.
         return self;
     }
     void tp_traverse(Traverse const &visit) {
+        visit(stats);
+        visit(logger);
         for (auto &object : objects) { visit(object); }
     }
     void tp_clear() {
@@ -7047,7 +7076,7 @@ Parameters
 ----------
 assumptions : List[Union[Tuple[Symbol,bool],int]]=[]
     List of (atom, boolean) tuples or program literals that serve
-    as assumptions for the solve call, e.g. - solving under
+    as assumptions for the solve call, e.g., solving under
     assumptions `[(Function("a"), True)]` only admits answer sets
     that contain atom `a`.
 on_model : Callback[[Model],Optional[bool]]=None
@@ -7194,7 +7223,7 @@ inverted.
 
 See Also
 --------
-SolveControl.release_external, SolveControl.symbolic_atoms, SymbolicAtom.is_external
+Control.release_external, SolveControl.symbolic_atoms, SymbolicAtom.is_external
 )"},
     // release_external
     {"release_external", to_function<&ControlWrap::release_external>(), METH_VARARGS,
@@ -7809,41 +7838,90 @@ Backend
 };
 
 PyGetSetDef ControlWrap::tp_getset[] = {
-    {(char*)"configuration", to_getter<&ControlWrap::conf>(), nullptr, (char*)"Configuration object to change the configuration.", nullptr},
-    {(char*)"symbolic_atoms", to_getter<&ControlWrap::symbolicAtoms>(), nullptr, (char*)"SymbolicAtoms object to inspect the symbolic atoms.", nullptr},
+    {(char*)"configuration", to_getter<&ControlWrap::conf>(), nullptr, (char*)R"(configuration: Configuration
+`Configuration` object to change the configuration.
+)", nullptr},
+    {(char*)"symbolic_atoms", to_getter<&ControlWrap::symbolicAtoms>(), nullptr, (char*)R"(symbolic_atoms: SymbolicAtoms
+
+`SymbolicAtoms` object to inspect the symbolic atoms.
+)", nullptr},
     {(char*)"use_enumeration_assumption", nullptr, to_setter<&ControlWrap::set_use_enumeration_assumption>(),
-(char*)R"(Boolean determining how learnt information from enumeration modes is treated.
+(char*)R"(set_use_enumeration_assumption: bool
+
+Whether do discard or keep learnt information from enumeration modes.
 
 If the enumeration assumption is enabled, then all information learnt from
 clasp's various enumeration modes is removed after a solve call. This includes
 enumeration of cautious or brave consequences, enumeration of answer sets with
-or without projection, or finding optimal models; as well as clauses/nogoods
-added with Model.add_clause()/Model.add_nogood().
+or without projection, or finding optimal models; as well as clauses added with
+`SolveControl.add_clause`.
 
-Note that initially the enumeration assumption is enabled.)", nullptr},
-    {(char*)"is_conflicting", to_getter<&ControlWrap::isConflicting>(), nullptr,
-(char*)R"(Whether the internal program representation is conflicting.
+Notes
+-----
+Initially the enumeration assumption is enabled.
+
+In general, the enumeration assumption should be enabled whenever there are
+multiple calls to solve. Otherwise, the behavior of the solver will be
+unpredictable because there are no guarantees which information exactly is
+kept. There might be small speed benefits when disabling the enumeration
+assumption for single shot solving.
+)", nullptr},
+    {(char*)"is_conflicting", to_getter<&ControlWrap::isConflicting>(), nullptr, (char*)R"(is_conflicting: bool
+
+Whether the internal program representation is conflicting.
 
 If this (read-only) property is true, solve calls return immediately with an
-unsatisfiable solve result.  Note that conflicts first have to be detected,
-e.g. - initial unit propagation results in an empty clause, or later if an
-empty clause is resolved during solving.  Hence, the property might be false
-even if the problem is unsatisfiable.)", nullptr},
+unsatisfiable solve result.
+
+Notes
+-----
+Conflicts first have to be detected, e.g., initial unit propagation results in
+an empty clause, or later if an empty clause is resolved during solving. Hence,
+the property might be false even if the problem is unsatisfiable.
+)", nullptr},
     {(char*)"statistics", to_getter<&ControlWrap::getStats>(), nullptr,
-(char*)R"(A dictionary containing solve statistics of the last solve call.
+(char*)R"(statistics: dict
 
-Contains the statistics of the last solve() call. The statistics correspond to
-the --stats output of clingo.  The detail of the statistics depends on what
-level is requested on the command line. Furthermore, you might want to start
-clingo using the --outf=3 option to disable all output from clingo.
+A `dict` containing solve statistics of the last solve call.
 
-Note that this (read-only) property is only available in clingo.
+Notes
+-----
+The statistics correspond to the `--stats` output of clingo. The detail of the
+statistics depends on what level is requested on the command line.
 
-Example:
-import json
-json.dumps(prg.statistics, sort_keys=True, indent=4, separators=(',', ': ')))", nullptr},
-    {(char *)"theory_atoms", to_getter<&ControlWrap::theoryIter>(), nullptr, (char *)R"(A TheoryAtomIter object, which can be used to iterate over the theory atoms.)", nullptr},
-    {(char *)"_to_c", to_getter<&ControlWrap::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_control_t struct.)", nullptr},
+This property is only available in clingo.
+
+Examples
+--------
+The following example shows how to dump the solving statistics in json format:
+```python
+>>> import json
+>>> import clingo
+>>> ctl = clingo.Control()
+>>> ctl.add("base", [], "{a}.")
+>>> ctl.ground([("base", [])])
+>>> ctl.solve()
+SAT
+>>> print(json.dumps(ctl.statistics['solving'], sort_keys=True, indent=4, separators=(',', ': ')))
+{
+    "solvers": {
+        "choices": 1.0,
+        "conflicts": 0.0,
+        "conflicts_analyzed": 0.0,
+        "restarts": 0.0,
+        "restarts_last": 0.0
+    }
+}
+```
+)", nullptr},
+    {(char *)"theory_atoms", to_getter<&ControlWrap::theoryIter>(), nullptr, (char *)R"(theory_atoms: TheoryAtomIter
+
+A `TheoryAtomIter` object, which can be used to iterate over the theory atoms.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&ControlWrap::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An `int` representing the pointer to the underlying C `clingo_control_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
