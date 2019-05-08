@@ -5,8 +5,10 @@ jekyll serve -l &
 trap "kill $!" EXIT
 cd _gen
 
-inotifywait -rme ATTRIB --format "%f" templates ../../../build/release/bin/python | while read file; do
+inotifywait -rme ATTRIB --format "%f" . ../../../build/release/bin/python | while read file; do
     case "$file" in
+        *.py)
+            ;&
         *.mako)
             ;&
         *.so)

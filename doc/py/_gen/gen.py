@@ -4,6 +4,13 @@ import clingo
 import clingo.ast
 import re
 
+clingo.__pdoc__ = {}
+clingo.__pdoc__['TruthValue.__eq__'] = """\
+__eq__(self, value: any) -> bool
+
+Equality compare two truth values using standard python conventions.
+"""
+
 pdoc.tpl_lookup.directories.insert(0, './templates')
 ctx = pdoc.Context()
 
