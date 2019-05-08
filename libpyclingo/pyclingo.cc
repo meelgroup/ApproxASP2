@@ -2239,7 +2239,7 @@ struct SolveControl : ObjectBase<SolveControl> {
 R"(Object that allows for controlling a running search.
 
 Note that `SolveControl` objects cannot be constructed from Python. Instead
-they are available as properties of Model objects.)";
+they are available via `Model.context`.)";
 
     static Object construct(clingo_solve_control_t *ctl) {
         auto self = new_();
