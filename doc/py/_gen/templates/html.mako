@@ -12,6 +12,8 @@
         return name
     url = d.url(relative_to=module, link_prefix=link_prefix,
                 top_ancestor=not show_inherited_members)
+    if url.endswith(".ext"):
+        return name
     url = re.sub('.*clingo.html', '{}/clingo/'.format(base_url), url)
     url = re.sub('.*ast.html', '{}/clingo/ast/'.format(base_url), url)
     return '<a title="{}" href="{}">{}</a>'.format(d.refname, url, name)
