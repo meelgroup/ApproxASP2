@@ -17,3 +17,4 @@ examples/clingo/pydoc/clingo.ast.html
 examples/clingo/pydoc/clingo.html
 cmake/FindBISON.cmake
 doc/py/clingo
+doc/py/Gemfile.lock

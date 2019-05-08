@@ -2238,8 +2238,8 @@ struct SolveControl : ObjectBase<SolveControl> {
     static constexpr char const *tp_doc =
 R"(Object that allows for controlling a running search.
 
-Note that `SolveControl` objects cannot be constructed from Python. Instead
-they are available via `Model.context`.)";
+`SolveControl` objects cannot be constructed from Python. Instead they are
+available via `Model.context`.)";
 
     static Object construct(clingo_solve_control_t *ctl) {
         auto self = new_();
@@ -2277,26 +2277,27 @@ they are available via `Model.context`.)";
 PyMethodDef SolveControl::tp_methods[] = {
     // add_clause
     {"add_clause", to_function<&SolveControl::add_clause>(), METH_O,
-R"(add_clause(self, literals) -> None
+R"(add_clause(self, literals: List[Union[Tuple[Symbol,bool],int]]) -> None
 
 Add a clause that applies to the current solving step during the search.
 
 Parameters
 ----------
-literals -- list of literals either represented as pairs of symbolic atoms and
-            Booleans or as program literals
+literals : List[Union[Tuple[Symbol,bool],int]]
+    List of literals either represented as pairs of symbolic atoms and Booleans
+    or as program literals.
 
-Note that this function can only be called in the model callback (or while
-iterating when using a SolveHandle).)"},
+Notes
+-----
+This function can only be called in a model callback or while iterating when
+using a `SolveHandle`.
+)"},
     // add_nogood
     {"add_nogood", to_function<&SolveControl::add_nogood>(), METH_O,
-R"(add_nogood(self, literals) -> None
+R"(add_nogood(self, literals: List[Union[Tuple[Symbol,bool],int]]) -> None
 
-Equivalent to add_clause with the literals inverted.
-
-Parameters
-----------
-literals -- list of pairs of Booleans and atoms representing the nogood)"},
+Equivalent to `SolveControl.add_clause` with the literals inverted.
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -3256,7 +3257,7 @@ R"(Enumeration of supported check modes for propagators.
 `PropagatorCheckMode` objects cannot be constructed from Python. Instead the
 following preconstructed class attributes are available:
 
-None : PropagatorCheckMode
+Off : PropagatorCheckMode
     Do not call `Propagator.check` at all.
 Total : PropagatorCheckMode
     Call `Propagator.check` on total assignments.
@@ -3363,8 +3364,8 @@ Parameters
 literal : int
     The solver literal to watch.
 thread_id : Optional[int]
-    The id of the thread to watch the literal. If the `thread_id` is `None`
-    then all active threads will watch the literal.
+    The id of the thread to watch the literal. If the is `None` then all active
+    threads will watch the literal.
 
 Returns
 -------
