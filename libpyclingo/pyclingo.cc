@@ -2637,12 +2637,21 @@ struct SolveHandle : ObjectBase<SolveHandle> {
 R"(Handle for solve calls.
 
 `SolveHandle` objects cannot be created from Python. Instead they are returned
-by Control.solve.  A SolveHandle object can be used to control solving, like,
-retrieving models or cancelling a search.
+by `Control.solve`. They can be used to control solving, like, retrieving
+models or cancelling a search.
 
-Blocking functions in this object release the GIL. They are not thread-safe though.
+See Also
+--------
+Control.solve
 
-See Control.solve() for an example.)";
+Notes
+-----
+A `SolveHandle` is a context manager and must be used with Python's `with`
+statement.
+
+Blocking functions in this object release the GIL. They are not thread-safe
+though.
+)";
 
     static SharedObject<SolveHandle> construct() {
         auto ret = new_();
@@ -2815,40 +2824,58 @@ R"(get(self) -> SolveResult
 Get the result of a solve call.
 
 If the search is not completed yet, the function blocks until the result is
-ready.)"},
+ready.
+
+Returns
+-------
+SolveResult
+)"},
     {"wait", to_function<&SolveHandle::wait>(),  METH_VARARGS,
-R"(wait(self, timeout) -> None or bool
+R"(wait(self, timeout: Optional[float]=None) -> Optional[bool]
 
 Wait for solve call to finish with an optional timeout.
 
-If a timeout is given, the function waits at most timeout seconds and returns a
-Boolean indicating whether the search has finished. Otherwise, the function
-blocks until the search is finished and returns nothing.
-
 Parameters
 ----------
-timeout -- optional timeout in seconds
-           (permits floating point values))"},
+timeout : Optional[float]=None
+    If a timeout is given, the function blocks for at most timeout seconds.
+
+Returns
+-------
+Optional[bool]
+    If a timout is given, returns a Boolean indicating whether the search has
+    finished. Otherwise, the function blocks until the search is finished and
+    returns nothing.
+)"},
     {"cancel", to_function<&SolveHandle::cancel>(), METH_NOARGS,
 R"(cancel(self) -> None
 
 Cancel the running search.
 
-See Control.interrupt() for a thread-safe alternative.)"},
+Returns
+-------
+None
+
+See Also
+--------
+Control.interrupt
+)"},
     {"resume", to_function<&SolveHandle::resume>(), METH_NOARGS,
 R"(resume(self) -> None
 
-Discards the last model and starts the search for the next one.
+Discards the last model and starts searching for the next one.
 
+Notes
+-----
 If the search has been started asynchronously, this function also starts the
-search in the background.  A model that was not yet retrieved by calling )" CLINGO_PY_NEXT R"(
-is not discared.)"},
+search in the background. A model that was not yet retrieved by calling `)"
+CLINGO_PY_NEXT R"(` is not discared.)"},
     {"__enter__", to_function<&SolveHandle::enter>(), METH_NOARGS,
 R"(__enter__(self) -> SolveHandle
 
 Returns self.)"},
     {"__exit__", to_function<&SolveHandle::exit>(), METH_VARARGS,
-R"(__exit__(self, type, value, traceback) -> bool
+R"(__exit__(self, type : Optional[Type[BaseException]], value : Optional[BaseException], traceback : Optional[TracebackType]) -> bool
 
 Follows Python's __exit__ conventions. Does not suppress exceptions.
 
@@ -2858,7 +2885,11 @@ search.)"},
 };
 
 PyGetSetDef SolveHandle::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&SolveHandle::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_solve_handle_t struct.)", nullptr},
+    {(char *)"_to_c", to_getter<&SolveHandle::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_solve_handle_t`
+struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 // {{{1 wrap Configuration
