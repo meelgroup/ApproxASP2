@@ -2842,7 +2842,7 @@ Returns self.)"},
     {"__exit__", to_function<&SolveHandle::exit>(), METH_VARARGS,
 R"(__exit__(self, type, value, traceback) -> bool
 
-Follows python __exit__ conventions. Does not suppress exceptions.
+Follows Python's __exit__ conventions. Does not suppress exceptions.
 
 Stops the current search. It is necessary to call this method after each
 search.)"},
@@ -3030,7 +3030,7 @@ struct Assignment : ObjectBase<Assignment> {
     static constexpr char const *tp_doc = R"(Object to inspect the (parital) assignment of an associated solver.
 
 Assigns truth values to solver literals.  Each solver literal is either true,
-false, or undefined, represented by the python constants `True`, `False`, or
+false, or undefined, represented by the Python constants `True`, `False`, or
 `None`, respectively.)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
@@ -3802,9 +3802,13 @@ struct Backend : ObjectBase<Backend> {
 
 This class allows for adding statements in ASPIF format.
 
+See Also
+--------
+Control.backend
+
 Notes
 -----
-The `Backend` is a context manager and must be used with python's `with`
+The `Backend` is a context manager and must be used with Python's `with`
 statement.
 
 Statements added with the backend are added directly to the solver. For
@@ -3813,10 +3817,6 @@ program via the backend. The only exception are atoms added with
 `Backend.add_atom`, which will subsequently be used to instantiate rules.
 Furthermore, the `Control.cleanup` method can be used to transfer information
 about facts back to the grounder.
-
-See Also
---------
-Control.backend
 
 Examples
 --------
@@ -3999,7 +3999,7 @@ Finalize the backend.
 
 Notes
 -----
-Follows python __exit__ conventions. Does not suppress exceptions.
+Follows Python's __exit__ conventions. Does not suppress exceptions.
 )"},
     // add_atom
     {"add_atom", to_function<&Backend::addAtom>(), METH_VARARGS | METH_KEYWORDS,
@@ -4646,7 +4646,7 @@ struct ScriptType : EnumType<ScriptType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of theory atom types.
 
-ScriptType.Python -- python code
+ScriptType.Python -- Python code
 ScriptType.Lua    -- lua code
 )";
 
@@ -6248,7 +6248,35 @@ struct ProgramBuilder : ObjectBase<ProgramBuilder> {
     static constexpr char const *tp_type = "ProgramBuilder";
     static constexpr char const *tp_name = "clingo.ProgramBuilder";
     static constexpr char const *tp_doc =
-R"(Object to build non-ground programs.)";
+R"(Object to build non-ground programs.
+
+See Also
+--------
+Control.builder, parse_program
+
+Notes
+-----
+A `ProgramBuilder` is a context manager and must be used with Python's `with`
+statement.
+
+Examples
+--------
+The following example parses a program from a string and passes the resulting
+AST to the builder:
+
+```python
+>>> import clingo
+>>> ctl = clingo.Control()
+>>> prg = "a."
+>>> with ctl.builder() as bld:
+...    clingo.parse_program(prg, lambda stm: bld.add(stm))
+...
+>>> ctl.ground([("base", [])])
+>>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+Answer: a
+SAT
+```
+)";
 
     static Object construct(clingo_program_builder_t *builder) {
         auto self = new_();
@@ -6289,21 +6317,33 @@ Begin building a program.
 
 Must be called before adding statements.)"},
     {"add", to_function<&ProgramBuilder::add>(), METH_O,
-R"(add(self, statement) -> None
+R"(add(self, statement: ast.AST) -> None
 
-Adds a statement in form of an ast.AST node to the program.)"},
+Adds a statement in form of an `ast.AST` node to the program.
+
+Parameters
+----------
+statement: ast.AST
+    The statement to add.
+
+Returns
+-------
+None
+)"},
     {"__exit__", to_function<&ProgramBuilder::exit>(), METH_VARARGS,
-R"(__exit__(self, type, value, traceback) -> bool
+R"(__exit__(self, type : Optional[Type[BaseException]], value : Optional[BaseException], traceback : Optional[TracebackType]) -> bool
 
 Finish building a program.
 
-Follows python __exit__ conventions. Does not suppress exceptions.
+Follows Python's __exit__ conventions. Does not suppress exceptions.
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef ProgramBuilder::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&ProgramBuilder::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_program_builder_t struct.)", nullptr},
+    {(char *)"_to_c", to_getter<&ProgramBuilder::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C clingo_program_builder_t struct.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -7058,25 +7098,7 @@ ProgramBuilder
 
 See Also
 --------
-clingo.parse_program
-
-Examples
---------
-The following example parses a program from a string and passes the resulting
-AST to the builder:
-
-```python
->>> import clingo
->>> ctl = clingo.Control()
->>> s = "a."
->>> with ctl.builder() as b:
-...    clingo.parse_program(s, lambda stm: b.add(stm))
-...
->>> ctl.ground([("base", [])])
->>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
-Answer: a
-SAT
-```
+parse_program
 )"},
     // ground
     {"ground", to_function<&ControlWrap::ground>(), METH_KEYWORDS | METH_VARARGS,
@@ -7213,13 +7235,13 @@ Note that in gringo or in clingo with lparse or text output enabled this
 function just grounds and returns a SolveResult where `SolveResult.unknown`
 is true.
 
-If this function is used in embedded python code, you might want to start
+If this function is used in embedded Python code, you might want to start
 clingo using the `--outf=3` option to disable all output from clingo.
 
 Note that asynchronous solving is only available in clingo with thread support
 enabled. Furthermore, the on_model and on_finish callbacks are called from
 another thread. To ensure that the methods can be called, make sure to not use
-any functions that block python's GIL indefinitely.
+any functions that block Python's GIL indefinitely.
 
 This function as well as blocking functions on the `SolveHandle` release the GIL
 but are not thread-safe.
@@ -7311,6 +7333,10 @@ Returns
 -------
 None
 
+See Also
+--------
+Control.release_external, SolveControl.symbolic_atoms, SymbolicAtom.is_external
+
 Notes
 -----
 The truth value of an external atom can be changed before each solve call. An
@@ -7321,10 +7347,6 @@ function has no effect.
 
 For convenience, the truth assigned to atoms over negative program literals is
 inverted.
-
-See Also
---------
-Control.release_external, SolveControl.symbolic_atoms, SymbolicAtom.is_external
 )"},
     // release_external
     {"release_external", to_function<&ControlWrap::release_external>(), METH_VARARGS,
@@ -8905,6 +8927,10 @@ callback : Callable[[ast.AST], None]
 Returns
 -------
 None
+
+See Also
+--------
+ProgramBuilder
 )"},
     {"Function", to_function<Symbol::new_function>(), METH_VARARGS | METH_KEYWORDS, R"(Function(name: str, arguments: List[Symbol]=[], positive: bool=True) -> Symbol
 
