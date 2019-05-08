@@ -3384,7 +3384,12 @@ struct PropagateControl : ObjectBase<PropagateControl> {
     clingo_propagate_control_t* ctl;
     static constexpr char const *tp_type = "PropagateControl";
     static constexpr char const *tp_name = "clingo.PropagateControl";
-    static constexpr char const *tp_doc = "This object can be used to add clauses and propagate literals.";
+    static constexpr char const *tp_doc = R"(This object can be used to add clauses and propagate literals.
+
+See Also
+--------
+Control.register_propagator
+)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
@@ -3471,61 +3476,105 @@ Adds a new positive volatile literal to the underlying solver thread.
 
 The literal is only valid within the current solving step and solver thread.
 All volatile literals and clauses involving a volatile literal are deleted
-after the current search.)"},
-    {"add_watch", to_function<&PropagateControl::add_watch>(), METH_O, R"(add_watch(self, literal) -> None
-Add a watch for the solver literal in the given phase.
+after the current search.
 
-Unlike PropagateInit.add_watch() this does not add a watch to all solver
-threads but just the current one.
+Returns
+-------
+int
+    The added solver literal.
+)"},
+    {"add_watch", to_function<&PropagateControl::add_watch>(), METH_O, R"(add_watch(self, literal: int) -> None
+Add a watch for the solver literal in the given phase.
 
 Parameters
 ----------
-literal -- the target literal)"},
-    {"has_watch", to_function<&PropagateControl::has_watch>(), METH_O, R"(has_watch(self, literal) -> bool
+literal : int
+    The target solver literal.
+
+Returns
+-------
+None
+
+Notes
+-----
+Unlike `PropagateInit.add_watch` this does not add a watch to all solver
+threads but just the current one.
+)"},
+    {"has_watch", to_function<&PropagateControl::has_watch>(), METH_O, R"(has_watch(self, literal: int) -> bool
 Check whether a literal is watched in the current solver thread.
 
 Parameters
 ----------
-literal -- the target literal)"},
-    {"remove_watch", to_function<&PropagateControl::remove_watch>(), METH_O, R"(remove_watch(self, literal) -> None
-Removes the watch (if any) for the given solver literal.
+literal : int
+    The target solver literal.
 
-Similar to PropagateInit.add_watch() this just removes the watch in the current
-solver thread.
+Returns
+-------
+bool
+    Whether the literal is watched.
+)"},
+    {"remove_watch", to_function<&PropagateControl::remove_watch>(), METH_O, R"(remove_watch(self, literal: int) -> None
+Removes the watch (if any) for the given solver literal.
 
 Parameters
 ----------
-literal -- the target literal)"},
-    {"add_clause", to_function<&PropagateControl::addClause>(), METH_KEYWORDS | METH_VARARGS, R"(add_clause(self, clause, tag, lock) -> bool
+literal : int
+    The target solver literal.
+
+Returns
+-------
+None
+)"},
+    {"add_clause", to_function<&PropagateControl::addClause>(), METH_KEYWORDS | METH_VARARGS, R"(add_clause(self, clause: List[int], tag: bool=False, lock: bool=False) -> bool
 
 Add the given clause to the solver.
 
-This method returns False if the current propagation must be stopped.
-
 Parameters
 ----------
-clause -- sequence of solver literals
+clause : List[int]
+    List of solver literals forming the clause.
+tag : bool=False
+    If true, the clause applies only in the current solving step.
+lock : bool=False
+    If true, exclude clause from the solver's regular clause deletion policy.
 
-Keyword Arguments:
-tag  -- clause applies only in the current solving step
-        (Default: False)
-lock -- exclude clause from the solver's regular clause deletion policy
-        (Default: False))"},
-    {"add_nogood", to_function<&PropagateControl::addNogood>(), METH_KEYWORDS | METH_VARARGS, R"(add_nogood(self, clause, tag, lock) -> bool
-Equivalent to self.add_clause([-lit for lit in clause], tag, lock).)"},
+Returns
+-------
+bool
+    This method returns false if the current propagation must be stopped.
+)"},
+    {"add_nogood", to_function<&PropagateControl::addNogood>(), METH_KEYWORDS | METH_VARARGS, R"(add_nogood(self, clause: List[int], tag: bool=False, lock: bool=False) -> bool
+
+Equivalent to `self.add_clause([-lit for lit in clause], tag, lock)`.
+)"},
     {"propagate", to_function<&PropagateControl::propagate>(), METH_NOARGS, R"(propagate(self) -> bool
 
-Propagate implied literals.)"},
+Propagate literals implied by added clauses.
+
+Returns
+-------
+bool
+    This method returns false if the current propagation must be stopped.
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef PropagateControl::tp_getset[] = {
-    {(char *)"thread_id", to_getter<&PropagateControl::id>(), nullptr, (char *)R"(The numeric id of the current solver thread.)", nullptr},
-    {(char *)"assignment", to_getter<&PropagateControl::assignment>(), nullptr, (char *)R"(The partial assignment of the current solver thread.)", nullptr},
-    {(char *)"_to_c", to_getter<&PropagateControl::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_propagate_control_t struct.)", nullptr},
+    {(char *)"thread_id", to_getter<&PropagateControl::id>(), nullptr, (char *)R"(thread_id: int
+
+The numeric id of the current solver thread.
+)", nullptr},
+    {(char *)"assignment", to_getter<&PropagateControl::assignment>(), nullptr, (char *)R"(assignment: Assignment
+
+`Assignment` object capturing the partial assignment of the current solver thread.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&PropagateControl::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C
+`clingo_propagate_control_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
-
 
 // {{{1 wrap Propagator
 
