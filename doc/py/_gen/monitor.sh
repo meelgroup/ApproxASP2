@@ -1,7 +1,9 @@
 #!/bin/bash
 
 cd "$(dirname "$0")/.."
-jekyll serve -l &
+export BUNDLE_PATH=$(pwd)/.gem
+bundle install
+bundle exec jekyll serve -l &
 trap "kill $!" EXIT
 cd _gen
 
