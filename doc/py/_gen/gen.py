@@ -2,7 +2,19 @@ import os
 import pdoc
 import clingo
 import clingo.ast
+import importlib.machinery
 import re
+
+def _is_public(ident_name):
+    """
+    Returns `True` if `ident_name` matches the export criteria for an
+    identifier name.
+    """
+    return not ident_name.startswith("_") or ident_name.startswith("__")
+
+pdoc._is_public = _is_public
+
+clingo.ast.__spec__ = importlib.machinery.ModuleSpec("clingo.ast", None)
 
 clingo.__pdoc__ = {}
 clingo.__pdoc__['TruthValue.__eq__'] = """\

@@ -2,7 +2,7 @@
   import pdoc
   import re
   import clingo
-  from pdoc.html_helpers import extract_toc, glimpse, to_html as _to_html
+  from pdoc.html_helpers import extract_toc, glimpse, to_markdown
 
   base_url = "/clingo/python-api/{}".format(".".join(clingo.__version__.split(".")[0:2]))
 
@@ -29,7 +29,10 @@
     text = text.replace('Tuple[', '_Tuple[')
     text = text.replace('Answer:', 'AnswerDUMMY')
     text = _re_returns.sub(_sub_returns, text)
-    text = _to_html(text, module=module, link=link, _code_refs=re.compile(r'(?<![\\])`(?!])(?:[^`]|(?<=\\)`)+`').sub)
+
+    md = to_markdown(text, module=module, link=link, _code_refs=re.compile(r'(?<![\\])`(?!])(?:[^`]|(?<=\\)`)+`').sub)
+    text = pdoc.html_helpers._md.reset().convert(md)
+
     text = text.replace('<dd>DUMMY DESRIPTION TO REMOVE</dd>', '')
     text = text.replace('<strong><code>DUMMYNAME</code></strong> :&ensp;', '')
     text = text.replace('_Tuple', 'Tuple')
