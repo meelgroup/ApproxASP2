@@ -468,7 +468,7 @@ private:
 
 class IterIterator : std::iterator<std::forward_iterator_tag, Object, ptrdiff_t, ValuePointer<Object>, Object> {
 public:
-    IterIterator() = default;
+    IterIterator() = delete;
     IterIterator(IterIterator const &) = default;
     IterIterator(Iter it, Object current)
     : it_(it)
@@ -1072,7 +1072,7 @@ NEXT_PROTOCOL(sq_ass_slice, sq_contains)
     };
 NEXT_PROTOCOL(sq_contains, sq_inplace_concat)
     static PyObject *value(PyObject *self, PyObject *other) {
-        PY_TRY { return reinterpret_cast<B*>(self)->sq_inplace_concat(Reference{other}); Py_XINCREF(self); return self; }
+        PY_TRY { reinterpret_cast<B*>(self)->sq_inplace_concat(Reference{other}); Py_XINCREF(self); return self; }
         PY_CATCH(nullptr);
     };
 NEXT_PROTOCOL(sq_inplace_concat, sq_inplace_repeat)
@@ -1909,21 +1909,33 @@ returned by the solve methods of the Control object.)";
 
 PyGetSetDef SolveResult::tp_getset[] = {
     {(char *)"satisfiable", to_getter<&SolveResult::satisfiable>(), nullptr,
-(char *)R"(True if the problem is satisfiable, False if the problem is
-unsatisfiable, or None if the satisfiablity is not known.)", nullptr},
+(char *)R"(satisfiable: Optional[bool]
+
+True if the problem is satisfiable, False if the problem is unsatisfiable, or
+None if the satisfiablity is not known.
+)", nullptr},
     {(char *)"unsatisfiable", to_getter<&SolveResult::unsatisfiable>(), nullptr,
-(char *)R"(True if the problem is unsatisfiable, False if the problem is
-satisfiable, or None if the satisfiablity is not known.
+(char *)R"(unsatisfiable: Optional[bool]
 
-This is equivalent to None if satisfiable is None else not satisfiable.)", nullptr},
+True if the problem is unsatisfiable, false if the problem is satisfiable, or
+`None` if the satisfiablity is not known.
+)", nullptr},
     {(char *)"unknown", to_getter<&SolveResult::unknown>(), nullptr,
-(char *)R"(True if the satisfiablity is not known.
+(char *)R"(unknown: bool
 
-This is equivalent to satisfiable is None.)", nullptr},
+True if the satisfiablity is not known.
+
+This is equivalent to satisfiable is None.
+)", nullptr},
     {(char *)"exhausted", to_getter<&SolveResult::exhausted>(), nullptr,
-(char *)R"(True if the search space was exhausted.)", nullptr},
+(char *)R"(exhausted: bool
+
+True if the search space was exhausted.
+)", nullptr},
     {(char *)"interrupted", to_getter<&SolveResult::interrupted>(), nullptr,
-(char *)R"(True if the search was interrupted.)", nullptr},
+(char *)R"(interruped: bool
+
+True if the search was interrupted.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -6576,14 +6588,15 @@ struct StatisticsArray : ObjectBase<StatisticsArray> {
     static constexpr char const *tp_type = "StatisticsArray";
     static constexpr char const *tp_name = "clingo.StatisticsArray";
     static constexpr char const *tp_doc =
-    R"(StatisticsArray object to capture statistics stored in an array.
+    R"(StatisticsArray object to modify statistics stored in an array.
 
-This class implements the sequence protocol but does not support deletion.
-Furthermore, only existing numeric values in a statistics array can be changed
-using the assignment operator.
+This class implements the sequence protocol but only supports inplace
+concatenation and does not support deletion.
 
-The update function provides a convenient means to initialize and modify a
-statistics array.
+Notes
+-----
+The `StatisticsArray.update` function provides convenient means to initialize
+and modify a statistics array.
 )";
 
     static SharedObject<StatisticsArray> construct(clingo_statistics_t *stats, int64_t key) {
@@ -6617,7 +6630,7 @@ statistics array.
         return None();
     }
     Object extend(Reference value) {
-        for (auto x : value.iter()) { append(x); }
+        sq_inplace_concat(value);
         return None();
     }
     Object update(Reference value) {
@@ -6629,6 +6642,9 @@ statistics array.
         }
         return None();
     }
+    void sq_inplace_concat(Reference other) {
+        for (auto x : other.iter()) { append(x); }
+    };
     Object to_c() {
         return PyLong_FromVoidPtr(stats);
     }
@@ -6637,37 +6653,54 @@ statistics array.
 PyMethodDef StatisticsArray::tp_methods[] = {
     // append
     {"append", to_function<&StatisticsArray::append>(), METH_O,
-R"(append(self, statistics) -> None
+R"(append(self, value: Any) -> None
 
-Append a statistics to an array.
+Append a value.
 
-The statistics parameter has to be a nested structure composed of numbers,
-sequences, and mappings.
+Parameters
+----------
+value: Any
+    A nested structure composed of floats, sequences, and mappings.
 )"},
-    // append
+    // extend
     {"extend", to_function<&StatisticsArray::extend>(), METH_O,
-R"(extend(self, values) -> None
+R"(extend(self, values: Sequence[Any]) -> None
 
 Extend the statistics array with the given values.
 
-Calls append() for each element of values.
+Paremeters
+----------
+values: Sequence[Any]
+    A sequence of nested structures composed of floats, sequences, and
+    mappings.
+
+See Also
+-----
+append
 )"},
     // update
     {"update", to_function<&StatisticsArray::update>(), METH_O,
-R"(update(self, statistics) -> None
+R"(update(self, values: Sequence[Any]) -> None
 
 Update a statistics array.
 
-The statistics argument must be a sequence. Further, it has to be a nested
-structure composed of numbers, sequences, mappings, and callables. A callable
-can be used to update an existing value, it receives the previous numeric value
-(or None if absent) as argument and must return an updated numeric value.
+
+Parameters
+----------
+values: Sequence[Any]
+    A sequence of nested structures composed of floats, callable, sequences,
+    and mappings. A callable can be used to update an existing value, it
+    receives the previous numeric value (or None if absent) as argument and
+    must return an updated numeric value.
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef StatisticsArray::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&StatisticsArray::to_c>(), nullptr, (char *)"An int representing the pointer to the underlying C clingo_statistics_t struct.", nullptr},
+    {(char *)"_to_c", to_getter<&StatisticsArray::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C clingo_statistics_t struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
