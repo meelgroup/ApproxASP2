@@ -6579,10 +6579,14 @@ struct StatisticsArray : ObjectBase<StatisticsArray> {
     static constexpr char const *tp_type = "StatisticsArray";
     static constexpr char const *tp_name = "clingo.StatisticsArray";
     static constexpr char const *tp_doc =
-    R"(StatisticsArray object to modify statistics stored in an array.
+    R"(Object to modify statistics stored in an array.
 
-This class implements the sequence protocol but only supports inplace
-concatenation and does not support deletion.
+This class implements `Sequence[Union[StatisticsArray,StatisticsMap,float]]`
+but only supports inplace concatenation and does not support deletion.
+
+See Also
+--------
+Control.solve
 
 Notes
 -----
@@ -6607,6 +6611,7 @@ and modify a statistics array.
         return getUserStatistics(stats, subkey);
     };
     void sq_ass_item(Py_ssize_t index, Reference value) {
+        if (!value.valid()) { throw std::runtime_error("item deletion is not supported"); }
         uint64_t subkey;
         clingo_statistics_type_t type;
         handle_c_error(clingo_statistics_array_at(stats, key, index, &subkey));
@@ -6652,6 +6657,10 @@ Parameters
 ----------
 value: Any
     A nested structure composed of floats, sequences, and mappings.
+
+Returns
+-------
+None
 )"},
     // extend
     {"extend", to_function<&StatisticsArray::extend>(), METH_O,
@@ -6665,6 +6674,10 @@ values: Sequence[Any]
     A sequence of nested structures composed of floats, sequences, and
     mappings.
 
+Returns
+-------
+None
+
 See Also
 -----
 append
@@ -6675,7 +6688,6 @@ R"(update(self, values: Sequence[Any]) -> None
 
 Update a statistics array.
 
-
 Parameters
 ----------
 values: Sequence[Any]
@@ -6683,6 +6695,10 @@ values: Sequence[Any]
     and mappings. A callable can be used to update an existing value, it
     receives the previous numeric value (or None if absent) as argument and
     must return an updated numeric value.
+
+Returns
+-------
+None
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
@@ -6705,7 +6721,20 @@ struct StatisticsMap : ObjectBase<StatisticsMap> {
     static constexpr char const *tp_type = "StatisticsMap";
     static constexpr char const *tp_name = "clingo.StatisticsMap";
     static constexpr char const *tp_doc =
-    R"(StatisticsMap object to capture statistics stored in a map.)";
+    R"(Object to capture statistics stored in a map.
+
+This class implements `Mapping[str,Union[StatisticsArray,StatisticsMap,float]]`
+but does not support item deletion.
+
+See Also
+--------
+Control.solve
+
+Notes
+-----
+The `StatisticsMap.update` function provides convenient means to initialize
+and modify a statistics map.
+)";
 
     static SharedObject<StatisticsMap> construct(clingo_statistics_t *stats, int64_t key) {
         auto self = new_();
@@ -6724,6 +6753,7 @@ struct StatisticsMap : ObjectBase<StatisticsMap> {
         return getUserStatistics(stats, subkey);
     };
     void mp_ass_subscript(Reference pyName, Reference value) {
+        if (!value.valid()) { throw std::runtime_error("item deletion is not supported"); }
         std::string name = pyToCpp<std::string>(pyName);
         uint64_t subkey;
         bool has_subkey;
@@ -6791,36 +6821,63 @@ struct StatisticsMap : ObjectBase<StatisticsMap> {
 PyMethodDef StatisticsMap::tp_methods[] = {
     // keys
     {"keys", to_function<&StatisticsMap::keys>(), METH_NOARGS,
-R"(keys(self) -> [str]
+R"(keys(self) -> List[str]
 
-Return the keys in the statistics map.
+Return the keys of the map.
+
+Returns
+-------
+List[str]
+    The keys of the map.
 )"},
     // values
     {"values", to_function<&StatisticsMap::values>(), METH_NOARGS,
-R"(values(self) -> [Statistics]
+R"(values(self) -> List[Union[StatisticsArray,StatisticsMap,float]]
 
-Return the values in the statistics map.
+Return the values of the map.
+
+Returns
+-------
+List[Union[StatisticsArray,StatisticsMap,float]]
+    The values of the map.
 )"},
     // items
     {"items", to_function<&StatisticsMap::items>(), METH_NOARGS,
-R"(items(self) -> [(str, Statstics)]
+R"(items(self) -> List[Tuple[str, Union[StatisticsArray,StatisticsMap,float]]]
 
-Return the items in the statistics map.
+Return the items of the map.
+
+Returns
+-------
+List[Tuple[str, Union[StatisticsArray,StatisticsMap,float]]]
+    The items of the map.
 )"},
     // update
     {"update", to_function<&StatisticsMap::update>(), METH_O,
-R"(update(self, statistics) -> None
+R"(update(self, values: Mappping[str,Any]) -> None
 
-Update a statistics array.
+Update the map with the given values.
 
-The statistics argument must be a map. Otherwise, it is equivalent to
-StatisticsArray.update().
+Parameters
+----------
+values: Mapping[Any]
+    A mapping of nested structures composed of floats, callable, sequences,
+    and mappings. A callable can be used to update an existing value, it
+    receives the previous numeric value (or None if absent) as argument and
+    must return an updated numeric value.
+
+Returns
+-------
+None
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef StatisticsMap::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&StatisticsMap::to_c>(), nullptr, (char *)"An int representing the pointer to the underlying C clingo_statistics_t struct.", nullptr},
+    {(char *)"_to_c", to_getter<&StatisticsMap::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C clingo_statistics_t struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
