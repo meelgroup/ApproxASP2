@@ -2918,18 +2918,14 @@ R"(Allows for changing the configuration of the underlying solver.
 
 Options are organized hierarchically. To change and inspect an option use:
 
-```python
-config.group.subgroup.option = "value"
-value = config.group.subgroup.option
-```
+    config.group.subgroup.option = "value"
+    value = config.group.subgroup.option
 
 There are also arrays of option groups that can be accessed using integer
 indices:
 
-```python
-config.group.subgroup[0].option = "value1"
-config.group.subgroup[1].option = "value2"
-```
+    config.group.subgroup[0].option = "value1"
+    config.group.subgroup[1].option = "value2"
 
 To list the subgroups of an option group, use the `Configuration.keys` member.
 Array option groups, like solver, have a non-negative length and can be
@@ -2948,21 +2944,19 @@ Examples
 The following example shows how to modify the configuration to enumerate all
 models:
 
-```python
->>> import clingo
->>> prg = clingo.Control()
->>> prg.configuration.solve.__desc_models
-'Compute at most %A models (0 for all)\n'
->>> prg.configuration.solve.models = 0
-prg.add("base", [], "{a;b}.")
->>> prg.ground([("base", [])])
->>> prg.solve(on_model=lambda m: print("Answer: {}".format(m)))
-Answer:
-Answer: a
-Answer: b
-Answer: a b
-SAT
-```
+    >>> import clingo
+    >>> prg = clingo.Control()
+    >>> prg.configuration.solve.__desc_models
+    'Compute at most %A models (0 for all)\n'
+    >>> prg.configuration.solve.models = 0
+    >>> prg.add("base", [], "{a;b}.")
+    >>> prg.ground([("base", [])])
+    >>> prg.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer:
+    Answer: a
+    Answer: b
+    Answer: a b
+    SAT
 )";
 
     static Object construct(unsigned key, clingo_configuration_t *conf) {
@@ -3952,23 +3946,22 @@ Examples
 --------
 The following example shows how to add a fact to a program and the effect of
 the `Control.cleanup` function:
-```python
->>> import clingo
->>> ctl = clingo.Control()
->>> sym_a = clingo.Function("a")
->>> with ctl.backend() as backend:
-...     atm_a = backend.add_atom(sym_a)
-...     backend.add_rule([atm_a])
-...
->>> ctl.symbolic_atoms[sym_a].is_fact
-False
->>> ctl.cleanup()
->>> ctl.symbolic_atoms[sym_a].is_fact
-True
->>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
-Answer: a
-SAT
-```
+
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> sym_a = clingo.Function("a")
+    >>> with ctl.backend() as backend:
+    ...     atm_a = backend.add_atom(sym_a)
+    ...     backend.add_rule([atm_a])
+    ...
+    >>> ctl.symbolic_atoms[sym_a].is_fact
+    False
+    >>> ctl.cleanup()
+    >>> ctl.symbolic_atoms[sym_a].is_fact
+    True
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: a
+    SAT
 )";
 
     static Object construct(clingo_backend_t *backend) {
@@ -6394,18 +6387,16 @@ Examples
 The following example parses a program from a string and passes the resulting
 AST to the builder:
 
-```python
->>> import clingo
->>> ctl = clingo.Control()
->>> prg = "a."
->>> with ctl.builder() as bld:
-...    clingo.parse_program(prg, lambda stm: bld.add(stm))
-...
->>> ctl.ground([("base", [])])
->>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
-Answer: a
-SAT
-```
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> prg = "a."
+    >>> with ctl.builder() as bld:
+    ...    clingo.parse_program(prg, lambda stm: bld.add(stm))
+    ...
+    >>> ctl.ground([("base", [])])
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: a
+    SAT
 )";
 
     static Object construct(clingo_program_builder_t *builder) {
@@ -7273,18 +7264,16 @@ are by default put into a program called `base` without arguments.
 Examples
 --------
 
-```python
->>> import clingo
->>> ctl = clingo.Control()
->>> ctl.add("p", ["t"], "q(t).")
->>> parts = []
->>> parts.append(("p", [1]))
->>> parts.append(("p", [2]))
->>> ctl.ground(parts)
->>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
-Answer: q(1) q(2)
-SAT
-```
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> ctl.add("p", ["t"], "q(t).")
+    >>> parts = []
+    >>> parts.append(("p", [1]))
+    >>> parts.append(("p", [2]))
+    >>> ctl.ground(parts)
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: q(1) q(2)
+    SAT
 )"},
     // get_const
     {"get_const", to_function<&ControlWrap::getConst>(), METH_VARARGS,
@@ -7402,48 +7391,42 @@ Examples
 
 The following example shows how to intercept models with a callback:
 
-```python
->>> import clingo
->>> ctl = clingo.Control("0")
->>> ctl.add("p", [], "1 { a; b } 1.")
->>> ctl.ground([("p", [])])
->>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
-Answer: a
-Answer: b
-SAT
-```
+    >>> import clingo
+    >>> ctl = clingo.Control("0")
+    >>> ctl.add("p", [], "1 { a; b } 1.")
+    >>> ctl.ground([("p", [])])
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: a
+    Answer: b
+    SAT
 
 The following example shows how to yield models:
 
-```python
->>> import clingo
->>> ctl = clingo.Control("0")
->>> ctl.add("p", [], "1 { a; b } 1.")
->>> ctl.ground([("p", [])])
->>> with ctl.solve(yield_=True) as handle:
-...     for m in handle: print("Answer: {}".format(m))
-...     handle.get()
-...
-Answer: a
-Answer: b
-SAT
-```
+    >>> import clingo
+    >>> ctl = clingo.Control("0")
+    >>> ctl.add("p", [], "1 { a; b } 1.")
+    >>> ctl.ground([("p", [])])
+    >>> with ctl.solve(yield_=True) as handle:
+    ...     for m in handle: print("Answer: {}".format(m))
+    ...     handle.get()
+    ...
+    Answer: a
+    Answer: b
+    SAT
 
 The following example shows how to solve asynchronously:
 
-```python
->>> import clingo
->>> ctl = clingo.Control("0")
->>> ctl.add("p", [], "1 { a; b } 1.")
->>> ctl.ground([("p", [])])
->>> with ctl.solve(on_model=lambda m: print("Answer: {}".format(m)), async_=True) as handle:
-...     while not handle.wait(0): pass
-...     handle.get()
-...
-Answer: a
-Answer: b
-SAT
-```
+    >>> import clingo
+    >>> ctl = clingo.Control("0")
+    >>> ctl.add("p", [], "1 { a; b } 1.")
+    >>> ctl.ground([("p", [])])
+    >>> with ctl.solve(on_model=lambda m: print("Answer: {}".format(m)), async_=True) as handle:
+    ...     while not handle.wait(0): pass
+    ...     handle.get()
+    ...
+    Answer: a
+    Answer: b
+    SAT
 )"},
     // cleanup
     {"cleanup", to_function<&ControlWrap::cleanup>(), METH_NOARGS,
@@ -7527,20 +7510,18 @@ Examples
 The following example shows the effect of assigning and releasing and external
 atom.
 
-```python
->>> import clingo
->>> ctl = clingo.Control()
->>> ctl.add("base", [], "a. #external b.")
->>> ctl.ground([("base", [])])
->>> ctl.assign_external(clingo.Function("b"), True)
->>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
-Answer: b a
-SAT
->>> ctl.release_external(clingo.Function("b"))
->>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
-Answer: a
-SAT
-```
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> ctl.add("base", [], "a. #external b.")
+    >>> ctl.ground([("base", [])])
+    >>> ctl.assign_external(clingo.Function("b"), True)
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: b a
+    SAT
+    >>> ctl.release_external(clingo.Function("b"))
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: a
+    SAT
 )"},
     {"register_observer", to_function<&ControlWrap::registerObserver>(), METH_VARARGS | METH_KEYWORDS,
 R"(register_observer(self, observer: Observer, replace: bool=False) -> None
@@ -8003,11 +7984,9 @@ class Propagator:
         `PropagateControl.propagate`. If either of the two methods returns
         False, the propagate function must return immediately.
 
-        ```python
-        c = ...
-        if not control.add_clause(c) or not control.propagate(c):
-            return
-        ```
+            c = ...
+            if not control.add_clause(c) or not control.propagate(c):
+                return
 
         Note that this function can be called from different solving threads.
         Each thread has its own assignment and id, which can be obtained using
@@ -8178,24 +8157,24 @@ This property is only available in clingo.
 Examples
 --------
 The following example shows how to dump the solving statistics in json format:
-```python
->>> import json
->>> import clingo
->>> ctl = clingo.Control()
->>> ctl.add("base", [], "{a}.")
->>> ctl.ground([("base", [])])
->>> ctl.solve()
-SAT
->>> print(json.dumps(ctl.statistics['solving'], sort_keys=True, indent=4, separators=(',', ': ')))
-{
-    "solvers": {
-        "choices": 1.0,
-        "conflicts": 0.0,
-        "conflicts_analyzed": 0.0,
-        "restarts": 0.0,
-        "restarts_last": 0.0
+    >>> import json
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> ctl.add("base", [], "{a}.")
+    >>> ctl.ground([("base", [])])
+    >>> ctl.solve()
+    SAT
+    >>> print(json.dumps(ctl.statistics['solving'], sort_keys=True, indent=4,
+    ... separators=(',', ': ')))
+    {
+        "solvers": {
+            "choices": 1.0,
+            "conflicts": 0.0,
+            "conflicts_analyzed": 0.0,
+            "restarts": 0.0,
+            "restarts_last": 0.0
+        }
     }
-}
 ```
 )", nullptr},
     {(char *)"theory_atoms", to_getter<&ControlWrap::theoryIter>(), nullptr, (char *)R"(theory_atoms: TheoryAtomIter
@@ -8942,11 +8921,10 @@ Symbol
 
 Examples
 --------
-```python
->>> import clingo
->>> clingo.parse_term('p(1+2)')
-p(3)
-```
+
+    >>> import clingo
+    >>> clingo.parse_term('p(1+2)')
+    p(3)
 )"},
     {"clingo_main", to_function<clingoMain>(), METH_VARARGS | METH_KEYWORDS,
 R"(clingo_main(application: Application, files: List[str]=[]) -> int
