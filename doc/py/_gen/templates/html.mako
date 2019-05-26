@@ -37,6 +37,8 @@
     text = text.replace('<strong><code>DUMMYNAME</code></strong> :&ensp;', '')
     text = text.replace('_Tuple', 'Tuple')
     text = text.replace('AnswerDUMMY', 'Answer:')
+    text = text.replace('<pre><code>', '<pre><code class="hljs python">')
+    text = text.replace('<pre><code class="python">', '<pre><code class="hljs python">')
     return text
 
   def parse_var_docstring(f):
