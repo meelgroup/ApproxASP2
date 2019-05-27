@@ -1488,7 +1488,11 @@ struct TheoryAtom : ObjectBase<TheoryAtom> {
     static PyGetSetDef tp_getset[];
     static constexpr char const *tp_type = "TheoryAtom";
     static constexpr char const *tp_name = "clingo.TheoryAtom";
-    static constexpr char const *tp_doc = R"(TheoryAtom objects represent theory atoms.)";
+    static constexpr char const *tp_doc = R"(Class to represent theory atoms.
+
+Theory atoms have a readable string representation, implement Python's rich
+comparison operators, and implement the `Hashable` interface.
+)";
     static Object construct(clingo_theory_atoms_t const *atoms, clingo_id_t value) {
         auto self = new_();
         self->value = value;
@@ -1541,18 +1545,21 @@ struct TheoryAtom : ObjectBase<TheoryAtom> {
 };
 
 PyGetSetDef TheoryAtom::tp_getset[] = {
-    {(char *)"elements", to_getter<&TheoryAtom::elements>(), nullptr, (char *)R"(elements -> [TheoryElement]
+    {(char *)"elements", to_getter<&TheoryAtom::elements>(), nullptr, (char *)R"(elements: List[TheoryElement]
 
-The theory elements of the theory atom.)", nullptr},
-    {(char *)"term", to_getter<&TheoryAtom::term>(), nullptr, (char *)R"(term -> TheoryTerm
+The elements of the atom.)", nullptr},
+    {(char *)"term", to_getter<&TheoryAtom::term>(), nullptr, (char *)R"(term: TheoryTerm
 
-The term of the theory atom.)", nullptr},
-    {(char *)"guard", to_getter<&TheoryAtom::guard>(), nullptr, (char *)R"(guard -> (str, TheoryTerm)
+The term of the atom.
+)", nullptr},
+    {(char *)"guard", to_getter<&TheoryAtom::guard>(), nullptr, (char *)R"(guard: Tuple[str, TheoryTerm]
 
-The guard of the theory atom or None if the atom has no guard.)", nullptr},
-    {(char *)"literal", to_getter<&TheoryAtom::literal>(), nullptr, (char *)R"(literal -> int
+The guard of the atom or None if the atom has no guard.
+)", nullptr},
+    {(char *)"literal", to_getter<&TheoryAtom::literal>(), nullptr, (char *)R"(literal: int
 
-The program literal associated with the theory atom.)", nullptr},
+The program literal associated with the atom.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
