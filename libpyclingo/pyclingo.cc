@@ -2219,7 +2219,7 @@ Examples
 
 PyMethodDef SymbolicAtoms::tp_methods[] = {
     {"by_signature", to_function<&SymbolicAtoms::by_signature>(), METH_KEYWORDS | METH_VARARGS,
-R"(by_signature(self, name: str, arity: int, positive: bool) -> Iterator[Symbol]
+R"(by_signature(self, name: str, arity: int, positive: bool=True) -> Iterator[Symbol]
 
 Return an iterator over the symbolic atoms with the given signature.
 
@@ -2229,7 +2229,7 @@ name : str
     The name of the signature.
 arity : int
     The arity of the signature.
-positive : bool
+positive : bool=True
     The sign of the signature.
 
 Returns
