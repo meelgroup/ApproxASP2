@@ -1618,11 +1618,19 @@ R"(Enumeration of the different types of symbols.
 `SymbolType` objects cannot be constructed from Python. Instead the following
 preconstructed objects are available:
 
-SymbolType.Number   -- a numeric symbol, e.g., 1
-SymbolType.String   -- a string symbol, e.g., "a"
-SymbolType.Function -- a numeric symbol, e.g., c, (1, "a"), or f(1,"a")
-SymbolType.Infimum  -- the #inf symbol
-SymbolType.Supremum -- the #sup symbol)";
+Attributes
+----------
+Number : SymbolType
+    A numeric symbol, e.g., `1`.
+String : SymbolType
+    A string symbol, e.g., `"a"`.
+Function : SymbolType
+    A function symbol, e.g., `c`, `(1, "a")`, or `f(1,"a")`.
+Infimum : SymbolType
+    The `#inf` symbol.
+Supremum : SymbolType
+    The `#sup` symbol
+)";
 
     static constexpr enum clingo_symbol_type const values[] = {
         clingo_symbol_type_number,
@@ -1649,13 +1657,17 @@ struct Symbol : ObjectBase<Symbol> {
 R"(Represents a gringo symbol.
 
 This includes numbers, strings, functions (including constants with
-len(arguments) == 0 and tuples with len(name) == 0), #inf and #sup.  Symbol
-objects are ordered like in gringo and their string representation corresponds
-to their gringo representation.
+`len(arguments) == 0` and tuples with `len(name) == 0`), `#inf` and `#sup`.
 
+Symbol objects implemente Python's rich comparison operators and are ordered
+like in gringo. They can also be used as keys in dictionaries. Their string
+representation corresponds to their gringo representation.
+
+Notes
+-----
 Note that this class does not have a constructor. Instead there are the
-functions Number(), String(), and Function() to construct symbol objects or the
-preconstructed symbols Infimum and Supremum.)";
+functions `Number`, `String`, and `Function` to construct symbol objects or the
+preconstructed symbols `Infimum` and `Supremum`.)";
 
     static bool initType(Reference module) {
         if (!ObjectBase<Symbol>::initType(module)) { return false; }
@@ -1836,26 +1848,52 @@ preconstructed symbols Infimum and Supremum.)";
 
 PyMethodDef Symbol::tp_methods[] = {
     {"match", to_function<&Symbol::match>(), METH_KEYWORDS | METH_VARARGS,
-R"(`match(self, name, arity) -> bool`
+R"(match(self, name: str, arity: int) -> bool
 
 Check if this is a function symbol with the given signature.
 
-### Arguments
-- `name`  -- the name of the function
-- `arity` -- the arity of the function
+Parameters
+----------
+name : str
+    The name of the function.
+
+arity : int
+    The arity of the function.
+
+Returns
+-------
+bool
+    Whether the function matches.
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef Symbol::tp_getset[] = {
-    {(char *)"name", to_getter<&Symbol::name>(), nullptr, (char *)"The name of a function.", nullptr},
-    {(char *)"string", to_getter<&Symbol::string>(), nullptr, (char *)"The value of a string.", nullptr},
-    {(char *)"number", to_getter<&Symbol::num>(), nullptr, (char *)"The value of a number.", nullptr},
-    {(char *)"arguments", to_getter<&Symbol::args>(), nullptr, (char *)"The arguments of a function.", nullptr},
-    {(char *)"negative", to_getter<&Symbol::negative>(), nullptr, (char *)"The sign of a function.", nullptr},
-    {(char *)"positive", to_getter<&Symbol::positive>(), nullptr, (char *)"The sign of a function.", nullptr},
-    {(char *)"type", to_getter<&Symbol::type_>(), nullptr, (char *)"The type of the symbol.", nullptr},
-    {(char *)"_to_c", to_getter<&Symbol::to_c>(), nullptr, (char *)"An int representing the underlying C clingo_symbol_t.", nullptr},
+    {(char *)"name", to_getter<&Symbol::name>(), nullptr, (char *)R"(name: str
+
+The name of a function.
+)", nullptr},
+    {(char *)"string", to_getter<&Symbol::string>(), nullptr, (char *)R"(string: str
+
+The value of a string.)", nullptr},
+    {(char *)"number", to_getter<&Symbol::num>(), nullptr, (char *)R"(number: int
+
+The value of a number.)", nullptr},
+    {(char *)"arguments", to_getter<&Symbol::args>(), nullptr, (char *)R"(arguments: List[Symbol]
+
+The arguments of a function.)", nullptr},
+    {(char *)"negative", to_getter<&Symbol::negative>(), nullptr, (char *)R"(negative: bool
+
+The inverted sign of a function.)", nullptr},
+    {(char *)"positive", to_getter<&Symbol::positive>(), nullptr, (char *)R"(positive: bool
+
+The sign of a function.)", nullptr},
+    {(char *)"type", to_getter<&Symbol::type_>(), nullptr, (char *)R"(type: SymbolType
+
+The type of the symbol.)", nullptr},
+    {(char *)"_to_c", to_getter<&Symbol::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the underlying C clingo_symbol_t.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -1947,7 +1985,7 @@ struct SymbolicAtom : public ObjectBase<SymbolicAtom> {
 
     static constexpr char const *tp_type = "SymbolicAtom";
     static constexpr char const *tp_name = "clingo.SymbolicAtom";
-    static constexpr char const *tp_doc = "Captures a symbolic atom and provides properties to inspect its state.";
+    static constexpr char const *tp_doc = R"(Captures a symbolic atom and provides properties to inspect its state.)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
@@ -1985,22 +2023,47 @@ struct SymbolicAtom : public ObjectBase<SymbolicAtom> {
 
 PyMethodDef SymbolicAtom::tp_methods[] = {
     {"match", to_function<&SymbolicAtom::match>(), METH_KEYWORDS | METH_VARARGS,
-R"(`match(self, name, arity) -> bool`
+R"(match(self, name: str, arity: int) -> bool
 
-Check if this is an atom with the given signature.
+Check if the atom matches the given signature.
 
-### Arguments
-- name  -- the name of the function
-- arity -- the arity of the function
+Parameters
+----------
+name : str
+    The name of the function.
+
+arity : int
+    The arity of the function.
+
+Returns
+-------
+bool
+    Whether the function matches.
+
+See Also
+--------
+Symbol.match
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef SymbolicAtom::tp_getset[] = {
-    {(char *)"symbol", to_getter<&SymbolicAtom::symbol>(), nullptr, (char *)R"(The representation of the atom in form of a symbol (Symbol object).)", nullptr},
-    {(char *)"literal", to_getter<&SymbolicAtom::literal>(), nullptr, (char *)R"(The program literal associated with the atom.)", nullptr},
-    {(char *)"is_fact", to_getter<&SymbolicAtom::is_fact>(), nullptr, (char *)R"(Whether the atom is a is_fact.)", nullptr},
-    {(char *)"is_external", to_getter<&SymbolicAtom::is_external>(), nullptr, (char *)R"(Whether the atom is an external atom.)", nullptr},
+    {(char *)"symbol", to_getter<&SymbolicAtom::symbol>(), nullptr, (char *)R"(symbol: Symbol
+
+The representation of the atom in form of a symbol.
+)", nullptr},
+    {(char *)"literal", to_getter<&SymbolicAtom::literal>(), nullptr, (char *)R"(literal: int
+
+The program literal associated with the atom.
+)", nullptr},
+    {(char *)"is_fact", to_getter<&SymbolicAtom::is_fact>(), nullptr, (char *)R"(is_fact: bool
+
+Whether the atom is a fact.
+)", nullptr},
+    {(char *)"is_external", to_getter<&SymbolicAtom::is_external>(), nullptr, (char *)R"(is_external: bool
+
+Whether the atom is an external atom.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr},
 };
 
@@ -2012,7 +2075,12 @@ struct SymbolicAtomIter : ObjectBase<SymbolicAtomIter> {
 
     static constexpr char const *tp_type = "SymbolicAtomIter";
     static constexpr char const *tp_name = "clingo.SymbolicAtomIter";
-    static constexpr char const *tp_doc = "Class to iterate over symbolic atoms.";
+    static constexpr char const *tp_doc = R"(Implements `Iterator[SymbolicAtom].`
+
+See Also
+--------
+SymbolicAtoms
+)";
 
     static Object construct(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t range) {
         auto self = new_();
@@ -2046,51 +2114,35 @@ struct SymbolicAtoms : ObjectBase<SymbolicAtoms> {
     static constexpr char const *tp_type = "SymbolicAtoms";
     static constexpr char const *tp_name = "clingo.SymbolicAtoms";
     static constexpr char const *tp_doc =
-R"(This class provides read-only access to the symbolic atoms of the grounder
-(the Herbrand base).
+R"(This class provides read-only access to the atom base of the grounder.
 
-Example:
+It implements `Sequence[SymbolicAtom]` and `Mapping[Symbol,SymbolicAtom]`.
 
-p(1).
-{ p(3) }.
-#external p(1..3).
+Examples
+--------
 
-q(X) :- p(X).
-
-#script (python)
-
-import clingo
-
-def main(prg):
-    prg.ground([("base", [])])
-    print "universe:", len(prg.symbolic_atoms)
-    for x in prg.symbolic_atoms:
-        print x.symbol, x.is_fact, x.is_external
-    print "p(2) is in domain:", prg.symbolic_atoms[clingo.Function("p", [2])] is not None
-    print "p(4) is in domain:", prg.symbolic_atoms[clingo.Function("p", [4])] is not None
-    print "domain of p/1:"
-    for x in prg.symbolic_atoms.by_signature("p", 1):
-        print x.symbol, x.is_fact, x.is_external
-    print "signatures:", prg.symbolic_atoms.signatures
-
-#end.
-
-Expected Output:
-
-universe: 6
-p(1) True False
-p(3) False False
-p(2) False True
-q(1) True False
-q(3) False False
-q(2) False False
-p(2) is in domain: True
-p(4) is in domain: False
-domain of p/1:
-p(1) True False
-p(3) False False
-p(2) False True
-signatures: [('p', 1), ('q', 1)])";
+    >>> import clingo
+    >>> prg = clingo.Control()
+    >>> prg.add('base', [], '''\
+    ... p(1).
+    ... { p(3) }.
+    ... #external p(1..3).
+    ...
+    ... q(X) :- p(X).
+    ... ''')
+    >>> prg.ground([("base", [])])
+    >>> len(prg.symbolic_atoms)
+    6
+    >>> prg.symbolic_atoms[clingo.Function("p", [2])] is not None
+    True
+    >>> prg.symbolic_atoms[clingo.Function("p", [4])] is None
+    True
+    >>> prg.symbolic_atoms.signatures
+    [('p', 1L, True), ('q', 1L, True)]
+    >>> [(x.symbol, x.is_fact, x.is_external)
+    ...  for x in prg.symbolic_atoms.by_signature("p", 1)]
+    [(p(1), True, False), (p(3), False, False), (p(2), False, True)]
+)";
 
     static Object construct(clingo_symbolic_atoms_t const *atoms) {
         auto self = new_();
@@ -2167,25 +2219,38 @@ signatures: [('p', 1), ('q', 1)])";
 
 PyMethodDef SymbolicAtoms::tp_methods[] = {
     {"by_signature", to_function<&SymbolicAtoms::by_signature>(), METH_KEYWORDS | METH_VARARGS,
-R"(`by_signature(self, name, arity, positive) -> SymbolicAtomIter`
+R"(by_signature(self, name: str, arity: int, positive: bool) -> Iterator[Symbol]
 
-Return a `SymbolicAtomIter` to iterate over the symbolic atoms with the
-given signature.
+Return an iterator over the symbolic atoms with the given signature.
 
-### Arguments
-- name     -- the name of the signature
-- arity    -- the arity of the signature
-- positive -- the sign of the signature
+Arguments
+---------
+name : str
+    The name of the signature.
+arity : int
+    The arity of the signature.
+positive : bool
+    The sign of the signature.
+
+Returns
+-------
+Iterator[Symbol]
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef SymbolicAtoms::tp_getset[] = {
     {(char *)"signatures", to_getter<&SymbolicAtoms::signatures>(), nullptr, (char *)
-R"(The list of predicate signatures (triples of names, arities, and Booleans)
-occurring in the program. A true Boolean stands for a positive signature.)"
-    , nullptr},
-    {(char *)"_to_c", to_getter<&SymbolicAtoms::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_symbolic_atoms_t struct.)", nullptr},
+R"(signatures: List[Tuple[str,int,bool]]
+
+The list of predicate signatures occurring in the program.
+
+The Boolean indicates the sign of the signature.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&SymbolicAtoms::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C clingo_symbolic_atoms_t struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
