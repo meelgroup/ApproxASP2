@@ -6479,6 +6479,8 @@ R"(Enumeration of the different types of messages.
 `MessageCode` objects cannot be constructed from Python. Instead the following
 preconstructed class attributes are available:
 
+Attributes
+----------
 OperationUndefined : MessageCode
     Inform about an undefined arithmetic operation or unsupported weight of an
     aggregate.
