@@ -1305,12 +1305,21 @@ R"(Enumeration of the different types of theory terms.
 `TheoryTermType` objects cannot be constructed from Python. Instead the
 following preconstructed objects are available:
 
-TheoryTermType.Function -- a function theory term
-TheoryTermType.Number   -- a numeric theory term
-TheoryTermType.Symbol   -- a symbolic theory term
-TheoryTermType.List     -- a list theory term
-TheoryTermType.Tuple    -- a tuple theory term
-TheoryTermType.Set      -- a set theory term)";
+Attributes
+----------
+Function : TheoryTermType
+    For a function theory terms.
+Number : TheoryTermType
+    For numeric theory terms.
+Symbol : TheoryTermType
+    For symbolic theory terms.
+List : TheoryTermType
+    For list theory terms.
+Tuple : TheoryTermType
+    For tuple theory terms.
+Set : TheoryTermType
+    For set theory terms.
+)";
 
     static constexpr clingo_theory_term_type const values[] = {
         clingo_theory_term_type_function,
@@ -1340,10 +1349,11 @@ struct TheoryTerm : ObjectBase<TheoryTerm> {
     static constexpr char const *tp_type = "TheoryTerm";
     static constexpr char const *tp_name = "clingo.TheoryTerm";
     static constexpr char const *tp_doc =
-R"(TheoryTerm objects represent theory terms.
+R"(`TheoryTerm` objects represent theory terms.
 
-This are read-only objects, which can be obtained from theory atoms and
-elements.)";
+Theory terms have a readable string representation, implement Python's rich
+comparison operators, and implement the `Hashable` interface.
+)";
 
     static Object construct(clingo_theory_atoms_t const *atoms, clingo_id_t value) {
         auto self = new_();
@@ -1393,18 +1403,20 @@ elements.)";
 };
 
 PyGetSetDef TheoryTerm::tp_getset[] = {
-    {(char *)"type", to_getter<&TheoryTerm::termType>(), nullptr, (char *)R"(type -> TheoryTermType
+    {(char *)"type", to_getter<&TheoryTerm::termType>(), nullptr, (char *)R"(type: TheoryTermType
 
 The type of the theory term.)", nullptr},
-    {(char *)"name", to_getter<&TheoryTerm::name>(), nullptr, (char *)R"(name -> str
+    {(char *)"name", to_getter<&TheoryTerm::name>(), nullptr, (char *)R"(name: str
 
-The name of the TheoryTerm\n(for symbols and functions).)", nullptr},
-    {(char *)"arguments", to_getter<&TheoryTerm::args>(), nullptr, (char *)R"(arguments -> [Symbol]
+The name of the term (for symbols and functions).)", nullptr},
+    {(char *)"arguments", to_getter<&TheoryTerm::args>(), nullptr, (char *)R"(arguments: List[Symbol]
 
-The arguments of the TheoryTerm (for functions, tuples, list, and sets).)", nullptr},
-    {(char *)"number", to_getter<&TheoryTerm::number>(), nullptr, (char *)R"(number -> integer
+The arguments of the term (for functions, tuples, list, and sets).
+)", nullptr},
+    {(char *)"number", to_getter<&TheoryTerm::number>(), nullptr, (char *)R"(number: int
 
-The numeric representation of the TheoryTerm (for numbers).)", nullptr},
+The numeric representation of the term (for numbers).
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
