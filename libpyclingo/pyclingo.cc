@@ -1416,8 +1416,11 @@ struct TheoryElement : ObjectBase<TheoryElement> {
     static constexpr char const *tp_type = "TheoryElement";
     static constexpr char const *tp_name = "clingo.TheoryElement";
     static constexpr char const *tp_doc =
-R"(TheoryElement objects represent theory elements which consist of a tuple of
-terms and a set of literals.)";
+R"(Class to represent theory elements.
+
+Theory elements have a readable string representation, implement Python's rich
+comparison operators, and implement the Hashable interface.
+)";
     static PyGetSetDef tp_getset[];
     static Object construct(clingo_theory_atoms const *atoms, clingo_id_t value) {
         auto self = new_();
@@ -1467,16 +1470,20 @@ terms and a set of literals.)";
 };
 
 PyGetSetDef TheoryElement::tp_getset[] = {
-    {(char *)"terms", to_getter<&TheoryElement::terms>(), nullptr, (char *)R"(terms -> [TheoryTerm]
+    {(char *)"terms", to_getter<&TheoryElement::terms>(), nullptr, (char *)R"(terms: List[TheoryTerm]
 
-The tuple of the element.)", nullptr},
-    {(char *)"condition", to_getter<&TheoryElement::condition>(), nullptr, (char *)R"(condition -> [TheoryTerm]
+The tuple of the element.
+)", nullptr},
+    {(char *)"condition", to_getter<&TheoryElement::condition>(), nullptr, (char *)R"(condition: List[TheoryTerm]
 
-The condition of the element.)", nullptr},
-    {(char *)"condition_id", to_getter<&TheoryElement::condition_id>(), nullptr, (char *)R"(condition_id -> int
+The condition of the element.
+)", nullptr},
+    {(char *)"condition_id", to_getter<&TheoryElement::condition_id>(), nullptr, (char *)R"(condition_id: int
 
-Each condition has an id. This id can be passed to PropagateInit.solver_literal
-to obtain a solver literal equivalent to the condition.)", nullptr},
+Each condition has an id. This id can be passed to
+`PropagateInit.solver_literal` to obtain a solver literal equivalent to the
+condition.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -1568,12 +1575,11 @@ The program literal associated with the atom.
 struct TheoryAtomIter : ObjectBase<TheoryAtomIter> {
     clingo_theory_atoms_t const *atoms;
     clingo_id_t offset;
-    static PyMethodDef tp_methods[];
 
     static constexpr char const *tp_type = "TheoryAtomIter";
     static constexpr char const *tp_name = "clingo.TheoryAtomIter";
     static constexpr char const *tp_doc =
-R"(Object to iterate over all theory atoms.)";
+R"(Implements `Iterator[SymbolicAtom]`.)";
     static Object construct(clingo_theory_atoms_t const *atoms, clingo_id_t offset) {
         auto self = new_();
         self->atoms = atoms;
@@ -1581,24 +1587,11 @@ R"(Object to iterate over all theory atoms.)";
         return self;
     }
     Reference tp_iter() { return *this; }
-    Object get() { return TheoryAtom::construct(atoms, offset); }
-    Py_ssize_t sq_length() {
-        size_t size;
-        handle_c_error(clingo_theory_atoms_size(atoms, &size));
-        return size;
-    }
-    Object sq_item(Py_ssize_t index) {
-        if (index < 0 || index >= sq_length()) {
-            PyErr_Format(PyExc_IndexError, "invalid index");
-            return nullptr;
-        }
-        return TheoryAtom::construct(atoms, index);
-    }
     Object tp_iternext() {
         size_t size;
         handle_c_error(clingo_theory_atoms_size(atoms, &size));
         if (offset < size) {
-            Object next = get();
+            Object next = TheoryAtom::construct(atoms, offset);
             ++offset;
             return next;
         } else {
@@ -1606,12 +1599,6 @@ R"(Object to iterate over all theory atoms.)";
             return nullptr;
         }
     }
-};
-
-PyMethodDef TheoryAtomIter::tp_methods[] = {
-    {"get", to_function<&TheoryAtomIter::get>(), METH_NOARGS,
-R"(get(self) -> TheoryAtom)"},
-    {nullptr, nullptr, 0, nullptr}
 };
 
 // {{{1 wrap Symbol
