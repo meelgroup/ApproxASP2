@@ -4444,11 +4444,23 @@ struct AggregateFunction : EnumType<AggregateFunction> {
     static constexpr char const *tp_doc =
 R"(Enumeration of aggegate functions.
 
-AggregateFunction.Count   -- the #count function
-AggregateFunction.Sum     -- the #sum function
-AggregateFunction.SumPlus -- the #sum+ function
-AggregateFunction.Min     -- the #min function
-AggregateFunction.Max     -- the #max function)";
+
+`AggregateFunction` objects cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+Count : AggregateFunction
+    The `#count` function.
+Sum : AggregateFunction
+    The `#sum` function.
+SumPlus : AggregateFunction
+    The `#sum+` function.
+Min : AggregateFunction
+    The `#min` function.
+Max : AggregateFunction
+    The `#max` function.
+)";
 
     static constexpr clingo_ast_aggregate_function_t const values[] = {
         clingo_ast_aggregate_function_count,
@@ -4485,12 +4497,24 @@ struct ComparisonOperator : EnumType<ComparisonOperator> {
     static constexpr char const *tp_doc =
 R"(Enumeration of comparison operators.
 
-ComparisonOperator.GreaterThan  -- the > operator
-ComparisonOperator.LessThan     -- the < operator
-ComparisonOperator.LessEqual    -- the <= operator
-ComparisonOperator.GreaterEqual -- the >= operator
-ComparisonOperator.NotEqual     -- the != operator
-ComparisonOperator.Equal        -- the = operator)";
+`ComparisonOperator` objects cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+GreaterThan : ComparisonOperator
+    The `>` operator.
+LessThan : ComparisonOperator
+    The `<` operator.
+LessEqual : ComparisonOperator
+    The `<=` operator.
+GreaterEqual : ComparisonOperator
+    The `>=` operator.
+NotEqual : ComparisonOperator
+    The `!=` operator.
+Equal : ComparisonOperator
+    The `=` operator
+)";
 
     static constexpr clingo_ast_comparison_operator_t const values[] = {
         clingo_ast_comparison_operator_greater_than,
@@ -4572,11 +4596,20 @@ struct Sign : EnumType<Sign> {
     static constexpr char const *tp_type = "Sign";
     static constexpr char const *tp_name = "clingo.ast.Sign";
     static constexpr char const *tp_doc =
-R"(The available signs for literals.
+R"(Enumeration of signs for literals.
 
-Sign.NoSign         --
-Sign.Negation       -- not
-Sign.DoubleNegation -- not not)";
+`Sign` objects cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+NoSign : Sign
+    For positive literals.
+Negation : Sign
+    For negative literals (with prefix `not`).
+DoubleNegation : Sign
+    For double negated literals (with prefix `not not`)
+)";
 
     static constexpr clingo_ast_sign_t const values[] = {
         clingo_ast_sign_none,
@@ -4602,16 +4635,24 @@ constexpr clingo_ast_sign_t const Sign::values[];
 constexpr const char * const Sign::strings[];
 
 struct UnaryOperator : EnumType<UnaryOperator> {
-    static PyMethodDef tp_methods[];
+    static PyGetSetDef tp_getset[];
 
     static constexpr char const *tp_type = "UnaryOperator";
     static constexpr char const *tp_name = "clingo.ast.UnaryOperator";
     static constexpr char const *tp_doc =
-R"(Enumeration of unary operators.
+R"(Enumeration of signs for literals.
 
-UnaryOperator.Negation -- bitwise negation
-UnaryOperator.Minus    -- unary minus and classical negation
-UnaryOperator.Absolute -- absolute value
+`UnaryOperator` objects cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+Negation : UnaryOperator
+    For bitwise negation.
+Minus : UnaryOperator
+    For unary minus and classical negation.
+Absolute : UnaryOperator
+    For taking the absolute value.
 )";
 
     static constexpr clingo_ast_unary_operator_t const values[] = {
@@ -4624,31 +4665,31 @@ UnaryOperator.Absolute -- absolute value
         "Minus",
         "Negation",
     };
-    static PyObject *leftHandSide(UnaryOperator *self) {
-        switch (static_cast<enum clingo_ast_unary_operator>(self->values[self->offset])) {
+    Object leftHandSide() {
+        switch (static_cast<enum clingo_ast_unary_operator>(values[offset])) {
             case clingo_ast_unary_operator_absolute: { return PyString_FromString("|"); }
             case clingo_ast_unary_operator_minus:    { return PyString_FromString("-"); }
             case clingo_ast_unary_operator_negation: { return PyString_FromString("~"); }
         }
         return PyString_FromString("");
     }
-    static PyObject *rightHandSide(UnaryOperator *self) {
-        return self->values[self->offset] == clingo_ast_unary_operator_absolute
+    Object rightHandSide() {
+        return values[offset] == clingo_ast_unary_operator_absolute
             ? PyString_FromString("|")
             : PyString_FromString("");
     }
 };
 
-PyMethodDef UnaryOperator::tp_methods[] = {
-    { "left_hand_side", (PyCFunction)leftHandSide, METH_NOARGS,
-R"(left_hand_side(self) -> str
+PyGetSetDef UnaryOperator::tp_getset[] = {
+    {(char*)"left_hand_side", to_getter<&UnaryOperator::leftHandSide>(), nullptr, (char*)R"(left_hand_side: str
 
-Left-hand side representation of the operator.)"},
-    { "right_hand_side", (PyCFunction)rightHandSide, METH_NOARGS,
-R"(right_hand_side(self) -> str
+Left-hand side representation of the operator.
+)", nullptr},
+    {(char*)"right_hand_side", to_getter<&UnaryOperator::rightHandSide>(), nullptr, (char*)R"(right_hand_side: str
 
-Right-hand side representation of the operator.)"},
-    { nullptr, nullptr, 0, nullptr }
+Right-hand side representation of the operator.
+)", nullptr},
+    {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 constexpr clingo_ast_unary_operator_t const UnaryOperator::values[];
@@ -4660,15 +4701,29 @@ struct BinaryOperator : EnumType<BinaryOperator> {
     static constexpr char const *tp_doc =
 R"(Enumeration of binary operators.
 
-BinaryOperator.XOr            -- bitwise exclusive or
-BinaryOperator.Or             -- bitwise or
-BinaryOperator.And            -- bitwise and
-BinaryOperator.Plus           -- arithmetic addition
-BinaryOperator.Minus          -- arithmetic subtraction
-BinaryOperator.Multiplication -- arithmetic multipilcation
-BinaryOperator.Division       -- arithmetic division
-BinaryOperator.Modulo         -- arithmetic modulo
-BinaryOperator.Power          -- arithmetic exponentiation
+`BinaryOperator` objects cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+XOr : BinaryOperator
+    For bitwise exclusive or.
+Or : BinaryOperator
+    For bitwise or.
+And : BinaryOperator
+    For bitwise and.
+Plus : BinaryOperator
+    For arithmetic addition.
+Minus : BinaryOperator
+    For arithmetic subtraction.
+Multiplication : BinaryOperator
+    For arithmetic multipilcation.
+Division : BinaryOperator
+    For arithmetic division.
+Modulo : BinaryOperator
+    For arithmetic modulo.
+Power : BinaryOperator
+    For arithmetic exponentiation.
 )";
     static constexpr clingo_ast_binary_operator_t const values[] = {
         clingo_ast_binary_operator_xor,
@@ -4713,16 +4768,24 @@ constexpr const char * const BinaryOperator::strings[];
 
 struct TheorySequenceType : EnumType<TheorySequenceType> {
     enum T { Set, Tuple, List };
-    static PyMethodDef tp_methods[];
+    static PyGetSetDef tp_getset[];
 
     static constexpr char const *tp_type = "TheorySequenceType";
     static constexpr char const *tp_name = "clingo.ast.TheorySequenceType";
     static constexpr char const *tp_doc =
 R"(Enumeration of theory term sequence types.
 
-TheorySequenceType.Tuple -- sequence enclosed in parenthesis
-TheorySequenceType.List  -- sequence enclosed in brackets
-TheorySequenceType.Set   -- sequence enclosed in braces
+`TheorySequenceType` objects cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+Tuple : TheorySequenceType
+    For sequences enclosed in parenthesis.
+List : TheorySequenceType
+    For sequences enclosed in brackets.
+Set : TheorySequenceType
+    For sequences enclosed in braces.
 )";
 
     static constexpr T const values[] = {
@@ -4735,16 +4798,16 @@ TheorySequenceType.Set   -- sequence enclosed in braces
         "Tuple",
         "List",
     };
-    static PyObject *leftHandSide(TheorySequenceType *self) {
-        switch (self->values[self->offset]) {
+    Object leftHandSide() {
+        switch (values[offset]) {
             case Set:   { return PyString_FromString("{"); }
             case Tuple: { return PyString_FromString("("); }
             case List:  { return PyString_FromString("["); }
         }
         return PyString_FromString("");
     }
-    static PyObject *rightHandSide(TheorySequenceType *self) {
-        switch (self->values[self->offset]) {
+    Object rightHandSide() {
+        switch (values[offset]) {
             case Set:   { return PyString_FromString("}"); }
             case Tuple: { return PyString_FromString(")"); }
             case List:  { return PyString_FromString("]"); }
@@ -4753,16 +4816,16 @@ TheorySequenceType.Set   -- sequence enclosed in braces
     }
 };
 
-PyMethodDef TheorySequenceType::tp_methods[] = {
-    { "left_hand_side", (PyCFunction)leftHandSide, METH_NOARGS,
-R"(left_hand_side(self) -> str
+PyGetSetDef TheorySequenceType::tp_getset[] = {
+    {(char*)"left_hand_side", to_getter<&TheorySequenceType::leftHandSide>(), nullptr, (char*)R"(left_hand_side: str
 
-Left-hand side representation of the sequence.)"},
-    { "right_hand_side", (PyCFunction)rightHandSide, METH_NOARGS,
-R"(right_hand_side(self) -> str
+Left-hand side representation of the sequence.
+)", nullptr},
+    {(char*)"right_hand_side", to_getter<&TheorySequenceType::rightHandSide>(), nullptr, (char*)R"(right_hand_side: str
 
-Right-hand side representation of the sequence.)"},
-    { nullptr, nullptr, 0, nullptr }
+Right-hand side representation of the sequence.
+)", nullptr},
+    {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 constexpr TheorySequenceType::T const TheorySequenceType::values[];
@@ -4774,9 +4837,19 @@ struct TheoryOperatorType : EnumType<TheoryOperatorType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of operator types.
 
-TheoryOperatorType.Unary       -- unary operator
-TheoryOperatorType.BinaryLeft  -- binary left associative operator
-TheoryOperatorType.BinaryRight -- binary right associative operator)";
+
+`TheoryOperatorType` objects cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+Unary : TheoryOperatorType
+    For unary operators.
+BinaryLeft : TheoryOperatorType
+    For binary left associative operators.
+BinaryRight : TheoryOperatorType
+    For binary right associative operator.
+)";
 
     static constexpr clingo_ast_theory_operator_type_t const values[] = {
         clingo_ast_theory_operator_type_unary,
@@ -4807,10 +4880,19 @@ struct TheoryAtomType : EnumType<TheoryAtomType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of theory atom types.
 
-TheoryAtomType.Any       -- atom can occur anywhere
-TheoryAtomType.Body      -- atom can only occur in rule bodies
-TheoryAtomType.Head      -- atom can only occur in rule heads
-TheoryAtomType.Directive -- atom can only occur in facts
+`TheoryAtomType` objects cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+Any : TheorySequenceType
+    For atoms that can occur anywhere.
+Body : TheorySequenceType
+    For atoms that can only occur in rule bodies.
+Head : TheorySequenceType
+    For atoms that can only occur in rule heads.
+Directive : TheorySequenceType
+    For atoms that can only occur in facts.
 )";
 
     static constexpr clingo_ast_theory_atom_definition_type_t const values[] = {
@@ -4846,8 +4928,15 @@ struct ScriptType : EnumType<ScriptType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of theory atom types.
 
-ScriptType.Python -- Python code
-ScriptType.Lua    -- lua code
+`ScriptType` objects cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+Python : ScriptType
+    For Python code.
+Lua : ScriptType
+    For Lua code.
 )";
 
     static constexpr T const values[] = {
@@ -4880,22 +4969,27 @@ struct AST : ObjectBase<AST> {
     static PyGetSetDef tp_getset[];
     static constexpr char const *tp_type = "AST";
     static constexpr char const *tp_name = "clingo.ast.AST";
-    static constexpr char const *tp_doc = R"(AST(type, **arguments) -> AST
+    static constexpr char const *tp_doc = R"(AST(type, **arguments)
 
-Node in the abstract syntax tree.
+Represents a node in the abstract syntax tree.
+
+AST nodes implement Python's rich comparison operators and are ordered
+structurally ignoring the location. They implement the Hashable interface.
+Their string representation corresponds to their gringo representation.
 
 Parameters
 ----------
-type -- value in the enumeration ASTType
+type : ASTType
+    The type of the onde.
+arguments : Mapping[str,Any]
+    Additionally, the functions takes an arbitrary number of keyword arguments.
+    These should contain the required fields of the node but can also be set
+    later.
 
-Additionally, the functions takes an arbitrary number of keyword arguments.
-These should contain the required fields of the node but can also be set
-later.
-
-AST nodes can be structually compared ignoring the location.
-
-Note that it is also possible to create AST nodes using one of the functions
-provided in this module.
+Notes
+-----
+It is also possible to create AST nodes using one of the functions provided in
+this module.
 )";
     static Object tp_new(PyTypeObject *type) {
         auto self = new_(type);
@@ -5036,7 +5130,7 @@ provided in this module.
             case ASTType::Symbol:   { return fields_.getItem("symbol").str(); }
             case ASTType::UnaryOperation: {
                 Object unop = fields_.getItem("operator");
-                out << unop.call("left_hand_side") << fields_.getItem("argument") << unop.call("right_hand_side");
+                out << unop.getAttr("left_hand_side") << fields_.getItem("argument") << unop.getAttr("right_hand_side");
                 break;
             }
             case ASTType::BinaryOperation: {
@@ -5152,7 +5246,7 @@ provided in this module.
             case ASTType::TheorySequence: {
                 auto type = fields_.getItem("sequence_type"), terms = fields_.getItem("terms");
                 bool tc = terms.size() == 1 && type == TheorySequenceType::getAttr(TheorySequenceType::Tuple);
-                out << type.call("left_hand_side") << printList(terms, "", ",", "", true) << (tc ? "," : "") << type.call("right_hand_side");
+                out << type.getAttr("left_hand_side") << printList(terms, "", ",", "", true) << (tc ? "," : "") << type.getAttr("right_hand_side");
                 break;
             }
             case ASTType::TheoryFunction: {
@@ -5318,26 +5412,44 @@ provided in this module.
 
 PyMethodDef AST::tp_methods[] = {
     {"keys", to_function<&AST::keys>(), METH_NOARGS,
-R"(keys(self) -> list
+R"(keys(self) -> List[str]
 
 The list of keys of the AST node.
+
+Returns
+-------
+List[str]
 )"},
     {"values", to_function<&AST::values>(), METH_NOARGS,
-R"(values(self) -> list
+R"(values(self) -> List[AST]
 
 The list of values of the AST node.
+
+Returns
+-------
+List[AST]
 )"},
     {"items", to_function<&AST::items>(), METH_NOARGS,
-R"(items(self) -> list
+R"(items(self) -> List[Tuple(str,AST)]
 
 The list of items of the AST node.
+
+Returns
+-------
+List[Tuple(str,AST)]
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef AST::tp_getset[] = {
-    {(char*)"child_keys", to_getter<&AST::childKeys>(), nullptr, (char*)"List of names of all AST child nodes.", nullptr},
-    {(char*)"type", to_getter<&AST::getType>(), to_setter<&AST::setType>(), (char*)"The type of the node.", nullptr},
+    {(char*)"child_keys", to_getter<&AST::childKeys>(), nullptr, (char*)R"(child_keys: List[str]
+
+List of names of all AST child nodes.
+)", nullptr},
+    {(char*)"type", to_getter<&AST::getType>(), to_setter<&AST::setType>(), (char*)R"(type: ASTType
+
+The type of the node.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -8732,17 +8844,16 @@ static PyMethodDef clingoASTModuleMethods[] = {
     {"ProjectSignature", to_function<createProjectSignature>(), METH_VARARGS | METH_KEYWORDS, nullptr},
     {nullptr, nullptr, 0, nullptr}
 };
-static char const *clingoASTModuleDoc = "The clingo.ast-" CLINGO_VERSION " module."
-R"(
-
+static char const *clingoASTModuleDoc = "The clingo.ast-" CLINGO_VERSION " module." R"(
 
 The grammar below defines valid ASTs. For each upper case identifier there is a
 matching function in the module. Arguments follow in parenthesis: each having a
-type given on the right-hand side of the colon. The symbols ?, *, and + are
-used to denote optional arguments (None encodes abscence), list arguments, and
-non-empty list arguments.
+type given on the right-hand side of the colon. The symbols `?`, `*`, and `+`
+are used to denote optional arguments (`None` encodes abscence), list
+arguments, and non-empty list arguments.
 
--- Terms
+```
+# Terms
 
 term = Symbol
         ( location : Location
@@ -8814,7 +8925,7 @@ theory_term = Symbol
                              )+
                )
 
--- Literals
+# Literals
 
 symbolic_atom = SymbolicAtom
                  ( term : term
@@ -8843,7 +8954,7 @@ literal = Literal
                          )+
            )
 
--- Head and Body Literals
+# Head and Body Literals
 
 aggregate_guard = AggregateGuard
                    ( comparison : ComparisonOperator
@@ -8924,7 +9035,7 @@ head = literal
         )
      | theory_atom
 
--- Theory Definitions
+# Theory Definitions
 
 theory = TheoryDefinition
           ( location : Location
@@ -8952,7 +9063,7 @@ theory = TheoryDefinition
                         )
           )
 
--- Statements
+# Statements
 
 statement = Rule
              ( location : Location
@@ -9035,6 +9146,7 @@ statement = Rule
              , arity      : int
              , positive   : bool
              )
+```
 )";
 
 static PyMethodDef clingoModuleMethods[] = {
