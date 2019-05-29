@@ -7489,7 +7489,7 @@ ProgramBuilder
 
 See Also
 --------
-parse_program
+ProgramBuilder
 )"},
     // ground
     {"ground", to_function<&ControlWrap::ground>(), METH_KEYWORDS | METH_VARARGS,
