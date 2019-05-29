@@ -2,5 +2,5 @@
 layout: home
 ---
 
-[Clingo API Documentation](/clingo/python-api/5.4/clingo/)
-[Clingo API Documentation (ast)](/clingo/python-api/5.4/clingo/ast/)
+- [Clingo API Documentation]({{site.baseurl}}/{% link clingo/index.html %})
+- [Clingo API Documentation (ast)]({{site.baseurl}}/{% link clingo/ast/index.html %})

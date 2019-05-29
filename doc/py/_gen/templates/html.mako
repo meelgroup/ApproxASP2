@@ -6,6 +6,13 @@
 
   base_url = "/clingo/python-api/{}".format(".".join(clingo.__version__.split(".")[0:2]))
 
+  def link_replace(match):
+    if match.group(1) == "clingo":
+        path = "clingo"
+    if match.group(1) == "ast":
+        path = "clingo/ast"
+    return '{{site.baseurl}}{% link ' + path + "/index.html" + ' %}'
+
   def link(d, name=None, fmt='{}'):
     name = fmt.format(name or d.qualname + ('()' if isinstance(d, pdoc.Function) else ''))
     if not isinstance(d, pdoc.Doc) or isinstance(d, pdoc.External) and not external_links:
@@ -14,8 +21,8 @@
                 top_ancestor=not show_inherited_members)
     if url.endswith(".ext"):
         return name
-    url = re.sub('.*clingo.html', '{}/clingo/'.format(base_url), url)
-    url = re.sub('.*ast.html', '{}/clingo/ast/'.format(base_url), url)
+    url = re.sub('.*(clingo).html', link_replace, url)
+    url = re.sub('.*(ast).html', link_replace, url)
     return '<a title="{}" href="{}">{}</a>'.format(d.refname, url, name)
 
   _re_returns = re.compile(r"^(?<=Returns\n-{7}\n)(?P<type>[^\n]*)(?P<desc>(\n    )?)", re.MULTILINE)
@@ -554,6 +561,6 @@ permalink: ${base_url}/${module_path}/
 </main>
 
 % if show_source_code:
-    <script src="/js/highlight.min.js"></script>
+    <script src="{{site.baseurl}}/js/highlight.min.js"></script>
     <script>hljs.initHighlightingOnLoad()</script>
 % endif
