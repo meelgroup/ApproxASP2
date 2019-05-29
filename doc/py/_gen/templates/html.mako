@@ -39,6 +39,12 @@
     text = text.replace('AnswerDUMMY', 'Answer:')
     text = text.replace('<pre><code>', '<pre><code class="hljs python">')
     text = text.replace('<pre><code class="python">', '<pre><code class="hljs python">')
+    for x in ("Number()", "String()", "Function()", "Tuple()", "Infimum", "Supremum", "Symbol"):
+        for t in ("SymbolType", "TheoryTermType"):
+            text = text.replace('<dt><strong><a title="clingo.{x}" href="#clingo.{x}"><code>{y}</code></a></strong> :&ensp;'
+                                '<a title="clingo.{t}" href="#clingo.{t}"><code>{t}</code></a></dt>'.format(x=x.replace("()", ""), y=x, t=t),
+                                '<dt><strong><code>{x}</code></strong> : '
+                                '<a title="clingo.{t}" href="#clingo.{t}"><code>{t}</code></a></dt>'.format(x=x.replace("()", ""), t=t))
     return text
 
   def parse_var_docstring(f):

@@ -1899,7 +1899,7 @@ The sign of a function.)", nullptr},
 The type of the symbol.)", nullptr},
     {(char *)"_to_c", to_getter<&Symbol::to_c>(), nullptr, (char *)R"(_to_c: int
 
-An int representing the underlying C clingo_symbol_t.)", nullptr},
+An int representing the underlying C `clingo_symbol_t`.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -2255,7 +2255,7 @@ The Boolean indicates the sign of the signature.
 )", nullptr},
     {(char *)"_to_c", to_getter<&SymbolicAtoms::to_c>(), nullptr, (char *)R"(_to_c: int
 
-An int representing the pointer to the underlying C clingo_symbolic_atoms_t struct.
+An int representing the pointer to the underlying C `clingo_symbolic_atoms_t` struct.
 )", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
@@ -2611,7 +2611,9 @@ See Also
 --------
 ModelType
 )", nullptr},
-    {(char *)"_to_c", to_getter<&Model::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_model_t struct.)", nullptr},
+    {(char *)"_to_c", to_getter<&Model::to_c>(), nullptr, (char *)R"(_to_c: int
+An int representing the pointer to the underlying C `clingo_model_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -3132,7 +3134,7 @@ The list is `None` if the current object is not an option group.
 )", nullptr},
     {(char *)"_to_c", to_getter<&Configuration::to_c>(), nullptr, (char *)R"(_to_c: int
 
-An int representing the pointer to the underlying C clingo_configuration_t struct.
+An int representing the pointer to the underlying C `clingo_configuration_t` struct.
 )", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
@@ -3349,7 +3351,8 @@ The maximum size of the assignment (if all literals are assigned).)", nullptr},
 Whether the assignment is total.)", nullptr},
     {(char *)"_to_c", to_getter<&Assignment::to_c>(), nullptr, (char *)R"(_to_c: int
 
-An int representing the pointer to the underlying C clingo_assignment_t struct.)", nullptr},
+An int representing the pointer to the underlying C `clingo_assignment_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -3365,6 +3368,8 @@ R"(Enumeration of supported check modes for propagators.
 `PropagatorCheckMode` objects cannot be constructed from Python. Instead the
 following preconstructed class attributes are available:
 
+Attributes
+----------
 Off : PropagatorCheckMode
     Do not call `Propagator.check` at all.
 Total : PropagatorCheckMode
@@ -4377,7 +4382,8 @@ None
 PyGetSetDef Backend::tp_getset[] = {
     {(char *)"_to_c", to_getter<&Backend::to_c>(), nullptr, (char *)R"(_to_c: int
 
-An int representing the pointer to the underlying C clingo_backend_t struct.)", nullptr},
+An int representing the pointer to the underlying C `clingo_backend_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -6535,7 +6541,8 @@ Follows Python's __exit__ conventions. Does not suppress exceptions.
 PyGetSetDef ProgramBuilder::tp_getset[] = {
     {(char *)"_to_c", to_getter<&ProgramBuilder::to_c>(), nullptr, (char *)R"(_to_c: int
 
-An int representing the pointer to the underlying C clingo_program_builder_t struct.)", nullptr},
+An int representing the pointer to the underlying C `clingo_program_builder_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -6779,7 +6786,7 @@ None
 PyGetSetDef StatisticsArray::tp_getset[] = {
     {(char *)"_to_c", to_getter<&StatisticsArray::to_c>(), nullptr, (char *)R"(_to_c: int
 
-An int representing the pointer to the underlying C clingo_statistics_t struct.
+An int representing the pointer to the underlying C `clingo_statistics_t` struct.
 )", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
@@ -6949,7 +6956,7 @@ None
 PyGetSetDef StatisticsMap::tp_getset[] = {
     {(char *)"_to_c", to_getter<&StatisticsMap::to_c>(), nullptr, (char *)R"(_to_c: int
 
-An int representing the pointer to the underlying C clingo_statistics_t struct.
+An int representing the pointer to the underlying C `clingo_statistics_t` struct.
 )", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
@@ -8487,7 +8494,9 @@ None
 };
 
 PyGetSetDef ApplicationOptions::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&ApplicationOptions::to_c>(), nullptr, (char *)"An int representing the pointer to the underlying C clingo_options_t struct.", nullptr},
+    {(char *)"_to_c", to_getter<&ApplicationOptions::to_c>(), nullptr, (char *)R"(_to_c: int
+An int representing the pointer to the underlying C `clingo_options_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -9207,7 +9216,7 @@ Construct a function symbol.
 
 This includes constants and tuples. Constants have an empty argument list and
 tuples have an empty name. Functions can represent classically negated atoms.
-Argument `positive` has to be set to `False` to represent such atoms.
+Argument `positive` has to be set to false to represent such atoms.
 
 Parameters
 ----------
@@ -9278,7 +9287,7 @@ Returns
 -------
 Symbol
 )"},
-    {"_error_message", to_function<clingoErrorMessage>(), METH_NOARGS, R"(_error_message() -> int
+    {"_error_message", to_function<clingoErrorMessage>(), METH_NOARGS, R"(_error_message() -> str
 
 Get the internal error message.
 
