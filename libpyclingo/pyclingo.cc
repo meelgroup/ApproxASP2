@@ -3826,7 +3826,7 @@ False_ : TruthValue
 Free : TruthValue
     Represents absence of a truth value.
 Release : TruthValue
-    Indicates that an atom is to be released
+    Indicates that an atom is to be released.
 )";
 
     static constexpr Type const values[] = {
@@ -4989,7 +4989,8 @@ arguments : Mapping[str,Any]
 Notes
 -----
 It is also possible to create AST nodes using one of the functions provided in
-this module.
+this module. The parameters of the functions correspond to the nonterminals as
+given in the [grammar](.) above.
 )";
     static Object tp_new(PyTypeObject *type) {
         auto self = new_(type);
@@ -6574,7 +6575,7 @@ statement.
 Examples
 --------
 The following example parses a program from a string and passes the resulting
-AST to the builder:
+`AST` to the builder:
 
     >>> import clingo
     >>> ctl = clingo.Control()
