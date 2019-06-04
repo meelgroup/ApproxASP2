@@ -26,9 +26,9 @@ cmod = pdoc.Module(clingo, context=ctx)
 amod = pdoc.Module(clingo.ast, supermodule=cmod, context=ctx)
 
 cmod.doc["ast"] = amod
-cmod.doc["__version__"] = pdoc.Variable("__version__", cmod, "Version of the clingo module (`'{}'`).".format(clingo.__version__))
-cmod.doc["Infimum"] = pdoc.Variable("Infimum", cmod, '''Represents a `clingo.Symbol` of type `clingo.SymbolType.Infimum`.''')
-cmod.doc["Supremum"] = pdoc.Variable("Supremum", cmod, '''Represents a `clingo.Symbol` of type `clingo.SymbolType.Supremum`.''')
+cmod.doc["__version__"] = pdoc.Variable("__version__", cmod, "__version__: str\n\nVersion of the clingo module (`'{}'`).".format(clingo.__version__))
+cmod.doc["Infimum"] = pdoc.Variable("Infimum", cmod, '''Infimum: Symbol\n\nRepresents a `clingo.Symbol` of type `clingo.SymbolType.Infimum`.''')
+cmod.doc["Supremum"] = pdoc.Variable("Supremum", cmod, '''Supremum: Symbol\n\nRepresents a `clingo.Symbol` of type `clingo.SymbolType.Supremum`.''')
 pdoc.link_inheritance(ctx)
 
 os.makedirs("../clingo/ast", exist_ok=True)

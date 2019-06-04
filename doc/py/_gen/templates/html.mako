@@ -287,8 +287,11 @@
       <h2 class="section-title" id="header-variables">Global variables</h2>
       <dl>
         % for v in variables:
-          <dt id="${v.refname}"><code class="name">var ${ident(v.name)}</code></dt>
-          <dd>${show_desc(v)}</dd>
+          <%
+            docstring, rettype = parse_var_docstring(v)
+          %>
+          <dt id="${v.refname}"><code class="name">var ${ident(v.name)}${"<span> : {}</span>".format(rettype) if rettype else ""}</code></dt>
+          <dd>${show_str_desc(docstring)}</dd>
         % endfor
       </dl>
     % endif
@@ -322,7 +325,7 @@
           <dt id="${c.refname}"><code class="flex name class">
                 % for f in methods:
                   % if f.name == "__init__":
-                    <span>class ${ident(c.name)}<span><span>${signature}</span>
+                    <span>class ${ident(c.name)}<span><span>${re.sub(r" -> .*$", "", signature)}</span>
                     <% break %>
                   % endif
                 % else:
