@@ -8407,6 +8407,7 @@ This property is only available in clingo.
 Examples
 --------
 The following example shows how to dump the solving statistics in json format:
+
     >>> import json
     >>> import clingo
     >>> ctl = clingo.Control()
@@ -8425,7 +8426,6 @@ The following example shows how to dump the solving statistics in json format:
             "restarts_last": 0.0
         }
     }
-```
 )", nullptr},
     {(char *)"theory_atoms", to_getter<&ControlWrap::theoryIter>(), nullptr, (char *)R"(theory_atoms: TheoryAtomIter
 
