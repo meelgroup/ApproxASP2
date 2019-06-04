@@ -325,7 +325,7 @@
           <dt id="${c.refname}"><code class="flex name class">
                 % for f in methods:
                   % if f.name == "__init__":
-                    <span>class ${ident(c.name)}<span><span>${re.sub(r" -> .*$", "", signature)}</span>
+                    <span>class ${ident(c.name)}<span><span>${re.sub(r" -> .*$", "", signature) if signature else ""}</span>
                     <% break %>
                   % endif
                 % else:
