@@ -378,14 +378,7 @@
               <h3>Methods</h3>
               <dl>
                 % for f in methods:
-                  % if f.name == "__init__":
-                    <dt id="${f.refname}"><code class="name flex">
-                        <span>def <span class="ident">__init__</span>${signature}</span>
-                    </code></dt>
-                    <dd>
-                      <section class="desc"><p>See the class description for more information.</p></section>
-                    </dd>
-                  % else:
+                  % if f.name != "__init__":
                     ${show_func(f)}
                   % endif
                 % endfor
