@@ -3,6 +3,52 @@
   import re
   import clingo
   from pdoc.html_helpers import extract_toc, glimpse, to_markdown
+  import pyparsing as pp
+
+  class Group(pp.TokenConverter):
+      def __init__(self, expr):
+          super(Group, self).__init__(expr)
+          self.saveAsList = False
+
+      def postParse(self, instring, loc, tokenlist):
+          return [ tokenlist ]
+
+  identifier = pp.Word(pp.alphas, pp.alphanums + '_')
+
+  # annotation_list: [ annotation ("," annotation)* ]
+  annotation = pp.Forward()
+  annotation_list = pp.Group(pp.Optional(pp.delimitedList(annotation, ",")))
+
+  # annotation: id [ "[" annotation_list "]" ]
+  annotation <<= Group(identifier.setResultsName("name") + pp.Optional(pp.Suppress("[") + annotation_list.setResultsName("arguments") + pp.Suppress("]")))
+
+  # prefix: "**" | "*" | ""
+  prefix = pp.MatchFirst([pp.Word("**"), pp.Word("*")])
+
+  # parameter: id [ ":" annotation ]
+  parameter = pp.Group(pp.Optional(prefix, "").setResultsName("prefix") + identifier.setResultsName("name") + pp.Optional(pp.Suppress(":") + annotation.setResultsName("type")))
+
+  # id "(" [ parameter ("," parameter)* ] ")" "->" annotation
+  function = (
+      identifier.setResultsName("name") +
+      pp.Suppress("(") + pp.Group(pp.Optional(pp.delimitedList(parameter, ","))).setResultsName("arguments") + pp.Suppress(")") +
+      pp.Suppress("->") + annotation.setResultsName("type"))
+
+  def parse(x):
+      return function.parseString(x, parseAll=True).asDict()
+
+  def p_parameter(x):
+      annotation = (": " + p_annotation(x["type"])) if "type" in x else ""
+      return "{}{}{}".format(x["prefix"], x["name"], annotation)
+
+  def p_annotation(x):
+      params = ("[" + ",".join([ p_annotation(y) for y in x["arguments"] ]) + "]") if "arguments" in x else ""
+      return "{}{}".format(x["name"], params)
+
+  def p_function(x):
+      params = ", ".join([ p_parameter(y) for y in x["arguments"] ])
+      annotation = " -> {}".format(p_annotation(x["type"]) if x["type"] else "")
+      return "{}({}){}".format(x["name"], params, annotation)
 
   base_url = "/clingo/python-api/{}".format(".".join(clingo.__version__.split(".")[0:2]))
 
@@ -238,6 +284,7 @@
 
   <%def name="show_func(f)">
     <%
+      # TODO: p_function(parse("f() -> None"))
       docstring, params, rettype = parse_docstring(f)
     %>
     <dt id="${f.refname}"><code class="name flex">
