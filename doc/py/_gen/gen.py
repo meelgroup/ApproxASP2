@@ -13,10 +13,9 @@ def _is_public(ident_name):
     """
     return True
 
-pdoc._is_public = _is_public
+#pdoc._is_public = _is_public
 
 clingo.ast.__spec__ = importlib.machinery.ModuleSpec("clingo.ast", None)
-
 clingo.__pdoc__ = {}
 
 pdoc.tpl_lookup.directories.insert(0, './templates')

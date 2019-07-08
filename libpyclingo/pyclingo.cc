@@ -1302,8 +1302,11 @@ struct TheoryTermType : EnumType<TheoryTermType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of theory terms.
 
-`TheoryTermType` objects cannot be constructed from Python. Instead the
-following preconstructed objects are available:
+`TheoryTermType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed objects are available:
 
 Attributes
 ----------
@@ -1352,7 +1355,7 @@ struct TheoryTerm : ObjectBase<TheoryTerm> {
 R"(`TheoryTerm` objects represent theory terms.
 
 Theory terms have a readable string representation, implement Python's rich
-comparison operators, and implement the `Hashable` interface.
+comparison operators, and can be used as dictionary keys.
 )";
 
     static Object construct(clingo_theory_atoms_t const *atoms, clingo_id_t value) {
@@ -1431,7 +1434,7 @@ struct TheoryElement : ObjectBase<TheoryElement> {
 R"(Class to represent theory elements.
 
 Theory elements have a readable string representation, implement Python's rich
-comparison operators, and implement the Hashable interface.
+comparison operators, and can be used as dictionary keys.
 )";
     static PyGetSetDef tp_getset[];
     static Object construct(clingo_theory_atoms const *atoms, clingo_id_t value) {
@@ -1510,7 +1513,7 @@ struct TheoryAtom : ObjectBase<TheoryAtom> {
     static constexpr char const *tp_doc = R"(Class to represent theory atoms.
 
 Theory atoms have a readable string representation, implement Python's rich
-comparison operators, and implement the `Hashable` interface.
+comparison operators, and can be used as dictionary keys.
 )";
     static Object construct(clingo_theory_atoms_t const *atoms, clingo_id_t value) {
         auto self = new_();
@@ -1621,7 +1624,10 @@ struct SymbolType : EnumType<SymbolType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of symbols.
 
-`SymbolType` objects cannot be constructed from Python. Instead the following
+`SymbolType` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
 preconstructed objects are available:
 
 Attributes
@@ -2405,7 +2411,10 @@ struct ModelType : EnumType<ModelType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of models.
 
-`ModelType` objects cannot be constructed from Python. Instead the following
+`ModelType` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
 preconstructed class attributes are available:
 
 Attributes
@@ -3365,8 +3374,11 @@ struct PropagatorCheckMode : EnumType<PropagatorCheckMode> {
     static constexpr char const *tp_doc =
 R"(Enumeration of supported check modes for propagators.
 
-`PropagatorCheckMode` objects cannot be constructed from Python. Instead the
-following preconstructed class attributes are available:
+`PropagatorCheckMode` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
 Attributes
 ----------
@@ -3814,7 +3826,10 @@ struct TruthValue : EnumType<TruthValue> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different truth values.
 
-`TruthValue` objects cannot be constructed from Python. Instead the following
+`TruthValue` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
 preconstructed class attributes are available:
 
 Attributes
@@ -3853,7 +3868,10 @@ struct HeuristicType : EnumType<HeuristicType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different heuristic types.
 
-`HeuristicType` objects cannot be constructed from Python. Instead the following
+`HeuristicType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
 preconstructed class attributes  are available:
 
 Attributes
@@ -4012,7 +4030,7 @@ The `Backend` is a context manager and must be used with Python's `with`
 statement.
 
 Statements added with the backend are added directly to the solver. For
-example, the grounding componenet will not be aware if facts were added to a
+example, the grounding component will not be aware if facts were added to a
 program via the backend. The only exception are atoms added with
 `Backend.add_atom`, which will subsequently be used to instantiate rules.
 Furthermore, the `Control.cleanup` method can be used to transfer information
@@ -4444,9 +4462,11 @@ struct AggregateFunction : EnumType<AggregateFunction> {
     static constexpr char const *tp_doc =
 R"(Enumeration of aggegate functions.
 
+`AggregateFunction` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
 
-`AggregateFunction` objects cannot be constructed from Python. Instead the
-following preconstructed class attributes are available:
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
 Attributes
 ----------
@@ -4497,8 +4517,11 @@ struct ComparisonOperator : EnumType<ComparisonOperator> {
     static constexpr char const *tp_doc =
 R"(Enumeration of comparison operators.
 
-`ComparisonOperator` objects cannot be constructed from Python. Instead the
-following preconstructed class attributes are available:
+`ComparisonOperator` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
 Attributes
 ----------
@@ -4598,8 +4621,11 @@ struct Sign : EnumType<Sign> {
     static constexpr char const *tp_doc =
 R"(Enumeration of signs for literals.
 
-`Sign` objects cannot be constructed from Python. Instead the
-following preconstructed class attributes are available:
+`Sign` objects have a readable string representation, implement Python's rich
+comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
 Attributes
 ----------
@@ -4642,8 +4668,11 @@ struct UnaryOperator : EnumType<UnaryOperator> {
     static constexpr char const *tp_doc =
 R"(Enumeration of signs for literals.
 
-`UnaryOperator` objects cannot be constructed from Python. Instead the
-following preconstructed class attributes are available:
+`UnaryOperator` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
 Attributes
 ----------
@@ -4701,7 +4730,10 @@ struct BinaryOperator : EnumType<BinaryOperator> {
     static constexpr char const *tp_doc =
 R"(Enumeration of binary operators.
 
-`BinaryOperator` objects cannot be constructed from Python. Instead the
+`BinaryOperator` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the
 following preconstructed class attributes are available:
 
 Attributes
@@ -4775,8 +4807,11 @@ struct TheorySequenceType : EnumType<TheorySequenceType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of theory term sequence types.
 
-`TheorySequenceType` objects cannot be constructed from Python. Instead the
-following preconstructed class attributes are available:
+`TheorySequenceType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
 Attributes
 ----------
@@ -4837,9 +4872,11 @@ struct TheoryOperatorType : EnumType<TheoryOperatorType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of operator types.
 
+`TheoryOperatorType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
 
-`TheoryOperatorType` objects cannot be constructed from Python. Instead the
-following preconstructed class attributes are available:
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
 Attributes
 ----------
@@ -4880,18 +4917,21 @@ struct TheoryAtomType : EnumType<TheoryAtomType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of theory atom types.
 
-`TheoryAtomType` objects cannot be constructed from Python. Instead the
-following preconstructed class attributes are available:
+`TheoryAtomType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
 
 Attributes
 ----------
-Any : TheorySequenceType
+Any : TheoryAtomType
     For atoms that can occur anywhere.
-Body : TheorySequenceType
+Body : TheoryAtomType
     For atoms that can only occur in rule bodies.
-Head : TheorySequenceType
+Head : TheoryAtomType
     For atoms that can only occur in rule heads.
-Directive : TheorySequenceType
+Directive : TheoryAtomType
     For atoms that can only occur in facts.
 )";
 
@@ -4928,7 +4968,10 @@ struct ScriptType : EnumType<ScriptType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of theory atom types.
 
-`ScriptType` objects cannot be constructed from Python. Instead the following
+`ScriptType` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
 preconstructed class attributes are available:
 
 Attributes
@@ -4969,12 +5012,12 @@ struct AST : ObjectBase<AST> {
     static PyGetSetDef tp_getset[];
     static constexpr char const *tp_type = "AST";
     static constexpr char const *tp_name = "clingo.ast.AST";
-    static constexpr char const *tp_doc = R"(AST(type, **arguments)
+    static constexpr char const *tp_doc = R"(AST(type, **arguments) -> AST
 
 Represents a node in the abstract syntax tree.
 
 AST nodes implement Python's rich comparison operators and are ordered
-structurally ignoring the location. They implement the Hashable interface.
+structurally ignoring the location. They can also be used as dictionary keys.
 Their string representation corresponds to their gringo representation.
 
 Parameters
@@ -6667,7 +6710,10 @@ struct MessageCode : EnumType<MessageCode> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of messages.
 
-`MessageCode` objects cannot be constructed from Python. Instead the following
+`MessageCode` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
 preconstructed class attributes are available:
 
 Attributes
