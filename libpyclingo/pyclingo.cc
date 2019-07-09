@@ -2459,6 +2459,24 @@ by clingo using the default output.
 during solving (see `Control.solve`). Furthermore, the lifetime of a model
 object is limited to the scope of the callback it was passed to or until the
 search for the next model is started. They must not be stored for later use.
+
+Examples
+--------
+The following example shows how to store atoms in a model for usage after
+solving:
+
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> ctl.add("base", [], "{a;b}.")
+    >>> ctl.ground([("base", [])])
+    >>> ctl.configuration.solve.models="0"
+    >>> models = []
+    >>> with ctl.solve(yield_=True) as handle:
+    ...     for model in handle:
+    ...         models.append(model.symbols(atoms=True))
+    ...
+    >>> sorted(models)
+    [[], [a], [a, b], [b]]
 )";
 
     static Object construct(clingo_model_t *model) {
@@ -2595,7 +2613,7 @@ The id of the thread which found the model.
     {(char *)"context", to_getter<&Model::getContext>(), nullptr, (char*)R"(
 context: SolveControl
 
-`SolveControl` object that allows for controlling the running search.
+Object that allows for controlling the running search.
 )", nullptr},
     {(char *)"cost", to_getter<&Model::cost>(), nullptr,
 (char *)R"(cost: List[int]
@@ -2615,10 +2633,6 @@ The running number of the model.
     {(char *)"type", to_getter<&Model::model_type>(), nullptr, (char*)R"(type: ModelType
 
 The type of the model.
-
-See Also
---------
-ModelType
 )", nullptr},
     {(char *)"_to_c", to_getter<&Model::to_c>(), nullptr, (char *)R"(_to_c: int
 An int representing the pointer to the underlying C `clingo_model_t` struct.
