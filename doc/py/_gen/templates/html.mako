@@ -6,49 +6,69 @@
   import pyparsing as pp
 
   class Group(pp.TokenConverter):
-      def __init__(self, expr):
-          super(Group, self).__init__(expr)
-          self.saveAsList = False
+    def __init__(self, expr):
+      super(Group, self).__init__(expr)
+      self.saveAsList = False
 
-      def postParse(self, instring, loc, tokenlist):
-          return [ tokenlist ]
+    def postParse(self, instring, loc, tokenlist):
+      return [ tokenlist ]
 
   identifier = pp.Word(pp.alphas, pp.alphanums + '_')
 
+  def str_a(s, l, t):
+    return to_html("`" + (".".join(x.replace("Tuple", "Tuple_") for x in t[0])) + "`")[3:-4].replace("Tuple_", "Tuple")
+
+  identifier_q = pp.Group(pp.delimitedList(identifier, delim=".")).setParseAction(str_a)
+
+
+  # expression_list: [ expression ("," expression)* ]
+  expression = pp.Forward()
+  expression_list = pp.Group(pp.Optional(pp.delimitedList(expression, delim=",")))
+
+  # expression: id | number | "[" expression_list "]"
+  expression <<= (
+    Group(pp.Suppress("[") + expression_list.setResultsName("arguments") + pp.Suppress("]")) |
+    Group(pp.Word(pp.nums).setResultsName("name")) |
+    Group(identifier_q.setResultsName("name")))
+
   # annotation_list: [ annotation ("," annotation)* ]
   annotation = pp.Forward()
-  annotation_list = pp.Group(pp.Optional(pp.delimitedList(annotation, ",")))
+  annotation_list = pp.Group(pp.Optional(pp.delimitedList(annotation, delim=",")))
 
   # annotation: id [ "[" annotation_list "]" ]
-  annotation <<= Group(identifier.setResultsName("name") + pp.Optional(pp.Suppress("[") + annotation_list.setResultsName("arguments") + pp.Suppress("]")))
+  annotation <<= (
+    Group(identifier_q.setResultsName("name") + pp.Optional(pp.Suppress("[") + annotation_list.setResultsName("arguments") + pp.Suppress("]"))) |
+    Group(pp.Optional(pp.Suppress("[") + annotation_list.setResultsName("arguments") + pp.Suppress("]"))))
 
   # prefix: "**" | "*" | ""
   prefix = pp.MatchFirst([pp.Word("**"), pp.Word("*")])
 
-  # parameter: id [ ":" annotation ]
-  parameter = pp.Group(pp.Optional(prefix, "").setResultsName("prefix") + identifier.setResultsName("name") + pp.Optional(pp.Suppress(":") + annotation.setResultsName("type")))
+  # parameter: id [ ":" annotation ] [ "=" expression ]
+  parameter = pp.Group(
+    pp.Optional(prefix, "").setResultsName("prefix") +
+    identifier.setResultsName("name") +
+    pp.Optional(pp.Suppress(":") + annotation.setResultsName("type")) +
+    pp.Optional(pp.Suppress("=") + expression.setResultsName("default")))
 
   # id "(" [ parameter ("," parameter)* ] ")" "->" annotation
   function = (
-      identifier.setResultsName("name") +
-      pp.Suppress("(") + pp.Group(pp.Optional(pp.delimitedList(parameter, ","))).setResultsName("arguments") + pp.Suppress(")") +
-      pp.Suppress("->") + annotation.setResultsName("type"))
-
-  def parse(x):
-      return function.parseString(x, parseAll=True).asDict()
+    identifier.setResultsName("name") +
+    pp.Suppress("(") + pp.Group(pp.Optional(pp.delimitedList(parameter, delim=","))).setResultsName("arguments") + pp.Suppress(")") +
+    pp.Suppress("->") + annotation.setResultsName("type"))
 
   def p_parameter(x):
-      annotation = (": " + p_annotation(x["type"])) if "type" in x else ""
-      return "{}{}{}".format(x["prefix"], x["name"], annotation)
+    default = "={}".format(p_annotation(x["default"])) if "default" in x else ""
+    annotation = (":" + p_annotation(x["type"])) if "type" in x else ""
+    return "{}{}{}{}".format(x["prefix"], x["name"], annotation, default)
 
   def p_annotation(x):
-      params = ("[" + ",".join([ p_annotation(y) for y in x["arguments"] ]) + "]") if "arguments" in x else ""
-      return "{}{}".format(x["name"], params)
+    params = ("[" + ",".join([ p_annotation(y) for y in x["arguments"] ]) + "]") if "arguments" in x else ""
+    return "{}{}".format(x["name"] if "name" in x else "", params)
 
-  def p_function(x):
-      params = ", ".join([ p_parameter(y) for y in x["arguments"] ])
-      annotation = " -> {}".format(p_annotation(x["type"]) if x["type"] else "")
-      return "{}({}){}".format(x["name"], params, annotation)
+  def p_function(d, x, p_ret=True):
+    params = ", ".join([ p_parameter(y) for y in x["arguments"] ])
+    annotation = " -> {}".format(p_annotation(x["type"])) if p_ret and x["type"] else ""
+    return '<span>{} <span class="ident">{}</span></span><span>({}){}</span>'.format(d, x["name"], params, annotation)
 
   base_url = "/clingo/python-api/{}".format(".".join(clingo.__version__.split(".")[0:2]))
 
@@ -100,96 +120,38 @@
                             '<a title="clingo.{t}" href="#clingo.{t}"><code>{t}</code></a></dt>'.format(x=x.replace("()", ""), t=t))
     return text
 
+  def parse_fun_docstring(x):
+    try:
+      lines = x.docstring.splitlines()
+      line = lines[0]
+      sig = function.parseString(lines[0], parseAll=True).asDict()
+      return "\n".join(lines[1:]).strip(), p_function(x.funcdef(), sig)
+    except Exception as e:
+      return x.docstring, p_function(x.funcdef(), {"name": x.name, "arguments": [], "type": None, "default": None})
+
   def parse_var_docstring(f):
     try:
       lines = f.docstring.splitlines()
       name, rettype = lines[0].split(":")
-      return ("\n".join(lines[1:]).strip(), rettype.strip())
+      rettype = p_annotation(annotation.parseString(rettype, parseAll=True)[0].asDict())
+      return ("\n".join(lines[1:]).strip(), rettype)
     except:
+      print ("fail:", f.name)
       pass
     return (f.docstring, None)
 
   def parse_class_docstring(f):
+    print (f.name)
     try:
       lines = f.docstring.splitlines()
       signature = lines[0]
       if signature.startswith(f.name) and signature.find("->") >= 0:
-        return ("\n".join(lines[1:]).strip(), signature[len(f.name):])
+        sig = function.parseString(lines[0], parseAll=True).asDict()
+        return "\n".join(lines[1:]).strip(), p_function("class", sig, False)
     except:
+      print ("class:", f.name)
       pass
-    return (f.docstring, None)
-
-  def parse_docstring(f):
-    try:
-      lines = f.docstring.splitlines()
-      line = lines[0]
-      result = []
-      state = 0
-      nesting = 0
-      current = ""
-      delim = None
-      rettype = None
-      for c in line:
-        if c == " ":
-            continue
-        if state == 0:
-          if c == "(":
-            name = current
-            current = ""
-            state = 1
-          else:
-            current += c
-        elif state == 1:
-          if c == ")" and nesting == 0:
-            if current:
-              result.append(current)
-              current = ""
-            state = 3
-          elif c == "," and nesting == 0:
-            result.append(current)
-            current = ""
-          elif c == ":" and nesting == 0:
-            current += ": "
-          elif c in ("]", ")"):
-            if nesting == 0:
-              raise RuntimeError("not a signature")
-            nesting -= 1
-            current += c
-          elif c in ("(", "["):
-            nesting += 1
-            current += c
-          elif c in ('"', "'"):
-            state = 2
-            delim = c
-            current += c
-          else:
-            current += c
-        elif state == 2:
-          current += c
-          if c == delim:
-            state = 1
-        elif state == 3:
-          if c == "-":
-            state = 4
-          else:
-            raise RuntimeError("not a signature")
-        elif state == 4:
-          if c == ">":
-            state = 5
-          else:
-            raise RuntimeError("not a signature")
-        elif state == 5:
-          current += c
-      if state == 3:
-        rettype = None
-      elif state == 5 and current:
-        rettype = current
-      else:
-        raise RuntimeError("not a signature")
-      return ("\n".join(lines[1:]).strip(), result, rettype)
-    except:
-      pass
-    return (f.docstring, f.params(), None)
+    return f.docstring, None
 
 %>
 
@@ -284,11 +246,10 @@
 
   <%def name="show_func(f)">
     <%
-      # TODO: p_function(parse("f() -> None"))
-      docstring, params, rettype = parse_docstring(f)
+      docstring, sig = parse_fun_docstring(f)
     %>
     <dt id="${f.refname}"><code class="name flex">
-        <span>${f.funcdef()} ${ident(f.name)}</span>(<span>${', '.join(params) | h})${" -> {}".format(rettype) if rettype else ""}</span>
+        ${sig}
     </code></dt>
     <dd>${show_str_desc(docstring)}</dd>
   </%def>
@@ -370,15 +331,11 @@
             docstring, signature = parse_class_docstring(c)
           %>
           <dt id="${c.refname}"><code class="flex name class">
-                % for f in methods:
-                  % if f.name == "__init__":
-                    <span>class ${ident(c.name)}<span><span>${re.sub(r" -> .*$", "", signature) if signature else ""}</span>
-                    <% break %>
-                  % endif
-                % else:
-                  <span>class ${ident(c.name)}<span>
-                % endfor
-              </span>
+            % if signature:
+              ${signature}
+            % else:
+              <span>class ${ident(c.name)}<span>
+            % endif
           </code></dt>
 
           <dd>

@@ -2087,7 +2087,7 @@ struct SymbolicAtomIter : ObjectBase<SymbolicAtomIter> {
 
     static constexpr char const *tp_type = "SymbolicAtomIter";
     static constexpr char const *tp_name = "clingo.SymbolicAtomIter";
-    static constexpr char const *tp_doc = R"(Implements `Iterator[SymbolicAtom].`
+    static constexpr char const *tp_doc = R"(Implements `Iterator[SymbolicAtom]`.
 
 See Also
 --------
@@ -5012,7 +5012,7 @@ struct AST : ObjectBase<AST> {
     static PyGetSetDef tp_getset[];
     static constexpr char const *tp_type = "AST";
     static constexpr char const *tp_name = "clingo.ast.AST";
-    static constexpr char const *tp_doc = R"(AST(type, **arguments) -> AST
+    static constexpr char const *tp_doc = R"(AST(type: ASTType, **arguments: Mapping[str,Any]) -> AST
 
 Represents a node in the abstract syntax tree.
 
@@ -5474,7 +5474,7 @@ Returns
 List[AST]
 )"},
     {"items", to_function<&AST::items>(), METH_NOARGS,
-R"(items(self) -> List[Tuple(str,AST)]
+R"(items(self) -> List[Tuple[str,AST]]
 
 The list of items of the AST node.
 
