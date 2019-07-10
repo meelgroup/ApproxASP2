@@ -35,13 +35,12 @@ add_library(pyclingo MODULE ${source})
 if (PYCLINGO_DYNAMIC_LOOKUP)
     set_property(TARGET pyclingo PROPERTY LINK_FLAGS "-undefined dynamic_lookup")
 endif()
-target_link_libraries(pyclingo PRIVATE libpyclingo)
+target_link_libraries(pyclingo PRIVATE libpyclingom)
 set_target_properties(pyclingo PROPERTIES
     FOLDER lib
     OUTPUT_NAME clingo
     SUFFIX ${PYCLINGO_SUFFIX}
     PREFIX "")
-target_include_directories(pyclingo PRIVATE ${Python_INCLUDE_DIRS})
 if (CMAKE_RUNTIME_OUTPUT_DIRECTORY)
     set_target_properties(pyclingo PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/python)
 endif()
