@@ -31,7 +31,7 @@ if (NOT PYCLINGO_SUFFIX)
     endif()
 endif()
 
-add_library(pyclingo SHARED ${source})
+add_library(pyclingo MODULE ${source})
 if (PYCLINGO_DYNAMIC_LOOKUP)
     set_property(TARGET pyclingo PROPERTY LINK_FLAGS "-undefined dynamic_lookup")
 endif()
