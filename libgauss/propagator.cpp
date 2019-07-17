@@ -340,8 +340,9 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 i, j, p.var(), i->row_id,
                 data->gqueuedata[i->matrix_num])
             ) {
+                //conflict
                 break;
-            } else {
+            } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
                 data->solver->add_clause(
                     data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
