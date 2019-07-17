@@ -207,27 +207,33 @@ out:
 bool solve(clingo_control_t *ctl, model_buffer_t *data, clingo_solve_result_bitset_t *result)
 {
     bool ret = true;
-    int iter = 0;
     clingo_solve_handle_t *handle;
     clingo_model_t const *model;
     uint32_t count = 0;
     // get a solve handle
     if (!clingo_control_solve(ctl, clingo_solve_mode_yield, NULL, 0, NULL, NULL, &handle)) {
-        goto error;
+        cout << "ERROR: during clingo_control_solve" << endl;
+        exit(-1);
     }
     // loop over all models
 
     while (true) {
+        //Run the solver
         if (!clingo_solve_handle_resume(handle)) {
-            goto error;
+            cout << "ERROR: during clingo_solve_handle_resume" << endl;
+            exit(-1);
         }
+
+        //get model
         if (!clingo_solve_handle_model(handle, &model)) {
-            goto error;
+            cout << "ERROR: during solver_handle_model" << endl;
+            exit(-1);
         }
-        // print the model
+
         if (model) {
             count++;
-            // print_solution(model, data);
+            cout << "Model found" << endl;
+            //print_solution(model, data);
         }
         // stop if there are no more models
         else {
@@ -237,13 +243,9 @@ bool solve(clingo_control_t *ctl, model_buffer_t *data, clingo_solve_result_bits
     }
     // close the solve handle
     if (!clingo_solve_handle_get(handle, result)) {
-        goto error;
+        cout << "ERROR: during clingo_solve_handle_get" << endl;
+        exit(-1);
     }
-
-    goto out;
-
-error:
-    ret = false;
 
 out:
     // free the solve handle
@@ -376,6 +378,7 @@ int main(int argc, char const **argv)
     if (problem.input_file)
         clingo_control_load(ctl, problem.input_file);
 
+    assert(debug);
     if (debug) {
         std::ifstream fin;
         fin.open(problem.asp_file);

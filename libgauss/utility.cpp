@@ -195,14 +195,14 @@ void print_all(Configuration *con)
 void generate_k_xors(unsigned k, Configuration *con)
 {
     assert(k >= con->xor_cons.size());
-    srand(time(NULL));
+    //srand(time(NULL));
+    srand(0);
     int xor_generated = k - con->xor_cons.size();
     for (int i = 0; i < xor_generated; i++) {
         XOR new_xor;
         new_xor.literals = selectKItems(con->active_atoms);
         new_xor.rhs = rand() % 2;
         // std::cout << "new_xor.rhs: " << new_xor.rhs << std::endl;
-        assert(new_xor.literals.size() == con->active_atoms.size() >> 1);
         con->xor_cons.push_back(new_xor);
     }
     printf("\n");
@@ -275,6 +275,7 @@ void translation(
     unsigned start,
     int end
 ) {
+    //write "test_parity.txt"
     std::ofstream myfile;
     myfile.open("test_parity.txt");
     if (end == -1)
@@ -302,6 +303,7 @@ void translation(
     // parity constraints are adding as normal rule
     myfile << string_added << std::endl;
     myfile.close();
+
     if (debug) {
         debug_file << string_added << std::endl;
         std::string condition;
