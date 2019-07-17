@@ -304,11 +304,6 @@ int main(int argc, char const **argv)
         scan++;
     }
 
-    if (problem.seed == 999999) {
-        cout << "ERROR: seed is not set or set to 999999. Change it, or set it." << endl;
-        exit(-1);
-    }
-
     if (problem.asp_file.empty()) {
         cout << "No input file specified" << endl;
         exit(-1);
