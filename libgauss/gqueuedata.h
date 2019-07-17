@@ -23,6 +23,8 @@ THE SOFTWARE.
 #ifndef GQUEUEDATA_H__
 #define GQUEUEDATA_H__
 
+#include "solvertypesmini.h"
+
 // namespace CMSat {
 
 struct GaussQData {

@@ -5,7 +5,6 @@ add_executable(whatever-bin
     model_counting.cpp
     propagator.cpp
     utility.cpp
-    iterations.cpp
 )
 set_target_properties(whatever-bin PROPERTIES
     OUTPUT_NAME whatever

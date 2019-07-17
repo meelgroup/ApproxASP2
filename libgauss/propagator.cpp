@@ -26,9 +26,10 @@
 #include <unordered_map>
 #include "EGaussian.h"
 #include "gqueuedata.h"
-#include "solverState.h"
+#include "solverstate.h"
 #include "xor.h"
 #include "utility.h"
+#include "propagator.h"
 
 using std::vector;
 typedef struct {
@@ -37,16 +38,6 @@ typedef struct {
     clingo_literal_t *holes;
     size_t size;
 } state_t;
-
-// state information for the propagator
-typedef struct {
-    // mapping from solver literals capturing pigeon placements to hole numbers
-    // (solver literal -> hole number or zero)
-    vector<GaussQData> gqueuedata;
-    vector<EGaussian *> gmatrixes;
-    SolverState *solver;
-
-} propagator_t;
 
 bool init_all_matrixes(propagator_t *prop)
 {

@@ -30,6 +30,7 @@
 #include <clingo.h>
 #include "solvertypesmini.h"
 #include "gausswatched.h"
+#include "Vec.h"
 
 // namespace CMSat {
 class SolverState

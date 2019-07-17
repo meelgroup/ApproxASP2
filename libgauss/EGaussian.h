@@ -42,7 +42,7 @@ THE SOFTWARE.
 #include "xor.h"
 #include "gausswatched.h"
 #include "gqueuedata.h"
-#include "solverState.h"
+#include "solverstate.h"
 
 //#define VERBOSE_DEBUG
 //#define DEBUG_GAUSS

@@ -32,6 +32,7 @@
 #include <fstream>
 
 #include "utility.h"
+#include "propagator.h"
 
 using std::cout;
 using std::endl;
