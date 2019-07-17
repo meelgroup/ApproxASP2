@@ -28,12 +28,16 @@
 #include <sys/stat.h>
 #include <iomanip>
 #include <iostream>
+#include <string.h>
+#include <fstream>
+
+#include "utility.h"
 
 using std::cout;
 using std::endl;
 using std::string;
 
-configuration problem;
+Configuration problem;
 
 typedef struct model_buffer {
     clingo_symbol_t *symbols;
@@ -332,7 +336,7 @@ int main(int argc, char const **argv)
     char pivot_str[10];
     sprintf(pivot_str, "-n %d", problem.thresh);
     problem.asp_argument[problem.argu_count++] = pivot_str;
-    reset_configuration(&problem);
+    reset_Configuration(&problem);
     // register propagator class
     clingo_propagator_t prop = {
         (bool (*)(clingo_propagate_init_t *, void *))init,

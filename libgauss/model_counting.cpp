@@ -28,6 +28,16 @@
 #include <stdio.h>
 #include <time.h>
 #include <list>
+#include <cmath>
+#include <iostream>
+
+
+#include "utility.h"
+
+using std::cout;
+using std::endl;
+
+//TODO fix!!!
 #define TIMEOUT 10
 
 int findMin(std::list<int> numList)
@@ -60,11 +70,11 @@ void print_count(SATCount ret)
 {
     printf("Approximate count: %d X 2 ^ %d.\n", ret.cellSolCount, ret.hashCount);
 }
-void print_stat(configuration* con)
+void print_stat(Configuration* con)
 {
     printf("#Clasp_calls: %d & #Calls_timeouted: %d", con->clasp_call, con->clasp_call_timeout);
 }
-void do_initial_setup(clingo_control_t** ctl, configuration* con)
+void do_initial_setup(clingo_control_t** ctl, Configuration* con)
 {
     clingo_part_t parts[] = {{"base", NULL, 0}};
     if (*ctl) {
@@ -84,7 +94,7 @@ void do_initial_setup(clingo_control_t** ctl, configuration* con)
     clingo_control_ground(*ctl, parts, 1, NULL, NULL);
 }
 
-unsigned Bounded_counter(clingo_control_t* ctl, configuration* con, bool gen_xor, bool prefix_slice,
+unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con, bool gen_xor, bool prefix_slice,
                          bool no_xor = false, unsigned m_value = 0)
 {
     if (!no_xor && gen_xor) {
@@ -137,7 +147,8 @@ unsigned Bounded_counter(clingo_control_t* ctl, configuration* con, bool gen_xor
 
     return finished ? model_count : -1;
 }
-SATCount LogSATSearch(clingo_control_t* control, configuration* con, int m_prev)
+
+SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
 {
     std::unordered_map<int, bool> big_cell;
     std::unordered_map<int, int> count_list;
@@ -203,8 +214,10 @@ SATCount LogSATSearch(clingo_control_t* control, configuration* con, int m_prev)
         }
         hash_prev = swap_var;
     }
+    return ret;
 }
-SATCount ApproxSMCCore(clingo_control_t* control, configuration* con)
+
+SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con)
 {
     int counter = 0, prev_cells = 1, minHash = 0,
         medSolCount = 0; // in previous version prev_cells = 2 ^ 1 = 2
@@ -223,11 +236,11 @@ SATCount ApproxSMCCore(clingo_control_t* control, configuration* con)
             assert(numHashList.size() == numCountList.size());
             for (std::list<int>::iterator it1 = numHashList.begin(), it2 = numCountList.begin();
                  it1 != numHashList.end() && it2 != numCountList.end(); it1++, it2++) {
-                medianComputeList.push_back((*it2) * pow(2, (*it1) - minHash));
+                medianComputeList.push_back((*it2) * std::pow(2, (*it1) - minHash));
             }
             assert(numHashList.size() == medianComputeList.size());
             medSolCount = findMedian(medianComputeList);
-            printf("Iteration: %s completed!!!", counter);
+            cout << "Iteration: " << counter << " completed!!!" << endl;
             solCount.cellSolCount = medSolCount;
             solCount.hashCount = minHash;
         }
@@ -235,7 +248,7 @@ SATCount ApproxSMCCore(clingo_control_t* control, configuration* con)
     return solCount;
 }
 
-void ApproxSMC(clingo_control_t* control, configuration* con)
+void ApproxSMC(clingo_control_t* control, Configuration* con)
 {
     // clingo_part_t parts[] = {{"base", NULL, 0}};
     // clingo_control_new(con->asp_argument, con->argu_count, NULL, NULL, 20, &control);

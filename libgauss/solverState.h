@@ -161,7 +161,8 @@ public:
         if (gwatches[lit].size() >= 1) return;
         clingo_propagate_control_remove_watch(cpc, (clingo_literal_t) lit);
     }
-    bool add_clause(vector<Lit> clause, bool xor_add = false) {
+
+    void add_clause(vector<Lit> clause, bool xor_add = false) {
         auto last_literal = literal.end();
         assert(cpc);
         size_t length = clause.size();

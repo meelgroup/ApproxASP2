@@ -1,4 +1,31 @@
-double iterationConfidences[256] = {
+// {{{ MIT License
+
+// Copyright 2019 Mahi XYZ
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to
+// deal in the Software without restriction, including without limitation the
+// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+// sell copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+// IN THE SOFTWARE.
+
+// }}}
+
+
+#ifndef ITER_CONFIDENCES_H
+#define ITER_CONFIDENCES_H
+static double iterationConfidences[256] = {
     0.64,           0.704512,       0.7491026944,   0.783348347699, 0.81096404252,  0.833869604432,
     0.853220223135, 0.869779929746, 0.884087516258, 0.896540839559, 0.907443973174, 0.917035558936,
     0.92550684748,  0.933013712405, 0.939684956024, 0.945628233538, 0.950934391703, 0.955680718969,
@@ -42,3 +69,5 @@ double iterationConfidences[256] = {
     0.999999999819, 0.999999999834, 0.999999999847, 0.999999999859, 0.999999999871, 0.999999999881,
     0.999999999891, 0.999999999899, 0.999999999907, 0.999999999915, 0.999999999922, 0.999999999928,
     0.999999999934, 0.999999999939, 0.999999999944, 0.999999999948};
+
+#endif

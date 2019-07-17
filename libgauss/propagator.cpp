@@ -28,6 +28,7 @@
 #include "gqueuedata.h"
 #include "solverState.h"
 #include "xor.h"
+#include "utility.h"
 
 using std::vector;
 typedef struct {

@@ -75,7 +75,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data) {
   // ensure that solve can be called multiple times
   // for simplicity, the case that additional holes or pigeons to assign are grounded is not handled here
   if (data->states != NULL) {
-    // in principle the number of threads can increase between solve calls by changing the configuration
+    // in principle the number of threads can increase between solve calls by changing the Configuration
     // this case is not handled (elegantly) here
     if (threads > data->states_size) {
       clingo_set_error(clingo_error_runtime, "more threads than states");
