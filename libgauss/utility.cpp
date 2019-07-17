@@ -195,8 +195,8 @@ void print_all(Configuration *con)
 void generate_k_xors(unsigned k, Configuration *con)
 {
     assert(k >= con->xor_cons.size());
-    //srand(time(NULL));
-    srand(0);
+    srand(con->seed);
+    //srand(0);
     int xor_generated = k - con->xor_cons.size();
     for (int i = 0; i < xor_generated; i++) {
         XOR new_xor;

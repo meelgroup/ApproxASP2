@@ -281,6 +281,8 @@ int main(int argc, char const **argv)
             problem.interval = iteration_count(argv[++scan], problem.interval);
         } else if (!strcmp(arg, "--asp")) {
             problem.asp_file = std::string(argv[++scan]);
+        } else if (!strcmp(arg, "--seed")) {
+            problem.seed = atoi(argv[++scan]);
         } else if (!strcmp(arg, "--input")) {
             problem.input_file = (char *)malloc(sizeof(char) * (strlen(argv[scan++]) + 1));
             strcpy(problem.input_file, argv[scan]);
@@ -300,6 +302,11 @@ int main(int argc, char const **argv)
 
         free(arg);
         scan++;
+    }
+
+    if (problem.seed == 999999) {
+        cout << "ERROR: seed is not set or set to 999999. Change it, or set it." << endl;
+        exit(-1);
     }
 
     if (problem.asp_file.empty()) {
