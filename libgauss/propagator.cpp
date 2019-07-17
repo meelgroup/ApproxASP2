@@ -336,9 +336,15 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
 
         for (; i != end; i++) {
             data->gqueuedata[i->matrix_num].enter_matrix = true;
-            if (!data->gmatrixes[i->matrix_num]->find_truths2(i, j, p.var(), i->row_id,
-                                                             data->gqueuedata[i->matrix_num])) {
+            if (!data->gmatrixes[i->matrix_num]->find_truths2(
+                i, j, p.var(), i->row_id,
+                data->gqueuedata[i->matrix_num])
+            ) {
                 break;
+            } else {
+                //must propagate
+                data->solver->add_clause(
+                    data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
             }
         }
 
@@ -367,11 +373,16 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             data->solver->sum_EnGauss++;
         }
         switch (gqd.ret_gauss) {
+            case 1:
+                assert(false);
+                exit(-1);
+                break;
+
             case 0: {
                 lbool ret;
                 gqd.big_conflict++;
                 data->solver->sum_Enconflict++;
-                data->solver->add_clause(gqd.conflict_clause_gauss, true);
+                data->solver->add_clause(gqd.conflict_clause_gauss, false);
                 return true;
             }
 
@@ -379,11 +390,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             case 3: // unit propagation
                 gqd.big_propagate++;
                 data->solver->sum_Enpropagate++;
-                if (gqd.prop_size_gauss == 2) {
-                    data->solver->add_clause(gqd.prop_clause_gauss, true);
-                } else {
-                    data->solver->add_clause(gqd.prop_clause_gauss, false);
-                }
+                data->solver->add_clause(gqd.prop_clause_gauss, false);
             case 4:
                 //nothing
                 break;

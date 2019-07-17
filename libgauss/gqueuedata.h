@@ -36,7 +36,6 @@ struct GaussQData {
     int ret_gauss;         // gauss matrix result
     bool xorEqualFalse_gauss;            // conflict xor clause xorEqualFalse
     vector<Lit> conflict_clause_gauss; // for gaussian elimination better conflict
-    uint32_t prop_size_gauss;
     vector<Lit> prop_clause_gauss;
 
 

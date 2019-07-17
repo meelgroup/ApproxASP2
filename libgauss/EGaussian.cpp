@@ -427,25 +427,6 @@ gret EGaussian::adjust_matrix(matrixset& m) {
     return gret::nothing;
 }
 
-inline void EGaussian::propagation_twoclause() {
-    // printf("DD:%d %d    n", solver->qhead  ,solver->trail.size());
-    // printf("CC %d. %d  %d    n", solver->qhead , solver->trail.size() , solver->decisionLevel());
-
-    Lit lit1 = tmp_clause[0];
-    Lit lit2 = tmp_clause[1];
-    // solver->attach_bin_clause(lit1, lit2, true, false);
-    // solver->dataSync->signalNewBinClause(lit1, lit2);
-
-    lit1 = ~lit1;
-    lit2 = ~lit2;
-    // solver->attach_bin_clause(lit1, lit2, true, false);
-    // solver->dataSync->signalNewBinClause(lit1, lit2);
-
-    lit1 = ~lit1;
-    lit2 = ~lit2;
-    // solver->enqueue(lit1, PropBy(lit2, true));
-}
-
 // Delete this row because we have already add to xor clause, nothing to do anymore
 inline void EGaussian::delete_gausswatch(const bool orig_basic, const uint32_t row_n) {
     if (orig_basic) {
@@ -473,6 +454,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                              const uint32_t row_n, GaussQData& gqd
 ) {
     // printf("dd Watch variable : %d  ,  Wathch row num %d    n", p , row_n);
+    gqd.prop_clause_gauss.clear();
 
     uint32_t nb_var = 0;     // new nobasic variable
     bool orig_basic = false; // check invoked variable is basic or non-basic
@@ -543,7 +525,6 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             // propagation
             *j++ = *i; // store watch list
             gqd.prop_clause_gauss = tmp_clause; 
-            gqd.prop_size_gauss = tmp_clause.size();
             if (solver->decisionLevel() == 0) {
                 // solver->enqueue(tmp_clause[0]);
 
@@ -716,32 +697,23 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         matrix.nb_rows[num_row] = p;
                         solver->add_watch_literal(p);
                         gqd.prop_clause_gauss = tmp_clause; 
-                        gqd.prop_size_gauss = tmp_clause.size();
                         if (solver->decisionLevel() == 0) {
-                            if (tmp_clause.size() == 2) {
-                                propagation_twoclause();
-                            } else {
-                                // solver->enqueue(tmp_clause[0]);
-                            }
+                            //solver->enqueue(tmp_clause[0]);
                             gqd.ret_gauss = 3; // unit_propagation
                         } else {
-                            if (tmp_clause.size() == 2) {
-                                propagation_twoclause();
-                            } else {
-                                // Clause* cla = solver->cl_alloc.Clause_new(
-                                //     tmp_clause,
-                                //     solver->sumConflicts
-                                //     #ifdef STATS_NEEDED
-                                //     , solver->clauseID++
-                                //     #endif
-                                // );
-                                // cla->set_gauss_temp_cl();
-                                // const ClOffset offs = solver->cl_alloc.get_offset(cla);
-                                // clauses_toclear.push_back(std::make_pair(offs, solver->trail.size() - 1));
-                                // assert(!cla->freed());
-                                // assert(solver->value((*cla)[0].var()) == l_Undef);
-                                // solver->enqueue((*cla)[0], PropBy(offs));
-                            }
+                            // Clause* cla = solver->cl_alloc.Clause_new(
+                            //     tmp_clause,
+                            //     solver->sumConflicts
+                            //     #ifdef STATS_NEEDED
+                            //     , solver->clauseID++
+                            //     #endif
+                            // );
+                            // cla->set_gauss_temp_cl();
+                            // const ClOffset offs = solver->cl_alloc.get_offset(cla);
+                            // clauses_toclear.push_back(std::make_pair(offs, solver->trail.size() - 1));
+                            // assert(!cla->freed());
+                            // assert(solver->value((*cla)[0].var()) == l_Undef);
+                            // solver->enqueue((*cla)[0], PropBy(offs));
                             gqd.ret_gauss = 2;
                             (*clauseIt).setBit(num_row); // this clause arleady sat
                         }
