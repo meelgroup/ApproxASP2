@@ -2,6 +2,9 @@ add_executable(whatever-bin
     EGaussian.cpp
     packedrow.cpp
     test.cpp
+    model_counting.cpp
+    propagator.cpp
+    utility.cpp
 )
 set_target_properties(whatever-bin PROPERTIES
     OUTPUT_NAME whatever

@@ -4,9 +4,6 @@
 #include <sys/stat.h>
 #include <iomanip>
 #include <iostream>
-#include "model_counting.c"
-#include "propagator.c"
-#include "utility.c"
 
 using std::cout;
 using std::endl;
