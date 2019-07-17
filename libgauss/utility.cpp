@@ -118,7 +118,7 @@ std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream)
 {
     int i; // index for elements in stream[]
     int n = stream.size();
-    int k = n >> 1;
+    int k = n / 2;
     std::vector<clingo_symbol_t> reservoir;
     for (i = 0; i < k; i++)
         reservoir.push_back(stream[i]);
