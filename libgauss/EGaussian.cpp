@@ -658,7 +658,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                             p; // // update in this row non_basic variable
                         solver->add_watch_literal(p);
                         // for tell outside solver
-                        gqd.conflict_clause_gauss = tmp_clause; // choose better conflice clause
+                        gqd.conflict_clause_gauss = tmp_clause;
                         gqd.ret_gauss = 0;                      // gaussian matrix is   conflict
                         gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(num_row).rhs();
                         early_stop = true;
