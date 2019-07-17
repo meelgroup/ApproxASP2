@@ -32,7 +32,6 @@ struct GaussQData {
     uint32_t e_var;                     // do elimination variable
     uint32_t e_row_n ;         // do elimination row
     // PropBy confl;              // for choosing better conflict  "by mahi"
-    uint32_t conflict_size_gauss; // for choosing better conflict
     int ret_gauss;         // gauss matrix result
     bool xorEqualFalse_gauss;            // conflict xor clause xorEqualFalse
     vector<Lit> conflict_clause_gauss; // for gaussian elimination better conflict
@@ -52,7 +51,6 @@ struct GaussQData {
         conflict_clause_gauss.clear();
         xorEqualFalse_gauss = false;
         ret_gauss = 4;
-        conflict_size_gauss = std::numeric_limits<uint32_t>::max();
     }
 
     void reset_stats()

@@ -484,20 +484,10 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
     switch (ret) {
         case gret::confl: {
             // printf("dd %d:This row is conflict %d    n",row_n , solver->level[p] );
-            if (tmp_clause.size() >= gqd.conflict_size_gauss) { // choose perfect conflict clause
-                *j++ = *i;                                  // we need to leave this
-                if (orig_basic) {                           // recover
-                    GasVar_state[matrix.nb_rows[row_n]] = non_basic_var;
-                    GasVar_state[p] = basic_var;
-                }
-
-                return true;
-            }
             // long conflict clause
             *j++ = *i;
             gqd.conflict_clause_gauss = tmp_clause; // choose better conflice clause
             gqd.ret_gauss = 0;                      // gaussian matrix is conflict
-            gqd.conflict_size_gauss = tmp_clause.size();
             gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(row_n).rhs();
 
             if (orig_basic) { // recover
@@ -655,14 +645,13 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                 switch (ret) {
                     case gret::confl: {
                         // printf("%d:This row is conflict in eliminate col    n",num_row);
-                        if (tmp_clause.size() >= gqd.conflict_size_gauss || gqd.ret_gauss == 3) {
+                        if (gqd.ret_gauss == 3) {
                             solver->gwatches[p].push(GaussWatched(num_row, matrix_no));
                             solver->add_watch_literal(p);
                             // update in this row non_basic variable
                             matrix.nb_rows[num_row] = p;
                             break;
                         }
-                        gqd.conflict_size_gauss = tmp_clause.size();
                         solver->gwatches[p].push(
                             GaussWatched(num_row, matrix_no)); // update gausWatch list
                         matrix.nb_rows[num_row] =
@@ -671,7 +660,6 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         // for tell outside solver
                         gqd.conflict_clause_gauss = tmp_clause; // choose better conflice clause
                         gqd.ret_gauss = 0;                      // gaussian matrix is   conflict
-                        gqd.conflict_size_gauss = tmp_clause.size();
                         gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(num_row).rhs();
                         early_stop = true;
                         // If conflict is happened in eliminaiton conflict, then we only return
