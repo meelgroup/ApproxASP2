@@ -1,13 +1,16 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 #include <clingo.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <cstring>
 #include <sys/stat.h>
+#include <iostream>
+#include <iomanip>
 #include "utility.c"
 #include "model_counting.c"
 #include "propagator.c"
+
+using std::cout;
+using std::endl;
+using std::string;
 
 configuration problem;
 
@@ -66,7 +69,7 @@ bool print_symbol(clingo_symbol_t symbol, model_buffer_t *buf)
   {
     goto error;
   }
-  printf("%s", buf->string);
+  cout << buf->string << endl;
   goto out;
 
 error:
@@ -264,7 +267,7 @@ int main(int argc, char const **argv)
   printf("%f, %f, %u.\n", problem.conf, problem.tol, problem.interval);
 
   int scan = 1;
-  char* arg; 
+  char* arg;
   while (scan < argc)
   {
     unsigned bytes_need = strlen(argv[scan]);
@@ -281,8 +284,7 @@ int main(int argc, char const **argv)
     }
     else if (!strcmp(arg, "--asp"))
     {
-      problem.asp_file = (char*) malloc(sizeof(char) * (strlen(argv[scan++]) + 1));
-      strcpy(problem.asp_file, argv[scan]);
+      problem.asp_file = std::string(argv[++scan]);
     }
     else if (!strcmp(arg, "--input"))
     {
@@ -304,25 +306,35 @@ int main(int argc, char const **argv)
     free(arg);
     scan++;
   }
-  if (!problem.asp_file) {
-    printf("No input file specified.\n");
+
+  if (problem.asp_file.empty()) {
+    cout << "No input file specified" << endl;
+    exit(-1);
   } 
   else {
-    if (stat(problem.asp_file, &buffer) == -1) {
-      printf("No asp file with name: %s.\n", problem.asp_file);
+    if (stat(problem.asp_file.c_str(), &buffer) == -1) {
+      cout << "No asp file with name: " <<  problem.asp_file << endl;
+      exit(-1);
     }
   }
   if (!problem.input_file) {
-    printf("Approximate counting using file: %s ...\n", problem.asp_file);
+    cout << "Approximate counting using file: " <<  problem.asp_file << "..." << endl;
   }
   else {
     if (stat(problem.input_file, &buffer) == -1) {
       printf("No input file with name: %s.\n", problem.input_file);
     }
-    printf("Approximate counting using files: %s & %s ...\n", problem.asp_file, problem.input_file);
+    cout << "Approximate counting using files: "
+    << problem.asp_file
+    << " & "
+    << problem.input_file << endl;
   }
 
-  printf("Approximate counting using confidence %.2f and tolerance %.2f ...\n", problem.conf, problem.tol);
+  cout << "Approximate counting using confidence "
+  << std::fixed << std::setprecision(2) << problem.conf
+  << " and tolerance "
+  << std::fixed << std::setprecision(2) << problem.tol
+  << "..." << endl;
 
   // compute pivot
   problem.thresh = compute_pivot(problem.tol);
@@ -379,7 +391,7 @@ int main(int argc, char const **argv)
   //   goto error;
   // }
   
-  clingo_control_load(ctl, problem.asp_file);
+  clingo_control_load(ctl, problem.asp_file.c_str());
   if(problem.input_file)
     clingo_control_load(ctl, problem.input_file);
 

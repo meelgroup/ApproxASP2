@@ -9,6 +9,10 @@
 #include <iostream>
 #include "iterations.c"
 #include <fstream>
+#include <string>
+#include <cstring>
+
+using std::string;
 
 char const *error_message;
 int ret = 0;
@@ -33,7 +37,7 @@ typedef struct program {
     unsigned timeout;
     std::vector<float> confidences;
 
-    char* asp_file;
+    std::string asp_file;
     char* input_file;
 
     const char** asp_argument;
@@ -175,7 +179,7 @@ void get_symbol_atoms(clingo_control_t* ctl, configuration* con) {
     con->atoms.push_back(symbol);
     assert(buf.string);
     predicate = (char *) malloc(sizeof(char) * buf.string_n);
-    strcpy(predicate, buf.string); 
+    strcpy(predicate, buf.string);
     con->atom_symbol_map[symbol] = predicate;
     // printf("Inside get_symbol_atoms %lu %s.\n", symbol, buf.string);
 
@@ -229,7 +233,7 @@ void add_execution_time(clingo_control_t* ctl, configuration *con) {
   // summary is at index 2
   key = stats_key;
   clingo_statistics_map_subkey_name(stats, key, 2, &name);
-  assert(strcmp(name, "summary") == 0);
+  assert(string(name) == string("summary"));
   clingo_statistics_map_at(stats, key, name, &subkey);
   clingo_statistics_type(stats, subkey, &type);
   assert((enum clingo_statistics_type)type == clingo_statistics_type_map);

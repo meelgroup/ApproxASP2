@@ -46,7 +46,7 @@ void do_initial_setup(clingo_control_t** ctl, configuration* con) {
     }
     clingo_control_new(con->asp_argument, con->argu_count, NULL, NULL, 20, ctl);
     // clingo_control_add(*ctl, "base", NULL, 0, "{a; b; c; d; e; f}.");
-    clingo_control_load(*ctl, con->asp_file);
+    clingo_control_load(*ctl, con->asp_file.c_str());
     if (con->input_file){
         // printf("Input file: %s", con->input_file);
         clingo_control_load(*ctl, con->input_file);
