@@ -50,6 +50,7 @@ bool init_all_matrixes(propagator_t *prop)
         EGaussian *g = *i;
         bool created = false;
         // initial arrary. return true is fine , return false means solver already false;
+        assert(false && "THE BUG IS HERE MAHI! You must add all the propagations to the solver fom the full_init!!!");
         if (!g->full_init(created)) {
             return false;
         }
