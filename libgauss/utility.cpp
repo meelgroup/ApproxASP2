@@ -7,7 +7,6 @@
 #include <vector>
 #include <unordered_map>
 #include <iostream>
-#include "iterations.c"
 #include <fstream>
 #include <string>
 #include <cstring>
