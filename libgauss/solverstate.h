@@ -50,7 +50,6 @@ public:
     uint32_t sum_gauss_unit_truths;
     uint32_t sum_initEnGauss;
     uint32_t sum_initUnit;
-    uint32_t sum_initTwo;
     uint32_t sum_Enconflict;
     uint32_t sum_Enpropagate;
     uint32_t sum_Enunit;
@@ -132,7 +131,6 @@ public:
         sum_gauss_unit_truths = 0;
         sum_initEnGauss = 0;
         sum_initUnit = 0;
-        sum_initTwo = 0;
         sum_Enpropagate = 0;
         sum_Enunit = 0;
     }
@@ -141,7 +139,6 @@ public:
         cout << "sum_EnGauss:\t" << sum_EnGauss << endl;
         cout << "sum_initEnGauss:\t" << sum_initEnGauss << endl;
         cout << "sum_initUnit:\t" << sum_initUnit << endl;
-        cout << "sum_initTwo:\t" << sum_initTwo << endl;
         cout << "sum_Enpropagate:\t" << sum_Enpropagate << endl;
         cout << "sum_Enunit:\t" << sum_Enunit << endl;
     }
