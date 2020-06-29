@@ -1,5 +1,39 @@
 # Changes
 
+## clingo 5.5.0
+  * rename `max_size` to `size` in APIs and remove previous `size` method
+    (breaks backward compatibility but makes things consistent)
+  * improve assignment providing trail and iteration methods (#187)
+  * improve string representation of AST (#171)
+  * improve parsing of disjunctions (#171)
+  * improve getting description of configuration entries (#174)
+  * improve propagate init interfaces with methods to add weight constraints,
+    minimize constraints, and perform propagation (#183)
+  * add options to select specific Lua/Python versions
+    (see installation instructions)
+  * fix propagator initialization (#166)
+  * fix cleanup function and handling of theory (#169)
+  * fix shifting of disjunctions (in clasp) (#173)
+  * fix handling of pools in externals (#179)
+  * fix logger in Python API (#175)
+  * update to clasp version 3.3.6 fixing various issues
+## clingo 5.4.0
+  * add extension to implement custom heuristics
+  * add const modifiers to C API
+  * add flags to external and const statements to match API functions
+  * fix python memleaks
+  * make compatible with msvc 15
+  * C ABI changes
+    * extended propagators
+  * C++ API changes
+    * unify usage of ProgramBuilder and Backend
+  * python API changes
+    * `TruthValue.{_True,_False}` becomes `TruthValue.{True_,False_}`
+    * `HeuristicType.{True,False}` becomes `TruthValue.{True_,False_}`
+    * `async` and yield becomes `async_` and `yield_`
+  * improve python API documentation
+  * use cmakes `find_python` module
+  * update to clasp version 3.3.5
 ## clingo 5.3.0
   * change C API to use numeric instead of symbolic literals
     * affects assumptions and assigning/releasing externals

@@ -153,30 +153,6 @@ inline bool parseFoobar(const std::string& str, ClingoOptions::Foobar& foobar) {
 
 // {{{1 declaration of ClingoControl
 
-class ClingoPropagateInit : public PropagateInit {
-public:
-    using Lit_t = Potassco::Lit_t;
-    ClingoPropagateInit(Control &c, Clasp::ClingoPropagatorInit &p);
-    Output::DomainData const &theory() const override { return c_.theory(); }
-    SymbolicAtoms &getDomain() override { return c_.getDomain(); }
-    Lit_t mapLit(Lit_t lit) override;
-    int threads() override;
-    void addWatch(Lit_t lit) override { p_.addWatch(Clasp::decodeLit(lit)); }
-    void addWatch(uint32_t solverId, Lit_t lit) override { p_.addWatch(solverId, Clasp::decodeLit(lit)); }
-    void enableHistory(bool b) override { p_.enableHistory(b); };
-    void setCheckMode(clingo_propagator_check_mode_t checkMode) override {
-        p_.enableClingoPropagatorCheck(static_cast<Clasp::ClingoPropagatorCheck_t::Type>(checkMode));
-    }
-    Potassco::AbstractAssignment const &assignment() const override;
-    clingo_propagator_check_mode_t getCheckMode() const override {
-        return p_.checkMode();
-    }
-private:
-    Control &c_;
-    Clasp::ClingoPropagatorInit &p_;
-    Clasp::ClingoAssignment a_;
-};
-
 class ClingoPropagatorLock : public Clasp::ClingoPropagatorLock {
 public:
     ClingoPropagatorLock() : seq_(0) {}
@@ -275,7 +251,7 @@ private:
 };
 
 class ClingoSolveFuture;
-class ClingoControl : public clingo_control, private ConfigProxy, private SymbolicAtoms {
+class ClingoControl : public clingo_control, private ConfigProxy, private SymbolicAtoms, private Potassco::AbstractHeuristic {
 public:
     using StringVec        = std::vector<std::string>;
     using ExternalVec      = std::vector<std::pair<Symbol, Potassco::Value_t>>;
@@ -318,32 +294,32 @@ public:
     Potassco::Lit_t literal(SymbolicAtomIter it) const override;
     bool fact(SymbolicAtomIter it) const override;
     bool external(SymbolicAtomIter it) const override;
-    SymbolicAtomIter next(SymbolicAtomIter it) override;
+    SymbolicAtomIter next(SymbolicAtomIter it) const override;
     bool valid(SymbolicAtomIter it) const override;
 
     // {{{2 ConfigProxy interface
 
-    bool hasSubKey(unsigned key, char const *name) override;
-    unsigned getSubKey(unsigned key, char const *name) override;
-    unsigned getArrKey(unsigned key, unsigned idx) override;
+    bool hasSubKey(unsigned key, char const *name) const override;
+    unsigned getSubKey(unsigned key, char const *name) const override;
+    unsigned getArrKey(unsigned key, unsigned idx) const override;
     void getKeyInfo(unsigned key, int* nSubkeys = 0, int* arrLen = 0, const char** help = 0, int* nValues = 0) const override;
     const char* getSubKeyName(unsigned key, unsigned idx) const override;
-    bool getKeyValue(unsigned key, std::string &value) override;
+    bool getKeyValue(unsigned key, std::string &value) const override;
     void setKeyValue(unsigned key, const char *val) override;
-    unsigned getRootKey() override;
+    unsigned getRootKey() const override;
 
     // {{{2 Control interface
 
-    SymbolicAtoms &getDomain() override;
+    SymbolicAtoms const &getDomain() const override;
     void ground(Control::GroundVec const &vec, Context *ctx) override;
     void add(std::string const &name, Gringo::StringVec const &params, std::string const &part) override;
     void load(std::string const &filename) override;
     bool blocked() override;
     std::string str();
     void assignExternal(Potassco::Atom_t ext, Potassco::Value_t) override;
-    Symbol getConst(std::string const &name) override;
-    bool isConflicting() noexcept override;
-    Potassco::AbstractStatistics *statistics() override;
+    Symbol getConst(std::string const &name) const override;
+    bool isConflicting() const noexcept override;
+    Potassco::AbstractStatistics const *statistics() const override;
     ConfigProxy &getConf() override;
     void useEnumAssumption(bool enable) override;
     bool useEnumAssumption() override;
@@ -355,6 +331,7 @@ public:
     void *claspFacade() override;
     bool beginAddBackend() override;
     Id_t addAtom(Symbol sym) override;
+    void addFact(Potassco::Atom_t uid) override;
     Backend *getBackend() override {
         if (!backend_) { throw std::runtime_error("backend not available"); }
         return backend_;
@@ -371,6 +348,7 @@ public:
     }
 
     // }}}2
+    Lit decide(Id_t solverId, Potassco::AbstractAssignment const &assignment, Lit fallback) override;
 
     std::unique_ptr<Output::OutputBase>                        out_;
     Scripts                                                   &scripts_;
@@ -385,7 +363,10 @@ public:
     PreSolveFunc                                               psf_;
     std::unique_ptr<Potassco::TheoryData>                      data_;
     std::vector<UProp>                                         props_;
+    std::vector<Potassco::AbstractHeuristic*>                  heus_;
     std::vector<std::unique_ptr<Clasp::ClingoPropagatorInit>>  propagators_;
+    std::vector<Symbol>                                        added_atoms_;
+    std::unordered_set<Potassco::Atom_t>                       added_facts_;
     ClingoPropagatorLock                                       propLock_;
     Logger                                                     logger_;
     TheoryOutput                                               theory_;
@@ -434,7 +415,7 @@ public:
         claspLits.push_back(~ctx().stepLiteral());
         model_->ctx->commitClause(claspLits);
     }
-    Gringo::SymbolicAtoms &getDomain() const override {
+    Gringo::SymbolicAtoms const &getDomain() const override {
         return ctl_.getDomain();
     }
     bool isTrue(Potassco::Lit_t lit) const override {

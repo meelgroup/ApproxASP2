@@ -56,7 +56,7 @@ struct clingo_symbolic_atoms {
     virtual Potassco::Lit_t literal(Gringo::SymbolicAtomIter it) const = 0;
     virtual bool fact(Gringo::SymbolicAtomIter it) const = 0;
     virtual bool external(Gringo::SymbolicAtomIter it) const = 0;
-    virtual Gringo::SymbolicAtomIter next(Gringo::SymbolicAtomIter it) = 0;
+    virtual Gringo::SymbolicAtomIter next(Gringo::SymbolicAtomIter it) const = 0;
     virtual bool valid(Gringo::SymbolicAtomIter it) const = 0;
     virtual Gringo::SymbolicAtomIter begin(Gringo::Sig sig) const = 0;
     virtual Gringo::SymbolicAtomIter begin() const = 0;
@@ -111,7 +111,7 @@ struct clingo_model {
     virtual Potassco::Id_t threadId() const = 0;
     virtual Gringo::ModelType type() const = 0;
     virtual bool isTrue(Potassco::Lit_t literal) const = 0;
-    virtual Gringo::SymbolicAtoms &getDomain() const = 0;
+    virtual Gringo::SymbolicAtoms const &getDomain() const = 0;
     virtual void add(Potassco::Span<Gringo::Symbol> symbols) = 0;
     virtual ~clingo_model() { }
 };
@@ -161,14 +161,14 @@ private:
 // {{{1 declaration of ConfigProxy
 
 struct ConfigProxy {
-    virtual bool hasSubKey(unsigned key, char const *name) = 0;
-    virtual unsigned getSubKey(unsigned key, char const *name) = 0;
-    virtual unsigned getArrKey(unsigned key, unsigned idx) = 0;
+    virtual bool hasSubKey(unsigned key, char const *name) const = 0;
+    virtual unsigned getSubKey(unsigned key, char const *name) const = 0;
+    virtual unsigned getArrKey(unsigned key, unsigned idx) const = 0;
     virtual void getKeyInfo(unsigned key, int* nSubkeys = 0, int* arrLen = 0, const char** help = 0, int* nValues = 0) const = 0;
     virtual const char* getSubKeyName(unsigned key, unsigned idx) const = 0;
-    virtual bool getKeyValue(unsigned key, std::string &value) = 0;
+    virtual bool getKeyValue(unsigned key, std::string &value) const = 0;
     virtual void setKeyValue(unsigned key, const char *val) = 0;
-    virtual unsigned getRootKey() = 0;
+    virtual unsigned getRootKey() const = 0;
     virtual ~ConfigProxy() { }
 };
 
@@ -180,14 +180,19 @@ using PropagateInit = clingo_propagate_init;
 } // namespace Gringo
 
 struct clingo_propagate_init {
+    virtual Potassco::Lit_t addLiteral() = 0;
+    virtual bool addClause(Potassco::LitSpan lits) = 0;
+    virtual bool addWeightConstraint(Potassco::Lit_t lit, Potassco::WeightLitSpan lits, Potassco::Weight_t bound, int type, bool eq) = 0;
+    virtual void addMinimize(Potassco::Lit_t literal, Potassco::Weight_t weight, Potassco::Weight_t priority) = 0;
+    virtual bool propagate() = 0;
     virtual Gringo::Output::DomainData const &theory() const = 0;
-    virtual Gringo::SymbolicAtoms &getDomain() = 0;
-    virtual Gringo::Lit_t mapLit(Gringo::Lit_t lit) = 0;
+    virtual Gringo::SymbolicAtoms const &getDomain() const = 0;
+    virtual Gringo::Lit_t mapLit(Gringo::Lit_t lit) const = 0;
     virtual void addWatch(Gringo::Lit_t lit) = 0;
     virtual void addWatch(uint32_t solverId, Gringo::Lit_t lit) = 0;
     virtual void enableHistory(bool b) = 0;
     virtual Potassco::AbstractAssignment const &assignment() const = 0;
-    virtual int threads() = 0;
+    virtual int threads() const = 0;
     virtual clingo_propagator_check_mode_t getCheckMode() const = 0;
     virtual void setCheckMode(clingo_propagator_check_mode_t checkMode) = 0;
     virtual ~clingo_propagate_init() noexcept = default;
@@ -195,9 +200,10 @@ struct clingo_propagate_init {
 
 namespace Gringo {
 
-struct Propagator : Potassco::AbstractPropagator {
+struct Propagator : Potassco::AbstractPropagator, Potassco::AbstractHeuristic {
     virtual ~Propagator() noexcept = default;
     virtual void init(Gringo::PropagateInit &init) = 0;
+    virtual bool hasHeuristic() const = 0;
 };
 using UProp = std::unique_ptr<Propagator>;
 
@@ -215,7 +221,7 @@ struct clingo_control {
     using FreeControlFunc = void (*)(Gringo::Control *);
 
     virtual Gringo::ConfigProxy &getConf() = 0;
-    virtual Gringo::SymbolicAtoms &getDomain() = 0;
+    virtual Gringo::SymbolicAtoms const &getDomain() const = 0;
 
     virtual void ground(GroundVec const &vec, Gringo::Context *context) = 0;
     virtual Gringo::USolveFuture solve(Assumptions assumptions, clingo_solve_mode_bitset_t mode, Gringo::USolveEventHandler cb = nullptr) = 0;
@@ -223,20 +229,21 @@ struct clingo_control {
     virtual void *claspFacade() = 0;
     virtual void add(std::string const &name, Gringo::StringVec const &params, std::string const &part) = 0;
     virtual void load(std::string const &filename) = 0;
-    virtual Gringo::Symbol getConst(std::string const &name) = 0;
+    virtual Gringo::Symbol getConst(std::string const &name) const = 0;
     virtual bool blocked() = 0;
     virtual void assignExternal(Potassco::Atom_t ext, Potassco::Value_t val) = 0;
-    virtual bool isConflicting() noexcept = 0;
-    virtual Potassco::AbstractStatistics *statistics() = 0;
+    virtual bool isConflicting() const noexcept = 0;
+    virtual Potassco::AbstractStatistics const *statistics() const = 0;
     virtual void useEnumAssumption(bool enable) = 0;
     virtual bool useEnumAssumption() = 0;
     virtual void cleanupDomains() = 0;
     virtual Gringo::Output::DomainData const &theory() const = 0;
-    virtual void registerPropagator(std::unique_ptr<Gringo::Propagator> p, bool sequential) = 0;
+    virtual void registerPropagator(Gringo::UProp p, bool sequential) = 0;
     virtual void registerObserver(Gringo::UBackend program, bool replace) = 0;
     virtual Potassco::Atom_t addProgramAtom() = 0;
     virtual bool beginAddBackend() = 0;
     virtual Gringo::Id_t addAtom(Gringo::Symbol sym) = 0;
+    virtual void addFact(Potassco::Atom_t uid) = 0;
     virtual Gringo::Backend *getBackend() = 0;
     virtual void endAddBackend() = 0;
     virtual Gringo::Logger &logger() = 0;

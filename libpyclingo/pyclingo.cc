@@ -41,30 +41,29 @@
 #pragma warning (disable : 4800) // forcing value to bool 'true' or 'false'
 #endif
 #if PY_MAJOR_VERSION >= 3
-#define PyString_FromString PyUnicode_FromString
-#if PY_MINOR_VERSION >= 3
-#define PyString_AsString PyUnicode_AsUTF8
+#  define PyString_FromString PyUnicode_FromString
+#  if PY_MINOR_VERSION >= 3
+#    define PyString_AsString PyUnicode_AsUTF8
+#  else
+#    define PyString_AsString _PyUnicode_AsString
+#  endif
+#  define PyString_FromStringAndSize PyUnicode_FromStringAndSize
+#  define PyString_FromFormat PyUnicode_FromFormat
+#  define PyString_Check PyUnicode_Check
+#  define OBBASE(x) (&(x)->ob_base)
 #else
-#define PyString_AsString _PyUnicode_AsString
-#endif
-#define PyString_FromStringAndSize PyUnicode_FromStringAndSize
-#define PyString_FromFormat PyUnicode_FromFormat
-#define PyString_Check PyUnicode_Check
-#define OBBASE(x) (&(x)->ob_base)
-#else
-#define OBBASE(x) x
-#define Py_hash_t long
+#  define OBBASE(x) x
+#  define Py_hash_t long
 #endif
 
 #ifndef PyVarObject_HEAD_INIT
-    #define PyVarObject_HEAD_INIT(type, size) \
-        PyObject_HEAD_INIT(type) size,
+#  define PyVarObject_HEAD_INIT(type, size) PyObject_HEAD_INIT(type) size,
 #endif
 
 #if defined(__clang__) || defined(__GNUC__)
-#define CLINGO_ATTRIBUTE_UNUSED __attribute__ ((unused))
+#  define CLINGO_ATTRIBUTE_UNUSED __attribute__ ((unused))
 #else
-#define CLINGO_ATTRIBUTE_UNUSED
+#  define CLINGO_ATTRIBUTE_UNUSED
 #endif
 namespace {
 
@@ -192,6 +191,7 @@ struct SharedObject : ObjectProtocoll<SharedObject<T>>{
     T *operator->() const { return obj; }
     PyObject *toPy() const                             { return reinterpret_cast<PyObject*>(obj); }
     PyObject *release()                                { PyObject *ret = toPy(); obj = nullptr; return ret; }
+    void clear()                                       { Py_CLEAR(obj); }
     SharedObject &operator=(SharedObject const &other) { Py_XDECREF(obj); obj = other.obj; Py_XINCREF(obj); return *this; }
     SharedObject &operator=(SharedObject &&other)      { std::swap(obj, other.obj); return *this; }
     ~SharedObject()                                    { Py_XDECREF(obj); }
@@ -349,10 +349,13 @@ struct ParsePtr {
 
 template <>
 struct ParsePtr<Object> {
-    ParsePtr(Object &x) : x(x) { x = nullptr; }
-    PyObject **get() { return &x.obj; }
-    ~ParsePtr() { Py_XINCREF(x.obj); }
+    ParsePtr(Object &x) : x(x) { }
+    PyObject **get() { return &y.obj; }
+    ~ParsePtr() {
+        if (y.valid()) { x = y; }
+    }
     Object &x;
+    Reference y;
 };
 
 template <>
@@ -388,11 +391,22 @@ struct ToFunctionUnary {
     };
 };
 
+template <Object (*f)()>
+struct ToFunctionNullary {
+    static PyObject *value(PyObject *, PyObject *) {
+        PY_TRY { return f().release(); }
+        PY_CATCH(nullptr);
+    };
+};
+
 template <Object (*f)(Reference, Reference)>
 constexpr PyCFunction to_function() { return reinterpret_cast<PyCFunction>(ToFunctionBinary<f>::value); }
 
 template <Object (*f)(Reference)>
 constexpr PyCFunction to_function() { return reinterpret_cast<PyCFunction>(ToFunctionUnary<f>::value); }
+
+template <Object (*f)()>
+constexpr PyCFunction to_function() { return reinterpret_cast<PyCFunction>(ToFunctionNullary<f>::value); }
 
 struct Tuple : Object {
     template <class... Args>
@@ -456,7 +470,7 @@ private:
 
 class IterIterator : std::iterator<std::forward_iterator_tag, Object, ptrdiff_t, ValuePointer<Object>, Object> {
 public:
-    IterIterator() = default;
+    IterIterator() = delete;
     IterIterator(IterIterator const &) = default;
     IterIterator(Iter it, Object current)
     : it_(it)
@@ -494,6 +508,8 @@ struct symbol_wrapper {
     clingo_symbol_t symbol;
 };
 using symbol_vector = std::vector<symbol_wrapper>;
+
+bool pyIsSymbol(Reference obj);
 
 template <class T>
 void pyToCpp(Reference pyVec, std::vector<T> &vec);
@@ -792,6 +808,21 @@ void handle_cxx_error(char const *loc, char const *msg) {
     }
 }
 
+struct TraverseError : std::exception {
+    TraverseError(int ret) : ret{ret} { }
+    int ret;
+};
+
+struct Traverse {
+    void operator()(Reference ref) const {
+        if (ref.valid()) {
+            auto ret = visit(ref.toPy(), arg);
+            if (ret != 0) { throw TraverseError(ret); }
+        }
+    }
+    visitproc visit;
+    void *arg;
+};
 
 namespace PythonDetail {
 
@@ -799,13 +830,18 @@ namespace PythonDetail {
 
 #define CHECK_EXPRESSION(E) decltype(static_cast<void>(E))
 
+template <bool A>
+struct Available {
+    static constexpr bool available = A;
+};
+
 #define WRAP_FUNCTION(F) \
 template <class B, class Enable = void> \
-struct Get_##F { \
+struct Get_##F : Available<false> { \
     static constexpr std::nullptr_t value = nullptr; \
 }; \
 template <class B> \
-struct Get_##F<B, CHECK_EXPRESSION(&B::F)>
+struct Get_##F<B, CHECK_EXPRESSION(&B::F)> : Available<true>
 
 #define BEGIN_PROTOCOL(F) \
 template <class B, class Enable = void> \
@@ -841,10 +877,39 @@ struct Get_##F<B, typename std::enable_if<Get_##G<B>::has_protocol>::type> { \
 template <class B> \
 T Get_##F<B, typename std::enable_if<Get_##G<B>::has_protocol>::type>::value[] =
 
+// gc protocol
+
+WRAP_FUNCTION(tp_traverse) {
+    static int value(PyObject *pySelf, visitproc visit, void *arg) {
+        PY_TRY {
+            auto self = reinterpret_cast<B*>(pySelf);
+            Traverse t{visit, arg};
+            self->tp_traverse(t);
+            return 0;
+        }
+        catch (TraverseError const &e) { return e.ret; }
+        PY_CATCH(1);
+    };
+};
+
+WRAP_FUNCTION(tp_clear) {
+    static int value(PyObject *pySelf) {
+        PY_TRY {
+            auto self = reinterpret_cast<B*>(pySelf);
+            self->tp_clear();
+            return 0;
+        }
+        PY_CATCH(1);
+    };
+};
+
 // object protocol
 
 WRAP_FUNCTION(tp_dealloc) {
     static void value(PyObject *self) {
+        if (PythonDetail::Get_tp_clear<B>::available) {
+            PyObject_GC_UnTrack(self);
+        }
         reinterpret_cast<B*>(self)->tp_dealloc();
         B::type.tp_free(self);
     };
@@ -1009,7 +1074,7 @@ NEXT_PROTOCOL(sq_ass_slice, sq_contains)
     };
 NEXT_PROTOCOL(sq_contains, sq_inplace_concat)
     static PyObject *value(PyObject *self, PyObject *other) {
-        PY_TRY { return reinterpret_cast<B*>(self)->sq_inplace_concat(Reference{other}); Py_XINCREF(self); return self; }
+        PY_TRY { reinterpret_cast<B*>(self)->sq_inplace_concat(Reference{other}); Py_XINCREF(self); return self; }
         PY_CATCH(nullptr);
     };
 NEXT_PROTOCOL(sq_inplace_concat, sq_inplace_repeat)
@@ -1028,6 +1093,106 @@ END_PROTOCOL(sq_inplace_repeat, tp_as_sequence, PySequenceMethods) {{
     Get_sq_contains<B>::value,
     Get_sq_inplace_concat<B>::value,
     Get_sq_inplace_repeat<B>::value,
+}};
+
+// number protocol
+
+BEGIN_PROTOCOL(nb_bool)
+    static int value(PyObject *self) {
+        PY_TRY { return reinterpret_cast<B*>(self)->nb_bool() ? 1 : 0; }
+        PY_CATCH(-1);
+    };
+NEXT_PROTOCOL(nb_bool, nb_int)
+    static PyObject* value(PyObject *self) {
+        PY_TRY { return reinterpret_cast<B*>(self)->nb_int().release(); }
+        PY_CATCH(nullptr);
+    };
+END_PROTOCOL(nb_int, tp_as_number, PyNumberMethods) {{
+#if PY_MAJOR_VERSION >= 3
+     nullptr,               // binaryfunc nb_add;
+     nullptr,               // binaryfunc nb_subtract;
+     nullptr,               // binaryfunc nb_multiply;
+     nullptr,               // binaryfunc nb_remainder;
+     nullptr,               // binaryfunc nb_divmod;
+     nullptr,               // ternaryfunc nb_power;
+     nullptr,               // unaryfunc nb_negative;
+     nullptr,               // unaryfunc nb_positive;
+     nullptr,               // unaryfunc nb_absolute;
+     Get_nb_bool<B>::value, // inquiry nb_bool;
+     nullptr,               // unaryfunc nb_invert;
+     nullptr,               // binaryfunc nb_lshift;
+     nullptr,               // binaryfunc nb_rshift;
+     nullptr,               // binaryfunc nb_and;
+     nullptr,               // binaryfunc nb_xor;
+     nullptr,               // binaryfunc nb_or;
+     Get_nb_int<B>::value,  // unaryfunc nb_int;
+     nullptr,               // void *nb_reserved;
+     nullptr,               // unaryfunc nb_float;
+
+     nullptr,               // binaryfunc nb_inplace_add;
+     nullptr,               // binaryfunc nb_inplace_subtract;
+     nullptr,               // binaryfunc nb_inplace_multiply;
+     nullptr,               // binaryfunc nb_inplace_remainder;
+     nullptr,               // ternaryfunc nb_inplace_power;
+     nullptr,               // binaryfunc nb_inplace_lshift;
+     nullptr,               // binaryfunc nb_inplace_rshift;
+     nullptr,               // binaryfunc nb_inplace_and;
+     nullptr,               // binaryfunc nb_inplace_xor;
+     nullptr,               // binaryfunc nb_inplace_or;
+
+     nullptr,               // binaryfunc nb_floor_divide;
+     nullptr,               // binaryfunc nb_true_divide;
+     nullptr,               // binaryfunc nb_inplace_floor_divide;
+     nullptr,               // binaryfunc nb_inplace_true_divide;
+
+     nullptr,               // unaryfunc nb_index;
+
+     nullptr,               // binaryfunc nb_matrix_multiply;
+     nullptr,               // binaryfunc nb_inplace_matrix_multiply;
+#else
+     nullptr,               // binaryfunc nb_add;
+     nullptr,               // binaryfunc nb_subtract;
+     nullptr,               // binaryfunc nb_multiply;
+     nullptr,               // binaryfunc nb_divide;
+     nullptr,               // binaryfunc nb_remainder;
+     nullptr,               // binaryfunc nb_divmod;
+     nullptr,               // ternaryfunc nb_power;
+     nullptr,               // unaryfunc nb_negative;
+     nullptr,               // unaryfunc nb_positive;
+     nullptr,               // unaryfunc nb_absolute;
+     Get_nb_bool<B>::value, // inquiry nb_nonzero;
+     nullptr,               // unaryfunc nb_invert;
+     nullptr,               // binaryfunc nb_lshift;
+     nullptr,               // binaryfunc nb_rshift;
+     nullptr,               // binaryfunc nb_and;
+     nullptr,               // binaryfunc nb_xor;
+     nullptr,               // binaryfunc nb_or;
+     nullptr,               // coercion nb_coerce;
+     Get_nb_int<B>::value,  // unaryfunc nb_int;
+     Get_nb_int<B>::value,  // unaryfunc nb_long;
+     nullptr,               // unaryfunc nb_float;
+     nullptr,               // unaryfunc nb_oct;
+     nullptr,               // unaryfunc nb_hex;
+
+     nullptr,               // binaryfunc nb_inplace_add;
+     nullptr,               // binaryfunc nb_inplace_subtract;
+     nullptr,               // binaryfunc nb_inplace_multiply;
+     nullptr,               // binaryfunc nb_inplace_divide;
+     nullptr,               // binaryfunc nb_inplace_remainder;
+     nullptr,               // ternaryfunc nb_inplace_power;
+     nullptr,               // binaryfunc nb_inplace_lshift;
+     nullptr,               // binaryfunc nb_inplace_rshift;
+     nullptr,               // binaryfunc nb_inplace_and;
+     nullptr,               // binaryfunc nb_inplace_xor;
+     nullptr,               // binaryfunc nb_inplace_or;
+
+     nullptr,               // binaryfunc nb_floor_divide;
+     nullptr,               // binaryfunc nb_true_divide;
+     nullptr,               // binaryfunc nb_inplace_floor_divide;
+     nullptr,               // binaryfunc nb_inplace_true_divide;
+
+     nullptr,               // unaryfunc nb_index;
+#endif
 }};
 
 } // namespace PythonDetail
@@ -1114,12 +1279,12 @@ PyTypeObject ObjectBase<T>::type = {
     sizeof(T),                                  // tp_basicsize
     0,                                          // tp_itemsize
     PythonDetail::Get_tp_dealloc<T>::value,     // tp_dealloc
-    nullptr,                                    // tp_print
+    0,                                          // tp_print
     nullptr,                                    // tp_getattr
     nullptr,                                    // tp_setattr
     nullptr,                                    // tp_compare
     PythonDetail::Get_tp_repr<T>::value,        // tp_repr
-    nullptr,                                    // tp_as_number
+    PythonDetail::Get_tp_as_number<T>::value,   // tp_as_number
     PythonDetail::Get_tp_as_sequence<T>::value, // tp_as_sequence
     PythonDetail::Get_tp_as_mapping<T>::value,  // tp_as_mapping
     PythonDetail::Get_tp_hash<T>::value,        // tp_hash
@@ -1128,10 +1293,12 @@ PyTypeObject ObjectBase<T>::type = {
     PythonDetail::Get_tp_getattro<T>::value,    // tp_getattro
     PythonDetail::Get_tp_setattro<T>::value,    // tp_setattro
     nullptr,                                    // tp_as_buffer
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,   // tp_flags
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+    (PythonDetail::Get_tp_traverse<T>::available ? Py_TPFLAGS_HAVE_GC : 0UL),
+                                                // tp_flags
     T::tp_doc,                                  // tp_doc
-    nullptr,                                    // tp_traverse
-    nullptr,                                    // tp_clear
+    PythonDetail::Get_tp_traverse<T>::value,    // tp_traverse
+    PythonDetail::Get_tp_clear<T>::value,       // tp_clear
     PythonDetail::Get_tp_richcompare<T>::value, // tp_richcompare
     0,                                          // tp_weaklistoffset
     PythonDetail::Get_tp_iter<T>::value,        // tp_iter
@@ -1237,15 +1404,27 @@ struct TheoryTermType : EnumType<TheoryTermType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of theory terms.
 
-TheoryTermType objects cannot be constructed from python. Instead the
-following preconstructed objects are available:
+`TheoryTermType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
 
-TheoryTermType.Function -- a function theory term
-TheoryTermType.Number   -- a numeric theory term
-TheoryTermType.Symbol   -- a symbolic theory term
-TheoryTermType.List     -- a list theory term
-TheoryTermType.Tuple    -- a tuple theory term
-TheoryTermType.Set      -- a set theory term)";
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed objects are available:
+
+Attributes
+----------
+Function : TheoryTermType
+    For a function theory terms.
+Number : TheoryTermType
+    For numeric theory terms.
+Symbol : TheoryTermType
+    For symbolic theory terms (symbol here means the term is a string).
+List : TheoryTermType
+    For list theory terms.
+Tuple : TheoryTermType
+    For tuple theory terms.
+Set : TheoryTermType
+    For set theory terms.
+)";
 
     static constexpr clingo_theory_term_type const values[] = {
         clingo_theory_term_type_function,
@@ -1269,18 +1448,19 @@ constexpr clingo_theory_term_type const TheoryTermType::values[];
 constexpr const char * const TheoryTermType::strings[];
 
 struct TheoryTerm : ObjectBase<TheoryTerm> {
-    clingo_theory_atoms_t *atoms;
+    clingo_theory_atoms_t const *atoms;
     clingo_id_t value;
     static PyGetSetDef tp_getset[];
     static constexpr char const *tp_type = "TheoryTerm";
     static constexpr char const *tp_name = "clingo.TheoryTerm";
     static constexpr char const *tp_doc =
-R"(TheoryTerm objects represent theory terms.
+R"(`TheoryTerm` objects represent theory terms.
 
-This are read-only objects, which can be obtained from theory atoms and
-elements.)";
+Theory terms have a readable string representation, implement Python's rich
+comparison operators, and can be used as dictionary keys.
+)";
 
-    static Object construct(clingo_theory_atoms_t *atoms, clingo_id_t value) {
+    static Object construct(clingo_theory_atoms_t const *atoms, clingo_id_t value) {
         auto self = new_();
         self->value = value;
         self->atoms = atoms;
@@ -1328,33 +1508,38 @@ elements.)";
 };
 
 PyGetSetDef TheoryTerm::tp_getset[] = {
-    {(char *)"type", to_getter<&TheoryTerm::termType>(), nullptr, (char *)R"(type -> TheoryTermType
+    {(char *)"type", to_getter<&TheoryTerm::termType>(), nullptr, (char *)R"(type: TheoryTermType
 
 The type of the theory term.)", nullptr},
-    {(char *)"name", to_getter<&TheoryTerm::name>(), nullptr, (char *)R"(name -> str
+    {(char *)"name", to_getter<&TheoryTerm::name>(), nullptr, (char *)R"(name: str
 
-The name of the TheoryTerm\n(for symbols and functions).)", nullptr},
-    {(char *)"arguments", to_getter<&TheoryTerm::args>(), nullptr, (char *)R"(arguments -> [Symbol]
+The name of the term (for symbols and functions).)", nullptr},
+    {(char *)"arguments", to_getter<&TheoryTerm::args>(), nullptr, (char *)R"(arguments: List[TheoryTerm]
 
-The arguments of the TheoryTerm (for functions, tuples, list, and sets).)", nullptr},
-    {(char *)"number", to_getter<&TheoryTerm::number>(), nullptr, (char *)R"(number -> integer
+The arguments of the term (for functions, tuples, list, and sets).
+)", nullptr},
+    {(char *)"number", to_getter<&TheoryTerm::number>(), nullptr, (char *)R"(number: int
 
-The numeric representation of the TheoryTerm (for numbers).)", nullptr},
+The numeric representation of the term (for numbers).
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 // {{{1 wrap TheoryElement
 
 struct TheoryElement : ObjectBase<TheoryElement> {
-    clingo_theory_atoms_t *atoms;
+    clingo_theory_atoms_t const *atoms;
     clingo_id_t value;
     static constexpr char const *tp_type = "TheoryElement";
     static constexpr char const *tp_name = "clingo.TheoryElement";
     static constexpr char const *tp_doc =
-R"(TheoryElement objects represent theory elements which consist of a tuple of
-terms and a set of literals.)";
+R"(Class to represent theory elements.
+
+Theory elements have a readable string representation, implement Python's rich
+comparison operators, and can be used as dictionary keys.
+)";
     static PyGetSetDef tp_getset[];
-    static Object construct(clingo_theory_atoms *atoms, clingo_id_t value) {
+    static Object construct(clingo_theory_atoms const *atoms, clingo_id_t value) {
         auto self = new_();
         self->value = value;
         self->atoms = atoms;
@@ -1402,29 +1587,37 @@ terms and a set of literals.)";
 };
 
 PyGetSetDef TheoryElement::tp_getset[] = {
-    {(char *)"terms", to_getter<&TheoryElement::terms>(), nullptr, (char *)R"(terms -> [TheoryTerm]
+    {(char *)"terms", to_getter<&TheoryElement::terms>(), nullptr, (char *)R"(terms: List[TheoryTerm]
 
-The tuple of the element.)", nullptr},
-    {(char *)"condition", to_getter<&TheoryElement::condition>(), nullptr, (char *)R"(condition -> [TheoryTerm]
+The tuple of the element.
+)", nullptr},
+    {(char *)"condition", to_getter<&TheoryElement::condition>(), nullptr, (char *)R"(condition: List[TheoryTerm]
 
-The condition of the element.)", nullptr},
-    {(char *)"condition_id", to_getter<&TheoryElement::condition_id>(), nullptr, (char *)R"(condition_id -> int
+The condition of the element.
+)", nullptr},
+    {(char *)"condition_id", to_getter<&TheoryElement::condition_id>(), nullptr, (char *)R"(condition_id: int
 
-Each condition has an id. This id can be passed to PropagateInit.solver_literal
-to obtain a solver literal equivalent to the condition.)", nullptr},
+Each condition has an id. This id can be passed to
+`PropagateInit.solver_literal` to obtain a solver literal equivalent to the
+condition.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 // {{{1 wrap TheoryAtom
 
 struct TheoryAtom : ObjectBase<TheoryAtom> {
-    clingo_theory_atoms_t *atoms;
+    clingo_theory_atoms_t const *atoms;
     clingo_id_t value;
     static PyGetSetDef tp_getset[];
     static constexpr char const *tp_type = "TheoryAtom";
     static constexpr char const *tp_name = "clingo.TheoryAtom";
-    static constexpr char const *tp_doc = R"(TheoryAtom objects represent theory atoms.)";
-    static Object construct(clingo_theory_atoms_t *atoms, clingo_id_t value) {
+    static constexpr char const *tp_doc = R"(Class to represent theory atoms.
+
+Theory atoms have a readable string representation, implement Python's rich
+comparison operators, and can be used as dictionary keys.
+)";
+    static Object construct(clingo_theory_atoms_t const *atoms, clingo_id_t value) {
         auto self = new_();
         self->value = value;
         self->atoms = atoms;
@@ -1476,57 +1669,46 @@ struct TheoryAtom : ObjectBase<TheoryAtom> {
 };
 
 PyGetSetDef TheoryAtom::tp_getset[] = {
-    {(char *)"elements", to_getter<&TheoryAtom::elements>(), nullptr, (char *)R"(elements -> [TheoryElement]
+    {(char *)"elements", to_getter<&TheoryAtom::elements>(), nullptr, (char *)R"(elements: List[TheoryElement]
 
-The theory elements of the theory atom.)", nullptr},
-    {(char *)"term", to_getter<&TheoryAtom::term>(), nullptr, (char *)R"(term -> TheoryTerm
+The elements of the atom.)", nullptr},
+    {(char *)"term", to_getter<&TheoryAtom::term>(), nullptr, (char *)R"(term: TheoryTerm
 
-The term of the theory atom.)", nullptr},
-    {(char *)"guard", to_getter<&TheoryAtom::guard>(), nullptr, (char *)R"(guard -> (str, TheoryTerm)
+The term of the atom.
+)", nullptr},
+    {(char *)"guard", to_getter<&TheoryAtom::guard>(), nullptr, (char *)R"(guard: Tuple[str, TheoryTerm]
 
-The guard of the theory atom or None if the atom has no guard.)", nullptr},
-    {(char *)"literal", to_getter<&TheoryAtom::literal>(), nullptr, (char *)R"(literal -> int
+The guard of the atom or None if the atom has no guard.
+)", nullptr},
+    {(char *)"literal", to_getter<&TheoryAtom::literal>(), nullptr, (char *)R"(literal: int
 
-The program literal associated with the theory atom.)", nullptr},
+The program literal associated with the atom.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 // {{{1 wrap TheoryAtomIter
 
 struct TheoryAtomIter : ObjectBase<TheoryAtomIter> {
-    clingo_theory_atoms_t *atoms;
+    clingo_theory_atoms_t const *atoms;
     clingo_id_t offset;
-    static PyMethodDef tp_methods[];
 
     static constexpr char const *tp_type = "TheoryAtomIter";
     static constexpr char const *tp_name = "clingo.TheoryAtomIter";
     static constexpr char const *tp_doc =
-R"(Object to iterate over all theory atoms.)";
-    static Object construct(clingo_theory_atoms_t *atoms, clingo_id_t offset) {
+R"(Implements `Iterator[SymbolicAtom]`.)";
+    static Object construct(clingo_theory_atoms_t const *atoms, clingo_id_t offset) {
         auto self = new_();
         self->atoms = atoms;
         self->offset = offset;
         return self;
     }
     Reference tp_iter() { return *this; }
-    Object get() { return TheoryAtom::construct(atoms, offset); }
-    Py_ssize_t sq_length() {
-        size_t size;
-        handle_c_error(clingo_theory_atoms_size(atoms, &size));
-        return size;
-    }
-    Object sq_item(Py_ssize_t index) {
-        if (index < 0 || index >= sq_length()) {
-            PyErr_Format(PyExc_IndexError, "invalid index");
-            return nullptr;
-        }
-        return TheoryAtom::construct(atoms, index);
-    }
     Object tp_iternext() {
         size_t size;
         handle_c_error(clingo_theory_atoms_size(atoms, &size));
         if (offset < size) {
-            Object next = get();
+            Object next = TheoryAtom::construct(atoms, offset);
             ++offset;
             return next;
         } else {
@@ -1534,12 +1716,6 @@ R"(Object to iterate over all theory atoms.)";
             return nullptr;
         }
     }
-};
-
-PyMethodDef TheoryAtomIter::tp_methods[] = {
-    {"get", to_function<&TheoryAtomIter::get>(), METH_NOARGS,
-R"(get(self) -> TheoryAtom)"},
-    {nullptr, nullptr, 0, nullptr}
 };
 
 // {{{1 wrap Symbol
@@ -1550,14 +1726,25 @@ struct SymbolType : EnumType<SymbolType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of symbols.
 
-SymbolType objects cannot be constructed from python. Instead the following
+`SymbolType` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
 preconstructed objects are available:
 
-SymbolType.Number   -- a numeric symbol - e.g., 1
-SymbolType.String   -- a string symbol - e.g., "a"
-SymbolType.Function -- a numeric symbol - e.g., c, (1, "a"), or f(1,"a")
-SymbolType.Infimum  -- the #inf symbol
-SymbolType.Supremum -- the #sup symbol)";
+Attributes
+----------
+Number : SymbolType
+    A numeric symbol, e.g., `1`.
+String : SymbolType
+    A string symbol, e.g., `"a"`.
+Function : SymbolType
+    A function symbol, e.g., `c`, `(1, "a")`, or `f(1,"a")`.
+Infimum : SymbolType
+    The `#inf` symbol.
+Supremum : SymbolType
+    The `#sup` symbol
+)";
 
     static constexpr enum clingo_symbol_type const values[] = {
         clingo_symbol_type_number,
@@ -1576,6 +1763,7 @@ struct Symbol : ObjectBase<Symbol> {
     clingo_symbol_t val;
     static PyObject *inf;
     static PyObject *sup;
+    static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
     static constexpr char const *tp_type = "Symbol";
     static constexpr char const *tp_name = "clingo.Symbol";
@@ -1583,13 +1771,17 @@ struct Symbol : ObjectBase<Symbol> {
 R"(Represents a gringo symbol.
 
 This includes numbers, strings, functions (including constants with
-len(arguments) == 0 and tuples with len(name) == 0), #inf and #sup.  Symbol
-objects are ordered like in gringo and their string representation corresponds
-to their gringo representation.
+`len(arguments) == 0` and tuples with `len(name) == 0`), `#inf` and `#sup`.
 
+Symbol objects implemente Python's rich comparison operators and are ordered
+like in gringo. They can also be used as keys in dictionaries. Their string
+representation corresponds to their gringo representation.
+
+Notes
+-----
 Note that this class does not have a constructor. Instead there are the
-functions Number(), String(), and Function() to construct symbol objects or the
-preconstructed symbols Infimum and Supremum.)";
+functions `Number`, `String`, and `Function` to construct symbol objects or the
+preconstructed symbols `Infimum` and `Supremum`.)";
 
     static bool initType(Reference module) {
         if (!ObjectBase<Symbol>::initType(module)) { return false; }
@@ -1654,6 +1846,9 @@ preconstructed symbols Infimum and Supremum.)";
         clingo_symbol_t ret;
         clingo_symbol_create_number(num, &ret);
         return construct(ret);
+    }
+    static Object new_symbol(Reference arg) {
+        return construct(pyToCpp<clingo_symbol_t>(arg));
     }
     static Object new_string(Reference arg) {
         auto str = pyToCpp<std::string>(arg);
@@ -1720,6 +1915,21 @@ preconstructed symbols Infimum and Supremum.)";
         return SymbolType::getAttr(clingo_symbol_type(val));
     }
 
+    Object match(Reference pyargs, Reference pykwds) {
+        char const *name, *pyName;
+        int pyArity;
+        size_t arity;
+        char const *kwlist[] = {"name", "arity", nullptr};
+        ParseTupleAndKeywords(pyargs, pykwds, "si", kwlist, pyName, pyArity);
+        clingo_symbol_t const *args;
+        if (clingo_symbol_type(val) != clingo_symbol_type_function) { Py_RETURN_FALSE; }
+        handle_c_error(clingo_symbol_name(val, &name));
+        if (strcmp(name, pyName) != 0) { Py_RETURN_FALSE; }
+        handle_c_error(clingo_symbol_arguments(val, &args, &arity));
+        if (static_cast<int>(arity) != pyArity) { Py_RETURN_FALSE; }
+        Py_RETURN_TRUE;
+    }
+
     Object tp_repr() {
         std::vector<char> ret;
         size_t size;
@@ -1750,15 +1960,54 @@ preconstructed symbols Infimum and Supremum.)";
     }
 };
 
+PyMethodDef Symbol::tp_methods[] = {
+    {"match", to_function<&Symbol::match>(), METH_KEYWORDS | METH_VARARGS,
+R"(match(self, name: str, arity: int) -> bool
+
+Check if this is a function symbol with the given signature.
+
+Parameters
+----------
+name : str
+    The name of the function.
+
+arity : int
+    The arity of the function.
+
+Returns
+-------
+bool
+    Whether the function matches.
+)"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
 PyGetSetDef Symbol::tp_getset[] = {
-    {(char *)"name", to_getter<&Symbol::name>(), nullptr, (char *)"The name of a function.", nullptr},
-    {(char *)"string", to_getter<&Symbol::string>(), nullptr, (char *)"The value of a string.", nullptr},
-    {(char *)"number", to_getter<&Symbol::num>(), nullptr, (char *)"The value of a number.", nullptr},
-    {(char *)"arguments", to_getter<&Symbol::args>(), nullptr, (char *)"The arguments of a function.", nullptr},
-    {(char *)"negative", to_getter<&Symbol::negative>(), nullptr, (char *)"The sign of a function.", nullptr},
-    {(char *)"positive", to_getter<&Symbol::positive>(), nullptr, (char *)"The sign of a function.", nullptr},
-    {(char *)"type", to_getter<&Symbol::type_>(), nullptr, (char *)"The type of the symbol.", nullptr},
-    {(char *)"_to_c", to_getter<&Symbol::to_c>(), nullptr, (char *)"An int representing the underlying C clingo_symbol_t.", nullptr},
+    {(char *)"name", to_getter<&Symbol::name>(), nullptr, (char *)R"(name: str
+
+The name of a function.
+)", nullptr},
+    {(char *)"string", to_getter<&Symbol::string>(), nullptr, (char *)R"(string: str
+
+The value of a string.)", nullptr},
+    {(char *)"number", to_getter<&Symbol::num>(), nullptr, (char *)R"(number: int
+
+The value of a number.)", nullptr},
+    {(char *)"arguments", to_getter<&Symbol::args>(), nullptr, (char *)R"(arguments: List[Symbol]
+
+The arguments of a function.)", nullptr},
+    {(char *)"negative", to_getter<&Symbol::negative>(), nullptr, (char *)R"(negative: bool
+
+The inverted sign of a function.)", nullptr},
+    {(char *)"positive", to_getter<&Symbol::positive>(), nullptr, (char *)R"(positive: bool
+
+The sign of a function.)", nullptr},
+    {(char *)"type", to_getter<&Symbol::type_>(), nullptr, (char *)R"(type: SymbolType
+
+The type of the symbol.)", nullptr},
+    {(char *)"_to_c", to_getter<&Symbol::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the underlying C `clingo_symbol_t`.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -1775,8 +2024,8 @@ struct SolveResult : ObjectBase<SolveResult> {
     static constexpr char const *tp_doc =
 R"(Captures the result of a solve call.
 
-SolveResult objects cannot be constructed from python. Instead they
-are returned by the solve methods of the Control object.)";
+`SolveResult` objects cannot be constructed from Python. Instead they are
+returned by the solve methods of the Control object.)";
     static Object construct(clingo_solve_result_bitset_t result) {
         auto self = new_();
         self->result = result;
@@ -1812,36 +2061,49 @@ are returned by the solve methods of the Control object.)";
 
 PyGetSetDef SolveResult::tp_getset[] = {
     {(char *)"satisfiable", to_getter<&SolveResult::satisfiable>(), nullptr,
-(char *)R"(True if the problem is satisfiable, False if the problem is
-unsatisfiable, or None if the satisfiablity is not known.)", nullptr},
+(char *)R"(satisfiable: Optional[bool]
+
+True if the problem is satisfiable, False if the problem is unsatisfiable, or
+None if the satisfiablity is not known.
+)", nullptr},
     {(char *)"unsatisfiable", to_getter<&SolveResult::unsatisfiable>(), nullptr,
-(char *)R"(True if the problem is unsatisfiable, False if the problem is
-satisfiable, or None if the satisfiablity is not known.
+(char *)R"(unsatisfiable: Optional[bool]
 
-This is equivalent to None if satisfiable is None else not satisfiable.)", nullptr},
+True if the problem is unsatisfiable, false if the problem is satisfiable, or
+`None` if the satisfiablity is not known.
+)", nullptr},
     {(char *)"unknown", to_getter<&SolveResult::unknown>(), nullptr,
-(char *)R"(True if the satisfiablity is not known.
+(char *)R"(unknown: bool
 
-This is equivalent to satisfiable is None.)", nullptr},
+True if the satisfiablity is not known.
+
+This is equivalent to satisfiable is None.
+)", nullptr},
     {(char *)"exhausted", to_getter<&SolveResult::exhausted>(), nullptr,
-(char *)R"(True if the search space was exhausted.)", nullptr},
+(char *)R"(exhausted: bool
+
+True if the search space was exhausted.
+)", nullptr},
     {(char *)"interrupted", to_getter<&SolveResult::interrupted>(), nullptr,
-(char *)R"(True if the search was interrupted.)", nullptr},
+(char *)R"(interruped: bool
+
+True if the search was interrupted.)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 // {{{1 wrap SymbolicAtom
 
 struct SymbolicAtom : public ObjectBase<SymbolicAtom> {
-    clingo_symbolic_atoms_t *atoms;
+    clingo_symbolic_atoms_t const *atoms;
     clingo_symbolic_atom_iterator_t range;
 
     static constexpr char const *tp_type = "SymbolicAtom";
     static constexpr char const *tp_name = "clingo.SymbolicAtom";
-    static constexpr char const *tp_doc = "Captures a symbolic atom and provides properties to inspect its state.";
+    static constexpr char const *tp_doc = R"(Captures a symbolic atom and provides properties to inspect its state.)";
+    static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
-    static Object construct(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t range) {
+    static Object construct(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t range) {
         auto self = new_();
         self->atoms = atoms;
         self->range = range;
@@ -1867,27 +2129,74 @@ struct SymbolicAtom : public ObjectBase<SymbolicAtom> {
         handle_c_error(clingo_symbolic_atoms_is_external(atoms, range, &ret));
         return cppToPy(ret);
     }
+    Object match(Reference pyargs, Reference pykwds) {
+        Object sym{symbol()};
+        return reinterpret_cast<SharedObject<Symbol> &>(sym)->match(pyargs, pykwds);
+    }
+};
+
+PyMethodDef SymbolicAtom::tp_methods[] = {
+    {"match", to_function<&SymbolicAtom::match>(), METH_KEYWORDS | METH_VARARGS,
+R"(match(self, name: str, arity: int) -> bool
+
+Check if the atom matches the given signature.
+
+Parameters
+----------
+name : str
+    The name of the function.
+
+arity : int
+    The arity of the function.
+
+Returns
+-------
+bool
+    Whether the function matches.
+
+See Also
+--------
+Symbol.match
+)"},
+    {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef SymbolicAtom::tp_getset[] = {
-    {(char *)"symbol", to_getter<&SymbolicAtom::symbol>(), nullptr, (char *)R"(The representation of the atom in form of a symbol (Symbol object).)", nullptr},
-    {(char *)"literal", to_getter<&SymbolicAtom::literal>(), nullptr, (char *)R"(The program literal associated with the atom.)", nullptr},
-    {(char *)"is_fact", to_getter<&SymbolicAtom::is_fact>(), nullptr, (char *)R"(Whether the atom is a is_fact.)", nullptr},
-    {(char *)"is_external", to_getter<&SymbolicAtom::is_external>(), nullptr, (char *)R"(Whether the atom is an external atom.)", nullptr},
+    {(char *)"symbol", to_getter<&SymbolicAtom::symbol>(), nullptr, (char *)R"(symbol: Symbol
+
+The representation of the atom in form of a symbol.
+)", nullptr},
+    {(char *)"literal", to_getter<&SymbolicAtom::literal>(), nullptr, (char *)R"(literal: int
+
+The program literal associated with the atom.
+)", nullptr},
+    {(char *)"is_fact", to_getter<&SymbolicAtom::is_fact>(), nullptr, (char *)R"(is_fact: bool
+
+Whether the atom is a fact.
+)", nullptr},
+    {(char *)"is_external", to_getter<&SymbolicAtom::is_external>(), nullptr, (char *)R"(is_external: bool
+
+Whether the atom is an external atom.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr},
 };
 
 // {{{1 wrap SymbolicAtomIter
 
 struct SymbolicAtomIter : ObjectBase<SymbolicAtomIter> {
-    clingo_symbolic_atoms_t *atoms;
+    clingo_symbolic_atoms_t const *atoms;
     clingo_symbolic_atom_iterator_t range;
 
     static constexpr char const *tp_type = "SymbolicAtomIter";
     static constexpr char const *tp_name = "clingo.SymbolicAtomIter";
-    static constexpr char const *tp_doc = "Class to iterate over symbolic atoms.";
+    static constexpr char const *tp_doc = R"(Implements `Iterator[SymbolicAtom]`.
 
-    static Object construct(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t range) {
+See Also
+--------
+SymbolicAtoms
+)";
+
+    static Object construct(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t range) {
         auto self = new_();
         self->atoms = atoms;
         self->range = range;
@@ -1912,60 +2221,44 @@ struct SymbolicAtomIter : ObjectBase<SymbolicAtomIter> {
 // {{{1 wrap SymbolicAtoms
 
 struct SymbolicAtoms : ObjectBase<SymbolicAtoms> {
-    clingo_symbolic_atoms_t *atoms;
+    clingo_symbolic_atoms_t const *atoms;
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
     static constexpr char const *tp_type = "SymbolicAtoms";
     static constexpr char const *tp_name = "clingo.SymbolicAtoms";
     static constexpr char const *tp_doc =
-R"(This class provides read-only access to the symbolic atoms of the grounder
-(the Herbrand base).
+R"(This class provides read-only access to the atom base of the grounder.
 
-Example:
+It implements `Sequence[SymbolicAtom]` and `Mapping[Symbol,SymbolicAtom]`.
 
-p(1).
-{ p(3) }.
-#external p(1..3).
+Examples
+--------
 
-q(X) :- p(X).
+    >>> import clingo
+    >>> prg = clingo.Control()
+    >>> prg.add('base', [], '''\
+    ... p(1).
+    ... { p(3) }.
+    ... #external p(1..3).
+    ...
+    ... q(X) :- p(X).
+    ... ''')
+    >>> prg.ground([("base", [])])
+    >>> len(prg.symbolic_atoms)
+    6
+    >>> prg.symbolic_atoms[clingo.Function("p", [2])] is not None
+    True
+    >>> prg.symbolic_atoms[clingo.Function("p", [4])] is None
+    True
+    >>> prg.symbolic_atoms.signatures
+    [('p', 1L, True), ('q', 1L, True)]
+    >>> [(x.symbol, x.is_fact, x.is_external)
+    ...  for x in prg.symbolic_atoms.by_signature("p", 1)]
+    [(p(1), True, False), (p(3), False, False), (p(2), False, True)]
+)";
 
-#script (python)
-
-import clingo
-
-def main(prg):
-    prg.ground([("base", [])])
-    print "universe:", len(prg.symbolic_atoms)
-    for x in prg.symbolic_atoms:
-        print x.symbol, x.is_fact, x.is_external
-    print "p(2) is in domain:", prg.symbolic_atoms[clingo.Function("p", [3])] is not None
-    print "p(4) is in domain:", prg.symbolic_atoms[clingo.Function("p", [6])] is not None
-    print "domain of p/1:"
-    for x in prg.symbolic_atoms.by_signature("p", 1):
-        print x.symbol, x.is_fact, x.is_external
-    print "signatures:", prg.symbolic_atoms.signatures
-
-#end.
-
-Expected Output:
-
-universe: 6
-p(1) True False
-p(3) False False
-p(2) False True
-q(1) True False
-q(3) False False
-q(2) False False
-p(2) is in domain: True
-p(4) is in domain: False
-domain of p/1:
-p(1) True False
-p(3) False False
-p(2) False True
-signatures: [('p', 1), ('q', 1)])";
-
-    static Object construct(clingo_symbolic_atoms_t *atoms) {
+    static Object construct(clingo_symbolic_atoms_t const *atoms) {
         auto self = new_();
         self->atoms = atoms;
         return self;
@@ -2034,36 +2327,50 @@ signatures: [('p', 1), ('q', 1)])";
     }
 
     Object to_c() {
-        return PyLong_FromVoidPtr(atoms);
+        return PyLong_FromVoidPtr(const_cast<clingo_symbolic_atoms_t*>(atoms));
     }
 };
 
 PyMethodDef SymbolicAtoms::tp_methods[] = {
     {"by_signature", to_function<&SymbolicAtoms::by_signature>(), METH_KEYWORDS | METH_VARARGS,
-R"(by_signature(self, name, arity, positive) -> SymbolicAtomIter
+R"(by_signature(self, name: str, arity: int, positive: bool=True) -> Iterator[Symbol]
 
 Return an iterator over the symbolic atoms with the given signature.
 
-Arguments:
-name     -- the name of the signature
-arity    -- the arity of the signature
-positive -- the sign of the signature
+Arguments
+---------
+name : str
+    The name of the signature.
+arity : int
+    The arity of the signature.
+positive : bool=True
+    The sign of the signature.
+
+Returns
+-------
+Iterator[Symbol]
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef SymbolicAtoms::tp_getset[] = {
     {(char *)"signatures", to_getter<&SymbolicAtoms::signatures>(), nullptr, (char *)
-R"(The list of predicate signatures (triples of names, arities, and Booleans)
-occurring in the program. A true Boolean stands for a positive signature.)"
-    , nullptr},
-    {(char *)"_to_c", to_getter<&SymbolicAtoms::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_symbolic_atoms_t struct.)", nullptr},
+R"(signatures: List[Tuple[str,int,bool]]
+
+The list of predicate signatures occurring in the program.
+
+The Boolean indicates the sign of the signature.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&SymbolicAtoms::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_symbolic_atoms_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 // {{{1 wrap SolveControl
 
-clingo_literal_t pyToAtom(Reference x, clingo_symbolic_atoms_t *atoms) {
+clingo_literal_t pyToAtom(Reference x, clingo_symbolic_atoms_t const *atoms) {
     if (PyNumber_Check(x.toPy())) {
         auto ret = pyToCpp<clingo_literal_t>(x);
         return ret;
@@ -2083,7 +2390,7 @@ clingo_literal_t pyToAtom(Reference x, clingo_symbolic_atoms_t *atoms) {
     return 0;
 }
 
-std::vector<clingo_literal_t> pyToLits(Reference pyLits, clingo_symbolic_atoms_t *atoms, bool invert, bool disjunctive) {
+std::vector<clingo_literal_t> pyToLits(Reference pyLits, clingo_symbolic_atoms_t const *atoms, bool invert, bool disjunctive) {
     std::vector<clingo_literal_t> lits;
     for (auto x : pyLits.iter()) {
         if (PyNumber_Check(x.toPy())) {
@@ -2122,8 +2429,8 @@ struct SolveControl : ObjectBase<SolveControl> {
     static constexpr char const *tp_doc =
 R"(Object that allows for controlling a running search.
 
-Note that SolveControl objects cannot be constructed from python.  Instead
-they are available as properties of Model objects.)";
+`SolveControl` objects cannot be constructed from Python. Instead they are
+available via `Model.context`.)";
 
     static Object construct(clingo_solve_control_t *ctl) {
         auto self = new_();
@@ -2132,7 +2439,7 @@ they are available as properties of Model objects.)";
     }
 
     Object getClause(Reference pyLits, bool invert) {
-        clingo_symbolic_atoms_t *atoms;
+        clingo_symbolic_atoms_t const *atoms;
         handle_c_error(clingo_solve_control_symbolic_atoms(ctl, &atoms));
         auto lits = pyToLits(pyLits, atoms, invert, true);
         handle_c_error(clingo_solve_control_add_clause(ctl, lits.data(), lits.size()));
@@ -2140,7 +2447,7 @@ they are available as properties of Model objects.)";
     }
 
     Object symbolicAtoms() {
-        clingo_symbolic_atoms_t *atoms;
+        clingo_symbolic_atoms_t const *atoms;
         handle_c_error(clingo_solve_control_symbolic_atoms(ctl, &atoms));
         return SymbolicAtoms::construct(atoms);
     }
@@ -2161,30 +2468,40 @@ they are available as properties of Model objects.)";
 PyMethodDef SolveControl::tp_methods[] = {
     // add_clause
     {"add_clause", to_function<&SolveControl::add_clause>(), METH_O,
-R"(add_clause(self, literals) -> None
+R"(add_clause(self, literals: List[Union[Tuple[Symbol,bool],int]]) -> None
 
 Add a clause that applies to the current solving step during the search.
 
-Arguments:
-literals -- list of literals either represented as pairs of symbolic atoms and
-            Booleans or as program literals
+Parameters
+----------
+literals : List[Union[Tuple[Symbol,bool],int]]
+    List of literals either represented as pairs of symbolic atoms and Booleans
+    or as program literals.
 
-Note that this function can only be called in the model callback (or while
-iterating when using a SolveHandle).)"},
+Notes
+-----
+This function can only be called in a model callback or while iterating when
+using a `SolveHandle`.
+)"},
     // add_nogood
     {"add_nogood", to_function<&SolveControl::add_nogood>(), METH_O,
-R"(add_nogood(self, literals) -> None
+R"(add_nogood(self, literals: List[Union[Tuple[Symbol,bool],int]]) -> None
 
-Equivalent to add_clause with the literals inverted.
-
-Arguments:
-literals -- list of pairs of Booleans and atoms representing the nogood)"},
+Equivalent to `SolveControl.add_clause` with the literals inverted.
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef SolveControl::tp_getset[] = {
-    {(char *)"symbolic_atoms", to_getter<&SolveControl::symbolicAtoms>(), nullptr, (char *)R"(The symbolic atoms captured by a SymbolicAtoms object.)", nullptr},
-    {(char *)"_to_c", to_getter<&SolveControl::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_solve_control_t struct.)", nullptr},
+    {(char *)"symbolic_atoms", to_getter<&SolveControl::symbolicAtoms>(), nullptr, (char *)R"(symbolic_atoms: SymbolicAtoms
+
+`SymbolicAtoms` object to inspect the symbolic atoms.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&SolveControl::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_solve_control_t`
+struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -2196,12 +2513,21 @@ struct ModelType : EnumType<ModelType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of models.
 
-ModelType objects cannot be constructed from python. Instead the following
-preconstructed objects are available:
+`ModelType` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
 
-SymbolType.StableModel          -- a stable model
-SymbolType.BraveConsequences    -- set of brave consequences
-SymbolType.CautiousConsequences -- set of cautious consequences)";
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+StableModel : ModelType
+    The model captures a stable model.
+BraveConsequences : ModelType
+    The model stores the set of brave consequences.
+CautiousConsequences : ModelType
+    The model stores the set of cautious consequences.
+)";
 
     static constexpr enum clingo_model_type const values[] = {
         clingo_model_type_stable_model,
@@ -2223,15 +2549,37 @@ struct Model : ObjectBase<Model> {
     static constexpr char const *tp_type = "Model";
     static constexpr char const *tp_name = "clingo.Model";
     static constexpr char const *tp_doc =
-R"(Provides access to a model during a solve call.
+R"(Provides access to a model during a solve call and provides a `SolveContext`
+object to provided limited support to influence the running search.
 
+Notes
+-----
 The string representation of a model object is similar to the output of models
 by clingo using the default output.
 
-Note that model objects cannot be constructed from python. Instead they are
-passed as argument to a model callback (see Control.solve()). Furthermore, the
-lifetime of a model object is limited to the scope of the callback. They must
-not be stored for later use in other places like - e.g., the main function.)";
+`Model` objects cannot be constructed from Python. Instead they are obained
+during solving (see `Control.solve`). Furthermore, the lifetime of a model
+object is limited to the scope of the callback it was passed to or until the
+search for the next model is started. They must not be stored for later use.
+
+Examples
+--------
+The following example shows how to store atoms in a model for usage after
+solving:
+
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> ctl.add("base", [], "{a;b}.")
+    >>> ctl.ground([("base", [])])
+    >>> ctl.configuration.solve.models="0"
+    >>> models = []
+    >>> with ctl.solve(yield_=True) as handle:
+    ...     for model in handle:
+    ...         models.append(model.symbols(atoms=True))
+    ...
+    >>> sorted(models)
+    [[], [a], [a, b], [b]]
+)";
 
     static Object construct(clingo_model_t *model) {
         auto self = new_();
@@ -2360,58 +2708,121 @@ not be stored for later use in other places like - e.g., the main function.)";
 };
 
 PyGetSetDef Model::tp_getset[] = {
-    {(char *)"thread_id", to_getter<&Model::thread_id>(), nullptr, (char*)"The id of the thread which found the model.", nullptr},
-    {(char *)"context", to_getter<&Model::getContext>(), nullptr, (char*)"SolveControl object that allows for controlling the running search.", nullptr},
-    {(char *)"cost", to_getter<&Model::cost>(), nullptr,
-(char *)R"(Return the list of integer cost values of the model.
+    {(char *)"thread_id", to_getter<&Model::thread_id>(), nullptr, (char*)R"(thread_id: int
 
-The return values correspond to clasp's cost output.)", nullptr},
-    {(char *)"optimality_proven", to_getter<&Model::optimality_proven>(), nullptr, (char*)"Whether the optimality of the model has been proven.", nullptr},
-    {(char *)"number", to_getter<&Model::number>(), nullptr, (char*)"The running number of the model.", nullptr},
-    {(char *)"type", to_getter<&Model::model_type>(), nullptr, (char*)"The type of the model.", nullptr},
-    {(char *)"_to_c", to_getter<&Model::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_model_t struct.)", nullptr},
+The id of the thread which found the model.
+)", nullptr},
+    {(char *)"context", to_getter<&Model::getContext>(), nullptr, (char*)R"(
+context: SolveControl
+
+Object that allows for controlling the running search.
+)", nullptr},
+    {(char *)"cost", to_getter<&Model::cost>(), nullptr,
+(char *)R"(cost: List[int]
+
+Return the list of integer cost values of the model.
+
+The return values correspond to clasp's cost output.
+)", nullptr},
+    {(char *)"optimality_proven", to_getter<&Model::optimality_proven>(), nullptr, (char*)R"(optimality_proven: bool
+
+Whether the optimality of the model has been proven.
+)", nullptr},
+    {(char *)"number", to_getter<&Model::number>(), nullptr, (char*)R"(number: int
+
+The running number of the model.
+)", nullptr},
+    {(char *)"type", to_getter<&Model::model_type>(), nullptr, (char*)R"(type: ModelType
+
+The type of the model.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&Model::to_c>(), nullptr, (char *)R"(_to_c: int
+An int representing the pointer to the underlying C `clingo_model_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 PyMethodDef Model::tp_methods[] = {
     {"symbols", to_function<&Model::atoms>(), METH_VARARGS | METH_KEYWORDS,
-R"(symbols(self, atoms, terms, shown, csp, complement)
-        -> list of terms
+R"(symbols(self, atoms: bool=False, terms: bool=False, shown: bool=False, csp: bool=False, complement: bool=False) -> List[Symbol]
 
 Return the list of atoms, terms, or CSP assignments in the model.
 
-Keyword Arguments:
-atoms      -- select all atoms in the model (independent of #show statements)
-              (Default: False)
-terms      -- select all terms displayed with #show statements in the model
-              (Default: False)
-shown      -- select all atoms and terms as outputted by clingo
-              (Default: False)
-csp        -- select all csp assignments (independent of #show statements)
-              (Default: False)
-complement -- return the complement of the answer set w.r.t. to the Herbrand
-              base accumulated so far (does not affect csp assignments)
-              (Default: False)
+Parameters
+----------
+atoms : bool=False
+    Select all atoms in the model (independent of `#show` statements).
+terms : bool=False
+    Select all terms displayed with `#show` statements in the model.
+shown : bool
+    Select all atoms and terms as outputted by clingo.
+csp : bool
+    Select all csp assignments (independent of `#show` statements).
+complement : bool
+    Return the complement of the answer set w.r.t. to the atoms known to the
+    grounder. (Does not affect csp assignments.)
 
-Note that atoms are represented using functions (Symbol objects), and that CSP
-assignments are represented using functions with name "$" where the first
-argument is the name of the CSP variable and the second its value.)"},
+Returns
+-------
+List[Symbol]
+    The selected symbols.
+
+Notes
+-----
+Atoms are represented using functions (`Symbol` objects), and CSP assignments
+are represented using functions with name `"$"` where the first argument is the
+name of the CSP variable and the second its value.
+)"},
     {"contains", to_function<&Model::contains>(), METH_O,
-R"(contains(self, atom) -> bool
+R"(contains(self, atom: Symbol) -> bool
 
-Check if an atom is contained in the model.
+Efficiently check if an atom is contained in the model.
 
-The atom must be represented using a function symbol.)"},
+Parameters
+----------
+atom : Symbol
+    The atom to lookup.
+
+Returns
+-------
+bool
+    Whether the given atom is contained in the model.
+
+Notes
+-----
+The atom must be represented using a function symbol.
+)"},
     {"is_true", to_function<&Model::is_true>(), METH_O,
-R"(is_true(self, a) -> bool
+R"(is_true(self, literal: int) -> bool
 
 Check if the given program literal is true.
+
+Parameters
+----------
+literal : int
+    The given program literal.
+
+Returns
+-------
+bool
+    Whether the given program literal is true.
 )"},
     {"extend", to_function<&Model::extend>(), METH_O,
-R"(extend(self, symbols) -> None
+R"(extend(self, symbols: List[Symbol]) -> None
 
 Extend a model with the given symbols.
 
+Parameters
+----------
+symbols : List[Symbol]
+    The symbols to add to the model.
+
+Returns
+-------
+None
+
+Notes
+-----
 This only has an effect if there is an underlying clingo application, which
 will print the added symbols.
 )"},
@@ -2435,38 +2846,52 @@ struct SolveHandle : ObjectBase<SolveHandle> {
     static constexpr char const *tp_doc =
 R"(Handle for solve calls.
 
-SolveHandle objects cannot be created from python. Instead they are returned by
-Control.solve.  A SolveHandle object can be used to control solving, like,
-retrieving models or cancelling a search.
+`SolveHandle` objects cannot be created from Python. Instead they are returned
+by `Control.solve`. They can be used to control solving, like, retrieving
+models or cancelling a search.
 
-Blocking functions in this object release the GIL. They are not thread-safe though.
+See Also
+--------
+Control.solve
 
-See Control.solve() for an example.)";
+Notes
+-----
+A `SolveHandle` is a context manager and must be used with Python's `with`
+statement.
 
-    SolveHandle()
-    : on_model{nullptr}
-    , on_finish{nullptr}
-    , on_statistics{nullptr} {
-    }
+Blocking functions in this object release the GIL. They are not thread-safe
+though.
+)";
 
     static SharedObject<SolveHandle> construct() {
         auto ret = new_();
+        ret->handle = nullptr;
         new (&ret->on_model) Object{};
         new (&ret->on_finish) Object{};
         new (&ret->on_statistics) Object{};
-        ret->handle = nullptr;
         return ret;
     }
 
-    void tp_dealloc() {
+    void tp_traverse(Traverse const &visit) {
+        visit(on_model);
+        visit(on_finish);
+        visit(on_statistics);
+    }
+
+    void tp_clear() {
         if (handle) {
-            try         { doUnblocked([this](){ handle_c_error(clingo_solve_handle_close(handle)); }); }
-            catch (...) { }
+            auto tmp = handle;
             handle = nullptr;
+            try         { doUnblocked([tmp](){ handle_c_error(clingo_solve_handle_close(tmp)); }); }
+            catch (...) { }
         }
-        on_model.~Object();
-        on_finish.~Object();
-        on_statistics.~Object();
+        on_model.clear();
+        on_finish.clear();
+        on_statistics.clear();
+    }
+
+    void tp_dealloc() {
+        tp_clear();
     }
 
     clingo_solve_event_callback_t notify(clingo_solve_event_callback_t event, Reference mh, Reference sh, Reference fh) {
@@ -2501,9 +2926,9 @@ See Control.solve() for an example.)";
             catch (...) { except = std::current_exception(); }
             handle = nullptr;
         }
-        on_model.release();
-        on_finish.release();
-        on_statistics.release();
+        on_model = nullptr;
+        on_finish = nullptr;
+        on_statistics = nullptr;
         if (except) { std::rethrow_exception(except); }
         Py_RETURN_FALSE;
     }
@@ -2609,41 +3034,60 @@ R"(get(self) -> SolveResult
 Get the result of a solve call.
 
 If the search is not completed yet, the function blocks until the result is
-ready.)"},
+ready.
+
+Returns
+-------
+SolveResult
+)"},
     {"wait", to_function<&SolveHandle::wait>(),  METH_VARARGS,
-R"(wait(self, timeout) -> None or bool
+R"(wait(self, timeout: Optional[float]=None) -> Optional[bool]
 
 Wait for solve call to finish with an optional timeout.
 
-If a timeout is given, the function waits at most timeout seconds and returns a
-Boolean indicating whether the search has finished. Otherwise, the function
-blocks until the search is finished and returns nothing.
+Parameters
+----------
+timeout : Optional[float]=None
+    If a timeout is given, the function blocks for at most timeout seconds.
 
-Arguments:
-timeout -- optional timeout in seconds
-           (permits floating point values))"},
+Returns
+-------
+Optional[bool]
+    If a timout is given, returns a Boolean indicating whether the search has
+    finished. Otherwise, the function blocks until the search is finished and
+    returns nothing.
+)"},
     {"cancel", to_function<&SolveHandle::cancel>(), METH_NOARGS,
 R"(cancel(self) -> None
 
 Cancel the running search.
 
-See Control.interrupt() for a thread-safe alternative.)"},
+Returns
+-------
+None
+
+See Also
+--------
+Control.interrupt
+)"},
     {"resume", to_function<&SolveHandle::resume>(), METH_NOARGS,
 R"(resume(self) -> None
 
-Discards the last model and starts the search for the next one.
+Discards the last model and starts searching for the next one.
 
+Notes
+-----
 If the search has been started asynchronously, this function also starts the
-search in the background.  A model that was not yet retrieved by calling )" CLINGO_PY_NEXT R"(
-is not discared.)"},
+search in the background. A model that was not yet retrieved by calling `)"
+CLINGO_PY_NEXT R"(` is not discared.)"},
     {"__enter__", to_function<&SolveHandle::enter>(), METH_NOARGS,
 R"(__enter__(self) -> SolveHandle
 
 Returns self.)"},
     {"__exit__", to_function<&SolveHandle::exit>(), METH_VARARGS,
-R"(__exit__(self, type, value, traceback) -> bool
+R"(__exit__(self, type : Optional[Type[BaseException]], value : Optional[BaseException], traceback : Optional[TracebackType]) -> bool
 
-Follows python __exit__ conventions. Does not suppress exceptions.
+Follows Python's __exit__ conventions. Does not suppress exceptions.
 
 Stops the current search. It is necessary to call this method after each
 search.)"},
@@ -2651,7 +3095,11 @@ search.)"},
 };
 
 PyGetSetDef SolveHandle::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&SolveHandle::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_solve_handle_t struct.)", nullptr},
+    {(char *)"_to_c", to_getter<&SolveHandle::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_solve_handle_t`
+struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 // {{{1 wrap Configuration
@@ -2659,6 +3107,7 @@ PyGetSetDef SolveHandle::tp_getset[] = {
 struct Configuration : ObjectBase<Configuration> {
     clingo_configuration_t *conf;
     clingo_id_t key;
+    static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
     static constexpr char const *tp_type = "Configuration";
@@ -2668,39 +3117,45 @@ R"(Allows for changing the configuration of the underlying solver.
 
 Options are organized hierarchically. To change and inspect an option use:
 
-  config.group.subgroup.option = "value"
-  value = config.group.subgroup.option
+    config.group.subgroup.option = "value"
+    value = config.group.subgroup.option
 
 There are also arrays of option groups that can be accessed using integer
 indices:
 
-  config.group.subgroup[0].option = "value1"
-  config.group.subgroup[1].option = "value2"
+    config.group.subgroup[0].option = "value1"
+    config.group.subgroup[1].option = "value2"
 
-To list the subgroups of an option group, use the keys member. Array option
-groups, like solver, have a non-negative length and can be iterated.
-Furthermore, there are meta options having key "configuration". Assigning a
-meta option sets a number of related options.  To get further information about
-an option or option group <opt>, use property __desc_<opt> to retrieve a
-description.
+To list the subgroups of an option group, use the `Configuration.keys` member.
+Array option groups, like solver, have a non-negative length and can be
+iterated. Furthermore, there are meta options having key `configuration`.
+Assigning a meta option sets a number of related options.  To get further
+information about an option or option group `<opt>`, call `description(<opt>)`.
 
-Example:
+Notes
+-----
+When integers are assigned to options, they are automatically converted to
+strings. The value of an option is always a string.
 
-#script (python)
-import clingo
+Examples
+--------
+The following example shows how to modify the configuration to enumerate all
+models:
 
-def main(prg):
-    prg.configuration.solve.models = 0
-    prg.ground([("base", [])])
-    prg.solve()
-
-#end.
-
-{a; c}.
-
-Expected Answer Sets:
-
-{ {}, {a}, {c}, {a,c} })";
+    >>> import clingo
+    >>> prg = clingo.Control()
+    >>> prg.configuration.solve.description("models")
+    'Compute at most %A models (0 for all)\n'
+    >>> prg.configuration.solve.models = 0
+    >>> prg.add("base", [], "{a;b}.")
+    >>> prg.ground([("base", [])])
+    >>> prg.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer:
+    Answer: a
+    Answer: b
+    Answer: a b
+    SAT
+)";
 
     static Object construct(unsigned key, clingo_configuration_t *conf) {
         auto self = new_();
@@ -2725,38 +3180,59 @@ Expected Answer Sets:
         return list;
     }
 
+    bool get_subkey(char const *name, clingo_id_t &subkey) {
+        clingo_configuration_type_bitset_t type;
+        handle_c_error(clingo_configuration_type(conf, key, &type));
+        if (type & clingo_configuration_type_map) {
+            bool haskey;
+            handle_c_error(clingo_configuration_map_has_subkey(conf, key, name, &haskey));
+            if (haskey) {
+                handle_c_error(clingo_configuration_map_at(conf, key, name, &subkey));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Object description(Reference name) {
+        auto cppname = pyToCpp<std::string>(name);
+        clingo_id_t subkey;
+        if (get_subkey(cppname.c_str(), subkey)) {
+            char const *ret;
+            handle_c_error(clingo_configuration_description(conf, subkey, &ret));
+            return cppToPy(ret);
+        }
+        else {
+            return PyErr_Format(PyExc_RuntimeError, "unknown option: %s", cppname.c_str());
+        }
+    }
     Object tp_getattro(Reference name) {
         auto current_ = pyToCpp<std::string>(name);
         char const *current = current_.c_str();
         bool desc = strncmp("__desc_", current, 7) == 0;
         if (desc) { current += 7; }
-        clingo_configuration_type_bitset_t type;
-        handle_c_error(clingo_configuration_type(conf, key, &type));
-        if (type & clingo_configuration_type_map) {
-            bool haskey;
-            handle_c_error(clingo_configuration_map_has_subkey(conf, key, current, &haskey));
-            if (haskey) {
-                clingo_id_t subkey;
-                handle_c_error(clingo_configuration_map_at(conf, key, current, &subkey));
-                if (desc) {
-                    char const *ret;
-                    handle_c_error(clingo_configuration_description(conf, subkey, &ret));
-                    return cppToPy(ret);
+        clingo_id_t subkey;
+        if (get_subkey(current, subkey)) {
+            // NOTE: for backward compatibility should be removed in the future
+            if (desc) {
+                char const *ret;
+                handle_c_error(clingo_configuration_description(conf, subkey, &ret));
+                return cppToPy(ret);
+            }
+            else {
+                clingo_configuration_type_bitset_t type;
+                handle_c_error(clingo_configuration_type(conf, subkey, &type));
+                if (type & clingo_configuration_type_value) {
+                    bool assigned;
+                    handle_c_error(clingo_configuration_value_is_assigned(conf, subkey, &assigned));
+                    if (!assigned) { Py_RETURN_NONE; }
+                    size_t size;
+                    handle_c_error(clingo_configuration_value_get_size(conf, subkey, &size));
+                    std::vector<char> ret(size);
+                    handle_c_error(clingo_configuration_value_get(conf, subkey, ret.data(), size));
+                    return cppToPy(ret.data());
                 }
-                else {
-                    handle_c_error(clingo_configuration_type(conf, subkey, &type));
-                    if (type & clingo_configuration_type_value) {
-                        bool assigned;
-                        handle_c_error(clingo_configuration_value_is_assigned(conf, subkey, &assigned));
-                        if (!assigned) { Py_RETURN_NONE; }
-                        size_t size;
-                        handle_c_error(clingo_configuration_value_get_size(conf, subkey, &size));
-                        std::vector<char> ret(size);
-                        handle_c_error(clingo_configuration_value_get(conf, subkey, ret.data(), size));
-                        return cppToPy(ret.data());
-                    }
-                    else { return construct(subkey, conf); }
-                }
+                else { return construct(subkey, conf); }
             }
         }
         return PyObject_GenericGetAttr(toPy(), name.toPy());
@@ -2794,34 +3270,240 @@ Expected Answer Sets:
     }
 };
 
+PyMethodDef Configuration::tp_methods[] = {
+    {"description", to_function<&Configuration::description>(), METH_O, R"(description(self, name: str) -> str
+
+Get a description for a option or option group.
+
+Parameters
+----------
+name : str
+    The name of the option.
+
+Returns
+-------
+str
+)"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
 PyGetSetDef Configuration::tp_getset[] = {
     // keys
-    {(char *)"keys", to_getter<&Configuration::keys>(), nullptr,
-(char *)R"(The list of names of sub-option groups or options.
+    {(char *)"keys", to_getter<&Configuration::keys>(), nullptr, (char *)R"(keys: Optional[List[str]]
 
-The list is None if the current object is not an option group.)", nullptr},
-    {(char *)"_to_c", to_getter<&Configuration::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_configuration_t struct.)", nullptr},
+The list of names of sub-option groups or options.
+
+The list is `None` if the current object is not an option group.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&Configuration::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_configuration_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
+};
+
+// {{{1 wrap Trail
+
+struct Slice : ObjectBase<Slice> {
+    Object seq;
+#if PY_VERSION_HEX < 0x03060100
+    Object slice;
+#else
+    Py_ssize_t start, stop, step;
+#endif
+
+    static constexpr char const *tp_type = "Slice";
+    static constexpr char const *tp_name = "clingo.Slice";
+    static constexpr char const *tp_doc = R"(
+Helper object for slicing support.
+)";
+
+    static Object construct(Reference seq, Reference slice) {
+        auto self = new_();
+        new (&self->seq) Object{seq};
+#if PY_VERSION_HEX < 0x03060100
+        new (&self->slice) Object{slice};
+#else
+        if (PySlice_Unpack(slice.toPy(), &self->start, &self->stop, &self->step) < 0) {
+            throw PyException();
+        }
+#endif
+        return self;
+    }
+
+    void tp_dealloc() {
+        seq.~Object();
+    }
+
+    Py_ssize_t sq_length() {
+#if PY_VERSION_HEX < 0x03060100
+        Py_ssize_t l, b, e, step;
+#   if PY_VERSION_HEX < 0x03020000
+        auto ret = PySlice_GetIndicesEx(reinterpret_cast<PySliceObject*>(slice.toPy()), seq.size(), &b, &e, &step, &l);
+#   else
+        auto ret = PySlice_GetIndicesEx(slice.toPy(), seq.size(), &b, &e, &step, &l);
+#   endif
+        if (ret < 0) { throw PyException(); }
+#else
+        auto b = start, e = stop;
+        auto l = PySlice_AdjustIndices(seq.size(), &b, &e, step);
+#endif
+        return l;
+    }
+
+    Object sq_item(Py_ssize_t index) {
+#if PY_VERSION_HEX < 0x03060100
+        Py_ssize_t l, b, e, step;
+#   if PY_VERSION_HEX < 0x03020000
+        auto ret = PySlice_GetIndicesEx(reinterpret_cast<PySliceObject*>(slice.toPy()), seq.size(), &b, &e, &step, &l);
+#   else
+        auto ret = PySlice_GetIndicesEx(slice.toPy(), seq.size(), &b, &e, &step, &l);
+#   endif
+        if (ret < 0) { throw PyException(); }
+#else
+        auto b = start, e = stop;
+        auto l = PySlice_AdjustIndices(seq.size(), &b, &e, step);
+#endif
+        if (index < 0 || index >= l) {
+            PyErr_Format(PyExc_IndexError, "invalid index");
+            return nullptr;
+        }
+        return seq.getItem(b + index * step);
+    }
+
+    Object mp_subscript(Reference slice) {
+        if (PySlice_Check(slice.toPy())) {
+            return Slice::construct(*this, slice);
+        }
+        else {
+            return sq_item(pyToCpp<Py_ssize_t>(slice));
+        }
+    }
+};
+
+struct Trail : ObjectBase<Trail> {
+    clingo_assignment_t const *assign;
+    static constexpr char const *tp_type = "Trail";
+    static constexpr char const *tp_name = "clingo.Trail";
+    static constexpr char const *tp_doc = R"(
+Object to access literals assigned by the solver in chronological order.
+
+Literals in the trail are ordered by decision levels, where the first literal
+with a larger level than the previous literals is a decision; the following
+literals with same level are implied by this decision literal. Each decision
+level up to and including the current decision level has a valid offset in the
+trail.
+
+This class implements `ImmutableSequence[int]` to access the literals in the trail.
+)";
+    static PyMethodDef tp_methods[];
+
+    static Object construct(clingo_assignment_t const *assign) {
+        auto self = new_();
+        self->assign = assign;
+        return self;
+    }
+
+    Object begin(Reference level) {
+        uint32_t ret;
+        handle_c_error(clingo_assignment_trail_begin(assign, pyToCpp<uint32_t>(level), &ret));
+        return cppToPy(ret);
+    }
+
+    Object end(Reference level) {
+        uint32_t ret;
+        handle_c_error(clingo_assignment_trail_end(assign, pyToCpp<uint32_t>(level), &ret));
+        return cppToPy(ret);
+    }
+
+    Py_ssize_t sq_length() {
+        uint32_t size;
+        handle_c_error(clingo_assignment_trail_size(assign, &size));
+        return size;
+    }
+
+    Object sq_item(Py_ssize_t index) {
+        if (index < 0 || index >= sq_length()) {
+            PyErr_Format(PyExc_IndexError, "invalid index");
+            return nullptr;
+        }
+        clingo_literal_t ret;
+        handle_c_error(clingo_assignment_trail_at(assign, index, &ret));
+        return cppToPy(ret);
+    }
+
+    Object mp_subscript(Reference slice) {
+        if (PySlice_Check(slice.toPy())) {
+            return Slice::construct(*this, slice);
+        }
+        else {
+            return sq_item(pyToCpp<Py_ssize_t>(slice));
+        }
+    }
+
+    Object to_c() {
+        return PyLong_FromVoidPtr(const_cast<clingo_assignment_t*>(assign));
+    }
+};
+
+PyMethodDef Trail::tp_methods[] = {
+    {"begin", to_function<&Trail::begin>(), METH_O, R"(begin(self, level : int) -> int
+
+Returns the offset of the decision literal with the given decision level in the
+trail.
+
+Parameters
+----------
+level : int
+    The decision level.
+
+Returns
+-------
+int
+)"},
+    {"end", to_function<&Trail::end>(), METH_O, R"(end(self, level : int) -> int
+
+Returns the offset following the last literal with the given decision literal
+in the trail.
+
+Parameters
+----------
+level : int
+    The decision level.
+
+Returns
+-------
+int
+)"},
+    {nullptr, nullptr, 0, nullptr}
 };
 
 // {{{1 wrap Assignment
 
 struct Assignment : ObjectBase<Assignment> {
-    clingo_assignment_t *assign;
+    clingo_assignment_t const *assign;
     static constexpr char const *tp_type = "Assignment";
     static constexpr char const *tp_name = "clingo.Assignment";
     static constexpr char const *tp_doc = R"(Object to inspect the (parital) assignment of an associated solver.
 
 Assigns truth values to solver literals.  Each solver literal is either true,
-false, or undefined, represented by the python constants True, False, or None,
-respectively.)";
+false, or undefined, represented by the Python constants `True`, `False`, or
+`None`, respectively.
+
+This class implements `ImmutableSequence[int]` to access the (positive)
+literals in the assignment.
+)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
-    static Object construct(clingo_assignment_t *assign) {
+    static Object construct(clingo_assignment_t const *assign) {
         auto self = new_();
         self->assign = assign;
         return self;
+    }
+
+    Object trail() {
+        return Trail::construct(assign);
     }
 
     Object hasConflict() {
@@ -2830,6 +3512,10 @@ respectively.)";
 
     Object decisionLevel() {
         return cppToPy(clingo_assignment_decision_level(assign));
+    }
+
+    Object rootLevel() {
+        return cppToPy(clingo_assignment_root_level(assign));
     }
 
     Object hasLit(Reference lit) {
@@ -2874,58 +3560,158 @@ respectively.)";
         return cppToPy(ret);
     }
 
-    Object size() {
-        return cppToPy(clingo_assignment_size(assign));
-    }
-
-    Object max_size() {
-        return cppToPy(clingo_assignment_max_size(assign));
-    }
-
     Object isTotal() {
         return cppToPy(clingo_assignment_is_total(assign));
     }
 
+    Py_ssize_t sq_length() {
+        return clingo_assignment_size(assign);
+    }
+
+    Object sq_item(Py_ssize_t index) {
+        if (index < 0 || index >= sq_length()) {
+            PyErr_Format(PyExc_IndexError, "invalid index");
+            return nullptr;
+        }
+        clingo_literal_t ret;
+        handle_c_error(clingo_assignment_at(assign, index, &ret));
+        return cppToPy(ret);
+    }
+
+    Object mp_subscript(Reference slice) {
+        if (PySlice_Check(slice.toPy())) {
+            return Slice::construct(*this, slice);
+        }
+        else {
+            return sq_item(pyToCpp<Py_ssize_t>(slice));
+        }
+    }
+
     Object to_c() {
-        return PyLong_FromVoidPtr(assign);
+        return PyLong_FromVoidPtr(const_cast<clingo_assignment_t*>(assign));
     }
 };
 
 PyMethodDef Assignment::tp_methods[] = {
-    {"has_literal", to_function<&Assignment::hasLit>(), METH_O, R"(has_literal(self, lit) -> bool
+    {"has_literal", to_function<&Assignment::hasLit>(), METH_O, R"(has_literal(self, literal : int) -> bool
 
-Determine if the literal is valid in this solver.)"},
-    {"value", to_function<&Assignment::truthValue>(), METH_O, R"(value(self, lit) -> bool or None
+Determine if the given literal is valid in this solver.
 
-The truth value of the given literal or None if it has none.)"},
-    {"level", to_function<&Assignment::level>(), METH_O, R"(level(self, lit) -> int
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+bool
+)"},
+    {"value", to_function<&Assignment::truthValue>(), METH_O, R"(value(self, literal) -> Optional[bool]
+
+Get the truth value of the given literal or `None` if it has none.
+
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+Optional[bool]
+)"},
+    {"level", to_function<&Assignment::level>(), METH_O, R"(level(self, literal: int) -> int
 
 The decision level of the given literal.
 
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+int
+
+Notes
+-----
 Note that the returned value is only meaningful if the literal is assigned -
-i.e., value(lit) is not None.)"},
-    {"is_fixed", to_function<&Assignment::isFixed>(), METH_O, R"(is_fixed(self, lit) -> bool
+i.e., `value(lit) is not None`.
+)"},
+    {"is_fixed", to_function<&Assignment::isFixed>(), METH_O, R"(is_fixed(self, literal: int) -> bool
 
-Determine if the literal is assigned on the top level.)"},
-    {"is_true", to_function<&Assignment::isTrue>(), METH_O, R"(is_true(self, lit) -> bool
+Determine if the literal is assigned on the top level.
 
-Determine if the literal is true.)"},
-    {"is_false", to_function<&Assignment::isFalse>(), METH_O, R"(is_false(self, lit) -> bool
+Parameters
+----------
+literal : int
+    The solver literal.
 
-Determine if the literal is false.)"},
-    {"decision", to_function<&Assignment::decision>(), METH_O, R"(decision(self, level) -> int
+Returns
+-------
+bool
+)"},
+    {"is_true", to_function<&Assignment::isTrue>(), METH_O, R"(is_true(self, literal: int) -> bool
 
-    Return the decision literal of the given level.)"},
+Determine if the literal is true.
+
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+bool
+)"},
+    {"is_false", to_function<&Assignment::isFalse>(), METH_O, R"(is_false(self, literal: int) -> bool
+
+Determine if the literal is false.
+
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+bool
+)"},
+    {"decision", to_function<&Assignment::decision>(), METH_O, R"(decision(self, level: int) -> int
+
+Return the decision literal of the given level.
+
+Parameters
+----------
+literal : int
+    The solver literal.
+
+Returns
+-------
+int
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef Assignment::tp_getset[] = {
-    {(char *)"has_conflict", to_getter<&Assignment::hasConflict>(), nullptr, (char *)R"(True if the assignment is conflicting.)", nullptr},
-    {(char *)"decision_level", to_getter<&Assignment::decisionLevel>(), nullptr, (char *)R"(The current decision level.)", nullptr},
-    {(char *)"size", to_getter<&Assignment::size>(), nullptr, (char *)R"(The number of assigned literals.)", nullptr},
-    {(char *)"max_size", to_getter<&Assignment::max_size>(), nullptr, (char *)R"(The maximum size of the assignment (if all literals are assigned).)", nullptr},
-    {(char *)"is_total", to_getter<&Assignment::isTotal>(), nullptr, (char *)R"(Whether the assignment is total.)", nullptr},
-    {(char *)"_to_c", to_getter<&Assignment::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_assignment_t struct.)", nullptr},
+    {(char *)"has_conflict", to_getter<&Assignment::hasConflict>(), nullptr, (char *)R"(has_conflict: bool
+
+True if the assignment is conflicting.)", nullptr},
+    {(char *)"decision_level", to_getter<&Assignment::decisionLevel>(), nullptr, (char *)R"(decision_level: int
+
+The current decision level.)", nullptr},
+    {(char *)"root_level", to_getter<&Assignment::rootLevel>(), nullptr, (char *)R"(root_level: int
+
+The current root level.)", nullptr},
+    {(char *)"is_total", to_getter<&Assignment::isTotal>(), nullptr, (char *)R"(is_total: bool
+
+Whether the assignment is total.)", nullptr},
+    {(char *)"trail", to_getter<&Assignment::trail>(), nullptr, (char *)R"(trail: Trail
+
+The trail of assigned literals.)", nullptr},
+    {(char *)"_to_c", to_getter<&Assignment::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_assignment_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -2938,12 +3724,20 @@ struct PropagatorCheckMode : EnumType<PropagatorCheckMode> {
     static constexpr char const *tp_doc =
 R"(Enumeration of supported check modes for propagators.
 
-PropagatorCheckMode objects cannot be constructed from python. Instead the
-following preconstructed objects are available:
+`PropagatorCheckMode` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
 
-PropagatorCheckMode.None     -- do not call Propagator.check() at all
-PropagatorCheckMode.Total    -- call Propagator.check() on total assignment
-PropagatorCheckMode.Fixpoint -- call Propagator.check() on propagation fixpoints
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+Off : PropagatorCheckMode
+    Do not call `Propagator.check` at all.
+Total : PropagatorCheckMode
+    Call `Propagator.check` on total assignments.
+Fixpoint : PropagatorCheckMode
+    Call `Propagator.check` on propagation fixpoints.
 )";
 
     static constexpr Type const values[] = {
@@ -2965,18 +3759,13 @@ struct PropagateInit : ObjectBase<PropagateInit> {
     clingo_propagate_init_t *init;
     static constexpr char const *tp_type = "PropagateInit";
     static constexpr char const *tp_name = "clingo.PropagateInit";
-    static constexpr char const *tp_doc = R"(
-Object that is used to initialize a propagator before each solving step.
+    static constexpr char const *tp_doc =
+R"(Object that is used to initialize a propagator before each solving step.
 
-Each symbolic or theory atom is uniquely associated with a positive program
-atom in form of a positive integer.  Program literals additionally have a sign
-to represent default negation.  Furthermore, there are non-zero integer solver
-literals.  There is a surjective mapping from program atoms to solver literals.
-
-All methods called during propagation use solver literals whereas
-SymbolicAtom.literal() and TheoryAtom.literal() return program literals.  The
-function PropagateInit.solver_literal() can be used to map program literals or
-condition ids to solver literals.)";
+See Also
+--------
+Control.register_propagator
+)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
@@ -2988,13 +3777,13 @@ condition ids to solver literals.)";
     }
 
     Object theoryIter() {
-        clingo_theory_atoms_t *atoms;
+        clingo_theory_atoms_t const *atoms;
         handle_c_error(clingo_propagate_init_theory_atoms(init, &atoms));
         return TheoryAtomIter::construct(atoms, 0);
     }
 
     Object symbolicAtoms() {
-        clingo_symbolic_atoms_t *atoms;
+        clingo_symbolic_atoms_t const *atoms;
         handle_c_error(clingo_propagate_init_symbolic_atoms(init, &atoms));
         return SymbolicAtoms::construct(atoms);
     }
@@ -3026,6 +3815,55 @@ condition ids to solver literals.)";
         Py_RETURN_NONE;
     }
 
+    Object addLiteral() {
+        clingo_literal_t ret;
+        handle_c_error(clingo_propagate_init_add_literal(init, &ret));
+        return cppToPy(ret);
+    }
+
+    Object addClause(Reference pyargs, Reference pykwds) {
+        static char const *kwlist[] = {"clause", nullptr};
+        Reference pyClause;
+        ParseTupleAndKeywords(pyargs, pykwds, "O", kwlist, pyClause);
+        auto clause = pyToCpp<std::vector<clingo_literal_t>>(pyClause);
+        bool ret;
+        handle_c_error(clingo_propagate_init_add_clause(init, clause.data(), clause.size(), &ret));
+        return cppToPy(ret);
+    }
+
+    Object addWeightConstraint(Reference pyargs, Reference pykwds) {
+        static char const *kwlist[] = {"literal", "literals", "bound", "type", "compare_equal", nullptr};
+        Reference pyLit, pyLits, pyBound, pyEq{Py_False};
+        Object pyType{cppToPy(0)};
+        ParseTupleAndKeywords(pyargs, pykwds, "OOO|OO", kwlist, pyLit, pyLits, pyBound, pyType, pyEq);
+        auto lit = pyToCpp<clingo_literal_t>(pyLit);
+        auto lits = pyToCpp<std::vector<clingo_weighted_literal_t>>(pyLits);
+        auto bound = pyToCpp<clingo_weight_t>(pyBound);
+        auto eq = pyToCpp<bool>(pyEq);
+        clingo_weight_constraint_type_t type = pyToCpp<clingo_weight_constraint_type_t>(pyType);
+        bool ret;
+        handle_c_error(clingo_propagate_init_add_weight_constraint(init, lit, lits.data(), lits.size(), bound, type, eq, &ret));
+        return cppToPy(ret);
+    }
+
+    Object addMinimize(Reference pyargs, Reference pykwds) {
+        static char const *kwlist[] = {"literal", "weight", "priority", nullptr};
+        Reference pyLit, pyWeight;
+        Object pyPrio{cppToPy(0)};
+        ParseTupleAndKeywords(pyargs, pykwds, "OO|O", kwlist, pyLit, pyWeight, pyPrio);
+        auto lit = pyToCpp<clingo_literal_t>(pyLit);
+        auto weight = pyToCpp<clingo_weight_t>(pyWeight);
+        auto prio = pyToCpp<clingo_weight_t>(pyPrio);
+        handle_c_error(clingo_propagate_init_add_minimize(init, lit, weight, prio));
+        return None();
+    }
+
+    Object propagate() {
+        bool ret;
+        handle_c_error(clingo_propagate_init_propagate(init, &ret));
+        return cppToPy(ret);
+    }
+
     Object getCheckMode() {
         return PropagatorCheckMode::getAttr(clingo_propagate_init_get_check_mode(init));
     }
@@ -3040,32 +3878,161 @@ condition ids to solver literals.)";
 };
 
 PyMethodDef PropagateInit::tp_methods[] = {
-    {"add_watch", to_function<&PropagateInit::addWatch>(), METH_KEYWORDS | METH_VARARGS, R"(add_watch(self, lit, thread_id) -> None
+    {"add_watch", to_function<&PropagateInit::addWatch>(), METH_KEYWORDS | METH_VARARGS, R"(add_watch(self, literal: int, thread_id: Optional[int]=None) -> None
 
 Add a watch for the solver literal in the given phase.
 
-If the thread_id is None then all active threads will watch the literal.
+Parameters
+----------
+literal : int
+    The solver literal to watch.
+thread_id : Optional[int]
+    The id of the thread to watch the literal. If the is `None` then all active
+    threads will watch the literal.
 
-Arguments:
-literal -- the literal to watch
-
-Keyword Arguments:
-thread_id -- id of the thread to watch the literal
-             (Default: None)
+Returns
+-------
+None
 )"},
-    {"solver_literal", to_function<&PropagateInit::mapLit>(), METH_O, R"(solver_literal(self, lit) -> int
+    {"solver_literal", to_function<&PropagateInit::mapLit>(), METH_O, R"(solver_literal(self, literal: int) -> int
 
-Map the given program literal or condition id to its solver literal.)"},
+Maps the given program literal or condition id to its solver literal.
+
+Parameters
+----------
+literal : int
+    A program literal or condition id.
+
+Returns
+-------
+int
+    A solver literal.
+)"},
+    {"add_literal", to_function<&PropagateInit::addLiteral>(), METH_NOARGS, R"(add_literal(self) -> int
+
+Statically adds a literal to the solver.
+
+Returns
+-------
+int
+    Returns the added literal.
+
+Notes
+-----
+If literals are added to the solver, subsequent calls to `add_clause` and
+`propagate` are expensive. It is best to add literals in batches.
+)"},
+    {"add_clause", to_function<&PropagateInit::addClause>(), METH_KEYWORDS | METH_VARARGS, R"(add_clause(self, clause: List[int]) -> bool
+
+Statically adds the given clause to the problem.
+
+Parameters
+----------
+clause : List[int]
+    The clause over solver literals to add.
+
+Returns
+-------
+bool
+    Returns false if the program becomes unsatisfiable.
+
+Notes
+-----
+If this function returns false, initialization should be stopped and no further
+functions of the `PropagateInit` and related objects should be called.
+)"},
+    {"add_weight_constraint", to_function<&PropagateInit::addWeightConstraint>(), METH_KEYWORDS | METH_VARARGS, R"(add_weight_constraint(self, literal: int, literals: List[Tuple[int,int]], bound: int, type: int=0, compare_equal: bool=False) -> bool
+
+Statically adds a constraint of form
+
+    literal <=> { l=w | (l, w) in literals } >= bound
+
+to the solver.
+
+- If `type < 0`, then `<=>` is a left implication.
+- If `type > 0`, then `<=>` is a right implication.
+- Otherwise, `<=>` is an equivalence.
+
+Parameters
+----------
+literal : int
+    The literal associated with the constraint.
+literals : List[Tuple[int,int]]
+    The weighted literals of the constrain.
+bound : int
+    The bound of the constraint.
+type : int
+    Add a weight constraint of the given type.
+compare_equal : bool=False
+    A Boolean indicating whether to compare equal or less than equal.
+
+Returns
+-------
+bool
+    Returns false if the program becomes unsatisfiable.
+
+Notes
+-----
+If this function returns false, initialization should be stopped and no further
+functions of the `PropagateInit` and related objects should be called.
+)"},
+    {"add_minimize", to_function<&PropagateInit::addMinimize>(), METH_KEYWORDS | METH_VARARGS, R"(add_minimize(self, literal: int, weight: int, priority: int=0) -> None
+
+Extends the solver's minimize constraint with the given weighted literal.
+
+Parameters
+----------
+literal : int
+    The literal to add.
+weight : int
+    The weight of the literal.
+priority : int=0
+    The priority of the literal.
+)"},
+    {"propagate", to_function<&PropagateInit::propagate>(), METH_NOARGS, R"(propagate(self) -> bool
+
+Propagates consequences of the underlying problem excluding registered propagators.
+
+Returns
+-------
+bool
+    Returns false if the program becomes unsatisfiable.
+
+Notes
+-----
+This function has no effect if SAT-preprocessing is enabled.
+
+If this function returns false, initialization should be stopped and no further
+functions of the `PropagateInit` and related objects should be called.
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef PropagateInit::tp_getset[] = {
-    {(char *)"symbolic_atoms", to_getter<&PropagateInit::symbolicAtoms>(), nullptr, (char *)R"(The symbolic atoms captured by a SymbolicAtoms object.)", nullptr},
-    {(char *)"theory_atoms", to_getter<&PropagateInit::theoryIter>(), nullptr, (char *)R"(A TheoryAtomIter object to iterate over all theory atoms.)", nullptr},
-    {(char *)"number_of_threads", to_getter<&PropagateInit::numThreads>(), nullptr, (char *) R"(The number of solver threads used in the corresponding solve call.)", nullptr},
-    {(char *)"check_mode", to_getter<&PropagateInit::getCheckMode>(), to_setter<&PropagateInit::setCheckMode>(), (char *) R"(PropagatorCheckMode controlling when to call Propagator.check().)", nullptr},
-    {(char *)"assignment", to_getter<&PropagateInit::assignment>(), nullptr, (char *)R"(The top level assignment.)", nullptr},
-    {(char *)"_to_c", to_getter<&PropagateInit::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_propagate_init_t struct.)", nullptr},
+    {(char *)"symbolic_atoms", to_getter<&PropagateInit::symbolicAtoms>(), nullptr, (char *)R"(symbolic_atoms: SymbolicAtoms
+
+The symbolic atoms captured by a `SymbolicAtoms` object.
+)", nullptr},
+    {(char *)"theory_atoms", to_getter<&PropagateInit::theoryIter>(), nullptr, (char *)R"(theory_atom: TheoryAtomIter
+
+A `TheoryAtomIter` object to iterate over all theory atoms.
+)", nullptr},
+    {(char *)"number_of_threads", to_getter<&PropagateInit::numThreads>(), nullptr, (char *) R"(number_of_threads: int
+
+The number of solver threads used in the corresponding solve call.
+)", nullptr},
+    {(char *)"check_mode", to_getter<&PropagateInit::getCheckMode>(), to_setter<&PropagateInit::setCheckMode>(), (char *) R"(check_mode: PropagatorCheckMode
+
+`PropagatorCheckMode` controlling when to call `Propagator.check`.)", nullptr},
+    {(char *)"assignment", to_getter<&PropagateInit::assignment>(), nullptr, (char *)R"(assignment: Assignment
+
+`Assignment` object capturing the top level assignment.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&PropagateInit::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_propagate_init_t`
+struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -3075,7 +4042,12 @@ struct PropagateControl : ObjectBase<PropagateControl> {
     clingo_propagate_control_t* ctl;
     static constexpr char const *tp_type = "PropagateControl";
     static constexpr char const *tp_name = "clingo.PropagateControl";
-    static constexpr char const *tp_doc = "This object can be used to add clauses and propagate literals.";
+    static constexpr char const *tp_doc = R"(This object can be used to add clauses and to propagate them.
+
+See Also
+--------
+Control.register_propagator
+)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
@@ -3162,65 +4134,114 @@ Adds a new positive volatile literal to the underlying solver thread.
 
 The literal is only valid within the current solving step and solver thread.
 All volatile literals and clauses involving a volatile literal are deleted
-after the current search.)"},
-    {"add_watch", to_function<&PropagateControl::add_watch>(), METH_O, R"(add_watch(self, literal) -> None
+after the current search.
+
+Returns
+-------
+int
+    The added solver literal.
+)"},
+    {"add_watch", to_function<&PropagateControl::add_watch>(), METH_O, R"(add_watch(self, literal: int) -> None
 Add a watch for the solver literal in the given phase.
 
-Unlike PropagateInit.add_watch() this does not add a watch to all solver
-threads but just the current one.
+Parameters
+----------
+literal : int
+    The target solver literal.
 
-Arguments:
-literal -- the target literal)"},
-    {"has_watch", to_function<&PropagateControl::has_watch>(), METH_O, R"(has_watch(self, literal) -> bool
+Returns
+-------
+None
+
+Notes
+-----
+Unlike `PropagateInit.add_watch` this does not add a watch to all solver
+threads but just the current one.
+)"},
+    {"has_watch", to_function<&PropagateControl::has_watch>(), METH_O, R"(has_watch(self, literal: int) -> bool
 Check whether a literal is watched in the current solver thread.
 
-Arguments:
-literal -- the target literal)"},
-    {"remove_watch", to_function<&PropagateControl::remove_watch>(), METH_O, R"(remove_watch(self, literal) -> None
+Parameters
+----------
+literal : int
+    The target solver literal.
+
+Returns
+-------
+bool
+    Whether the literal is watched.
+)"},
+    {"remove_watch", to_function<&PropagateControl::remove_watch>(), METH_O, R"(remove_watch(self, literal: int) -> None
 Removes the watch (if any) for the given solver literal.
 
-Similar to PropagateInit.add_watch() this just removes the watch in the current
-solver thread.
+Parameters
+----------
+literal : int
+    The target solver literal.
 
-Arguments:
-literal -- the target literal)"},
-    {"add_clause", to_function<&PropagateControl::addClause>(), METH_KEYWORDS | METH_VARARGS, R"(add_clause(self, clause, tag, lock) -> bool
+Returns
+-------
+None
+)"},
+    {"add_clause", to_function<&PropagateControl::addClause>(), METH_KEYWORDS | METH_VARARGS, R"(add_clause(self, clause: List[int], tag: bool=False, lock: bool=False) -> bool
 
 Add the given clause to the solver.
 
-This method returns False if the current propagation must be stopped.
+Parameters
+----------
+clause : List[int]
+    List of solver literals forming the clause.
+tag : bool=False
+    If true, the clause applies only in the current solving step.
+lock : bool=False
+    If true, exclude clause from the solver's regular clause deletion policy.
 
-Arguments:
-clause -- sequence of solver literals
+Returns
+-------
+bool
+    This method returns false if the current propagation must be stopped.
+)"},
+    {"add_nogood", to_function<&PropagateControl::addNogood>(), METH_KEYWORDS | METH_VARARGS, R"(add_nogood(self, clause: List[int], tag: bool=False, lock: bool=False) -> bool
 
-Keyword Arguments:
-tag  -- clause applies only in the current solving step
-        (Default: False)
-lock -- exclude clause from the solver's regular clause deletion policy
-        (Default: False))"},
-    {"add_nogood", to_function<&PropagateControl::addNogood>(), METH_KEYWORDS | METH_VARARGS, R"(add_nogood(self, clause, tag, lock) -> bool
-Equivalent to self.add_clause([-lit for lit in clause], tag, lock).)"},
+Equivalent to `self.add_clause([-lit for lit in clause], tag, lock)`.
+)"},
     {"propagate", to_function<&PropagateControl::propagate>(), METH_NOARGS, R"(propagate(self) -> bool
 
-Propagate implied literals.)"},
+Propagate literals implied by added clauses.
+
+Returns
+-------
+bool
+    This method returns false if the current propagation must be stopped.
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef PropagateControl::tp_getset[] = {
-    {(char *)"thread_id", to_getter<&PropagateControl::id>(), nullptr, (char *)R"(The numeric id of the current solver thread.)", nullptr},
-    {(char *)"assignment", to_getter<&PropagateControl::assignment>(), nullptr, (char *)R"(The partial assignment of the current solver thread.)", nullptr},
-    {(char *)"_to_c", to_getter<&PropagateControl::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_propagate_control_t struct.)", nullptr},
+    {(char *)"thread_id", to_getter<&PropagateControl::id>(), nullptr, (char *)R"(thread_id: int
+
+The numeric id of the current solver thread.
+)", nullptr},
+    {(char *)"assignment", to_getter<&PropagateControl::assignment>(), nullptr, (char *)R"(assignment: Assignment
+
+`Assignment` object capturing the partial assignment of the current solver thread.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&PropagateControl::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C
+`clingo_propagate_control_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 // {{{1 wrap Propagator
 
-static bool propagator_init(clingo_propagate_init_t *init, PyObject *prop) {
+static bool propagator_init(clingo_propagate_init_t *init, void *prop) {
     PyBlock block;
     try {
         Object i = PropagateInit::construct(init);
         Object n = PyString_FromString("init");
-        Object ret = PyObject_CallMethodObjArgs(prop, n.toPy(), i.toPy(), nullptr);
+        Object ret = PyObject_CallMethodObjArgs(static_cast<PyObject*>(prop), n.toPy(), i.toPy(), nullptr);
         return true;
     }
     catch (...) {
@@ -3229,14 +4250,13 @@ static bool propagator_init(clingo_propagate_init_t *init, PyObject *prop) {
     }
 }
 
-static bool propagator_propagate(clingo_propagate_control_t *control, clingo_literal_t const *changes, size_t size, PyObject *prop) {
+static bool propagator_propagate(clingo_propagate_control_t *control, clingo_literal_t const *changes, size_t size, void *prop) {
     PyBlock block;
     try {
-        if (!PyObject_HasAttrString(prop, "propagate")) { return true; }
         Object c = PropagateControl::construct(control);
         Object l = cppRngToPy(changes, changes + size);
         Object n = PyString_FromString("propagate");
-        Object ret = PyObject_CallMethodObjArgs(prop, n.toPy(), c.toPy(), l.toPy(), nullptr);
+        Object ret = PyObject_CallMethodObjArgs(static_cast<PyObject*>(prop), n.toPy(), c.toPy(), l.toPy(), nullptr);
         return true;
     }
     catch (...) {
@@ -3245,34 +4265,49 @@ static bool propagator_propagate(clingo_propagate_control_t *control, clingo_lit
     }
 }
 
-bool propagator_undo(clingo_propagate_control_t *control, clingo_literal_t const *changes, size_t size, PyObject *prop) {
+void propagator_undo(clingo_propagate_control_t const *control, clingo_literal_t const *changes, size_t size, void *prop) {
     PyBlock block;
     try {
-        if (!PyObject_HasAttrString(prop, "undo")) { return true; }
         Object i = cppToPy(clingo_propagate_control_thread_id(control));
         Object a = Assignment::construct(clingo_propagate_control_assignment(control));
         Object l = cppRngToPy(changes, changes + size);
         Object n = PyString_FromString("undo");
-        Object ret = PyObject_CallMethodObjArgs(prop, n.toPy(), i.toPy(), a.toPy(), l.toPy(), nullptr);
-        return true;
+        Object ret = PyObject_CallMethodObjArgs(static_cast<PyObject*>(prop), n.toPy(), i.toPy(), a.toPy(), l.toPy(), nullptr);
     }
     catch (...) {
         handle_cxx_error("Propagator::undo", "error during undo");
-        return false;
+        std::cerr << clingo_error_message() << std::endl;
+        std::terminate();
     }
 }
 
-bool propagator_check(clingo_propagate_control_t *control, PyObject *prop) {
+bool propagator_check(clingo_propagate_control_t *control, void *prop) {
     PyBlock block;
     try {
-        if (!PyObject_HasAttrString(prop, "check")) { return true; }
         Object c = PropagateControl::construct(control);
         Object n = PyString_FromString("check");
-        Object ret = PyObject_CallMethodObjArgs(prop, n.toPy(), c.toPy(), nullptr);
+        Object ret = PyObject_CallMethodObjArgs(static_cast<PyObject*>(prop), n.toPy(), c.toPy(), nullptr);
         return true;
     }
     catch (...) {
         handle_cxx_error("Propagator::check", "error during check");
+        return false;
+    }
+}
+
+static bool propagator_decide(clingo_id_t solverId, clingo_assignment_t const *assign, clingo_literal_t vsids, void *heu, clingo_literal_t *decision) {
+    PyBlock block;
+    try {
+        Object a = Assignment::construct(assign);
+        Object s = PyLong_FromLong(solverId);
+        Object l = PyLong_FromLong(vsids);
+        Object n = PyString_FromString("decide");
+        Object ret = PyObject_CallMethodObjArgs(static_cast<PyObject*>(heu), n.toPy(), s.toPy(), a.toPy(), l.toPy(), nullptr);
+        *decision = pyToCpp<clingo_literal_t>(ret);
+        return true;
+    }
+    catch (...) {
+        handle_cxx_error("Propagator::decide", "error during decide");
         return false;
     }
 }
@@ -3286,13 +4321,23 @@ struct TruthValue : EnumType<TruthValue> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different truth values.
 
-TruthValue objects cannot be constructed from python. Instead the following
-preconstructed objects are available:
+`TruthValue` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
 
-TruthValue._True   -- truth value true
-TruthValue._False  -- truth value false
-TruthValue.Free    -- no truth value
-TruthValue.Release -- indicates that an atom is to be released)";
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+True_ : TruthValue
+    Represents truth value true.
+False_ : TruthValue
+    Represents truth value true.
+Free : TruthValue
+    Represents absence of a truth value.
+Release : TruthValue
+    Indicates that an atom is to be released.
+)";
 
     static constexpr Type const values[] = {
         clingo_external_type_true,
@@ -3301,10 +4346,10 @@ TruthValue.Release -- indicates that an atom is to be released)";
         clingo_external_type_release
     };
     static constexpr const char * const strings[] = {
-        "_True",
-        "_False",
+        "True_",
+        "False_",
         "Free",
-        "Release"
+        "Release",
     };
 };
 
@@ -3318,13 +4363,27 @@ struct HeuristicType : EnumType<HeuristicType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different heuristic types.
 
-HeuristicType objects cannot be constructed from python. Instead the following
-preconstructed objects are available:
+`HeuristicType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
 
-HeuristicType.True    -- truth value true
-HeuristicType.False   -- truth value false
-HeuristicType.Free    -- no truth value
-HeuristicType.Release -- indicates that an atom is to be released)";
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes  are available:
+
+Attributes
+----------
+Level : HeuristicType
+    Heuristic modification to set the level of an atom.
+Sign : HeuristicType
+    Heuristic modification to set the sign of an atom.
+Factor : HeuristicType
+    Heuristic modification to set the decaying factor of an atom.
+Init : HeuristicType
+    Heuristic modification to set the inital score of an atom.
+True_ : HeuristicType
+    Heuristic modification to make an atom true.
+False_ : HeuristicType
+    Heuristic modification to make an atom false.
+)";
 
     static constexpr Type const values[] =          {
         clingo_heuristic_type_level,
@@ -3332,15 +4391,15 @@ HeuristicType.Release -- indicates that an atom is to be released)";
         clingo_heuristic_type_factor,
         clingo_heuristic_type_init,
         clingo_heuristic_type_true,
-        clingo_heuristic_type_false
+        clingo_heuristic_type_false,
     };
     static constexpr const char * const strings[] = {
         "Level",
         "Sign",
         "Factor",
         "Init",
-        "True",
-        "False"
+        "True_",
+        "False_",
     };
 };
 
@@ -3362,83 +4421,83 @@ bool observer_call(char const *loc, char const *msg, void *data, char const *fun
 
 bool observer_init_program(bool incremental, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::init_program", "error in init_program", data, "init_program", cppToPy(incremental));
+    return observer_call("Observer::init_program", "error in init_program", data, "init_program", cppToPy(incremental));
 }
 bool observer_begin_step(void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::begin_step", "error in begin_step", data, "begin_step");
+    return observer_call("Observer::begin_step", "error in begin_step", data, "begin_step");
 }
 bool observer_end_step(void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::end_step", "error in end_step", data, "end_step");
+    return observer_call("Observer::end_step", "error in end_step", data, "end_step");
 }
 bool observer_rule(bool choice, clingo_atom_t const *head, size_t head_size, clingo_literal_t const *body, size_t body_size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::rule", "error in rule", data, "rule", cppToPy(choice), cppRngToPy(head, head + head_size), cppRngToPy(body, body + body_size));
+    return observer_call("Observer::rule", "error in rule", data, "rule", cppToPy(choice), cppRngToPy(head, head + head_size), cppRngToPy(body, body + body_size));
 }
 bool observer_weight_rule(bool choice, clingo_atom_t const *head, size_t head_size, clingo_weight_t lower_bound, clingo_weighted_literal_t const *body, size_t body_size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::weight_rule", "error in weight_rule", data, "weight_rule", cppToPy(choice), cppRngToPy(head, head + head_size), cppToPy(lower_bound), cppRngToPy(body, body + body_size));
+    return observer_call("Observer::weight_rule", "error in weight_rule", data, "weight_rule", cppToPy(choice), cppRngToPy(head, head + head_size), cppToPy(lower_bound), cppRngToPy(body, body + body_size));
 }
 bool observer_minimize(clingo_weight_t priority, clingo_weighted_literal_t const* literals, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::minimize", "error in minimize", data, "minimize", cppToPy(priority), cppRngToPy(literals, literals + size));
+    return observer_call("Observer::minimize", "error in minimize", data, "minimize", cppToPy(priority), cppRngToPy(literals, literals + size));
 }
 bool observer_project(clingo_atom_t const *atoms, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::project", "error in project", data, "project", cppRngToPy(atoms, atoms + size));
+    return observer_call("Observer::project", "error in project", data, "project", cppRngToPy(atoms, atoms + size));
 }
 bool observer_output_atom(clingo_symbol_t symbol, clingo_atom_t atom, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::output_atom", "error in output_atom", data, "output_atom", cppToPy(symbol_wrapper{symbol}), cppToPy(atom));
+    return observer_call("Observer::output_atom", "error in output_atom", data, "output_atom", cppToPy(symbol_wrapper{symbol}), cppToPy(atom));
 }
 bool observer_output_term(clingo_symbol_t symbol, clingo_literal_t const *condition, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::output_term", "error in output_term", data, "output_term", cppToPy(symbol_wrapper{symbol}), cppRngToPy(condition, condition + size));
+    return observer_call("Observer::output_term", "error in output_term", data, "output_term", cppToPy(symbol_wrapper{symbol}), cppRngToPy(condition, condition + size));
 }
 bool observer_output_csp(clingo_symbol_t symbol, int value, clingo_literal_t const *condition, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::output_csp", "error in output_csp", data, "output_csp", cppToPy(symbol_wrapper{symbol}), cppToPy(value), cppRngToPy(condition, condition + size));
+    return observer_call("Observer::output_csp", "error in output_csp", data, "output_csp", cppToPy(symbol_wrapper{symbol}), cppToPy(value), cppRngToPy(condition, condition + size));
 }
 bool observer_external(clingo_atom_t atom, clingo_external_type_t type, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::external", "error in external", data, "external", cppToPy(atom), TruthValue::getAttr(type));
+    return observer_call("Observer::external", "error in external", data, "external", cppToPy(atom), TruthValue::getAttr(type));
 }
 bool observer_assume(clingo_literal_t const *literals, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::assume", "error in assume", data, "assume", cppRngToPy(literals, literals + size));
+    return observer_call("Observer::assume", "error in assume", data, "assume", cppRngToPy(literals, literals + size));
 }
 bool observer_heuristic(clingo_atom_t atom, clingo_heuristic_type_t type, int bias, unsigned priority, clingo_literal_t const *condition, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::heuristic", "error in heuristic", data, "heuristic", cppToPy(atom), HeuristicType::getAttr(type), cppToPy(bias), cppToPy(priority), cppRngToPy(condition, condition + size));
+    return observer_call("Observer::heuristic", "error in heuristic", data, "heuristic", cppToPy(atom), HeuristicType::getAttr(type), cppToPy(bias), cppToPy(priority), cppRngToPy(condition, condition + size));
 }
 bool observer_acyc_edge(int node_u, int node_v, clingo_literal_t const *condition, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::acyc_edge", "error in acyc_edge", data, "acyc_edge", cppToPy(node_u), cppToPy(node_v), cppRngToPy(condition, condition + size));
+    return observer_call("Observer::acyc_edge", "error in acyc_edge", data, "acyc_edge", cppToPy(node_u), cppToPy(node_v), cppRngToPy(condition, condition + size));
 }
 bool observer_theory_term_number(clingo_id_t term_id, int number, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::theory_term_number", "error in theory_term_number", data, "theory_term_number", cppToPy(term_id), cppToPy(number));
+    return observer_call("Observer::theory_term_number", "error in theory_term_number", data, "theory_term_number", cppToPy(term_id), cppToPy(number));
 }
 bool observer_theory_term_string(clingo_id_t term_id, char const *name, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::theory_term_string", "error in theory_term_string", data, "theory_term_string", cppToPy(term_id), cppToPy(name));
+    return observer_call("Observer::theory_term_string", "error in theory_term_string", data, "theory_term_string", cppToPy(term_id), cppToPy(name));
 }
 bool observer_theory_term_compound(clingo_id_t term_id, int name_id_or_type, clingo_id_t const *arguments, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::theory_term_compound", "error in theory_term_compound", data, "theory_term_compound", cppToPy(term_id), cppToPy(name_id_or_type), cppRngToPy(arguments, arguments + size));
+    return observer_call("Observer::theory_term_compound", "error in theory_term_compound", data, "theory_term_compound", cppToPy(term_id), cppToPy(name_id_or_type), cppRngToPy(arguments, arguments + size));
 }
 bool observer_theory_element(clingo_id_t element_id, clingo_id_t const *terms, size_t terms_size, clingo_literal_t const *condition, size_t condition_size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::theory_element", "error in theory_element", data, "theory_element", cppToPy(element_id), cppRngToPy(terms, terms + terms_size), cppRngToPy(condition, condition + condition_size));
+    return observer_call("Observer::theory_element", "error in theory_element", data, "theory_element", cppToPy(element_id), cppRngToPy(terms, terms + terms_size), cppRngToPy(condition, condition + condition_size));
 }
 bool observer_theory_atom(clingo_id_t atom_id_or_zero, clingo_id_t term_id, clingo_id_t const *elements, size_t size, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::theory_atom", "error in theory_atom", data, "theory_atom", cppToPy(atom_id_or_zero), cppToPy(term_id), cppRngToPy(elements, elements + size));
+    return observer_call("Observer::theory_atom", "error in theory_atom", data, "theory_atom", cppToPy(atom_id_or_zero), cppToPy(term_id), cppRngToPy(elements, elements + size));
 }
 bool observer_theory_atom_with_guard(clingo_id_t atom_id_or_zero, clingo_id_t term_id, clingo_id_t const *elements, size_t size, clingo_id_t operator_id, clingo_id_t right_hand_side_id, void *data) {
     PyBlock b;
-    return observer_call("GroundProgramObserver::theory_atom_with_guard", "error in theory_atom_with_guard", data, "theory_atom_with_guard", cppToPy(atom_id_or_zero), cppToPy(term_id), cppRngToPy(elements, elements + size), cppToPy(operator_id), cppToPy(right_hand_side_id));
+    return observer_call("Observer::theory_atom_with_guard", "error in theory_atom_with_guard", data, "theory_atom_with_guard", cppToPy(atom_id_or_zero), cppToPy(term_id), cppRngToPy(elements, elements + size), cppToPy(operator_id), cppToPy(right_hand_side_id));
 }
 
 // {{{1 wrap wrap Backend
@@ -3454,8 +4513,34 @@ struct Backend : ObjectBase<Backend> {
     static constexpr char const *tp_doc =
     R"(Backend object providing a low level interface to extend a logic program.
 
-This class provides an interface that allows for adding statements in ASPIF
-format.)";
+This class allows for adding statements in ASPIF format.
+
+See Also
+--------
+Control.backend
+
+Notes
+-----
+The `Backend` is a context manager and must be used with Python's `with`
+statement.
+
+Examples
+--------
+The following example shows how to add a fact to a program:
+
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> sym_a = clingo.Function("a")
+    >>> with ctl.backend() as backend:
+    ...     atm_a = backend.add_atom(sym_a)
+    ...     backend.add_rule([atm_a])
+    ...
+    >>> ctl.symbolic_atoms[sym_a].is_fact
+    True
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: a
+    SAT
+)";
 
     static Object construct(clingo_backend_t *backend) {
         if (!backend) {
@@ -3495,7 +4580,7 @@ format.)";
 
     Object addRule(Reference pyargs, Reference pykwds) {
         static char const *kwlist[] = {"head", "body", "choice", nullptr};
-        Reference pyHead = Py_None;
+        Reference pyHead;
         Reference pyBody = Py_None;
         Reference pyChoice = Py_False;
         ParseTupleAndKeywords(pyargs, pykwds, "O|OO", kwlist, pyHead, pyBody, pyChoice);
@@ -3510,21 +4595,21 @@ format.)";
 
     Object addExternal(Reference pyargs, Reference pykwds) {
         static char const *kwlist[] = {"head", "value", nullptr};
-        Reference pyAtom = Py_None;
+        Reference pyAtom;
         Reference pyValue = nullptr;
         ParseTupleAndKeywords(pyargs, pykwds, "O|O", kwlist, pyAtom, pyValue);
         clingo_atom_t atom;
         pyToCpp(pyAtom, atom);
-        clingo_external_type_t value = pyValue.valid() ? enumValue<TruthValue>(pyValue) : clingo_external_type_false;;
+        clingo_external_type_t value = pyValue.valid() ? enumValue<TruthValue>(pyValue) : clingo_external_type_false;
         handle_c_error(clingo_backend_external(backend, atom, value));
         Py_RETURN_NONE;
     }
 
     Object addWeightRule(Reference pyargs, Reference pykwds) {
         static char const *kwlist[] = {"head", "lower", "body", "choice", nullptr};
-        Reference pyHead = Py_None;
-        Reference pyLower = Py_None;
-        Reference pyBody = Py_None;
+        Reference pyHead;
+        Reference pyLower;
+        Reference pyBody;
         Reference pyChoice = Py_False;
         ParseTupleAndKeywords(pyargs, pykwds, "OOO|O", kwlist, pyHead, pyLower, pyBody, pyChoice);
         auto head = pyToCpp<std::vector<clingo_atom_t>>(pyHead);
@@ -3537,12 +4622,54 @@ format.)";
 
     Object addMinimize(Reference pyargs, Reference pykwds) {
         static char const *kwlist[] = {"priority", "literals", nullptr};
-        Reference pyPriority = Py_None;
-        Reference pyBody = Py_None;
+        Reference pyPriority;
+        Reference pyBody;
         ParseTupleAndKeywords(pyargs, pykwds, "OO", kwlist, pyPriority, pyBody);
         auto priority = pyToCpp<clingo_weight_t>(pyPriority);
         auto body = pyToCpp<std::vector<clingo_weighted_literal_t>>(pyBody);
         handle_c_error(clingo_backend_minimize(backend, priority, body.data(), body.size()));
+        Py_RETURN_NONE;
+    }
+
+    Object addProject(Reference pyargs, Reference pykwds) {
+        static char const *kwlist[] = {"atoms", nullptr};
+        Reference pyAtoms;
+        ParseTupleAndKeywords(pyargs, pykwds, "O", kwlist, pyAtoms);
+        auto atoms = pyToCpp<std::vector<clingo_atom_t>>(pyAtoms);
+        handle_c_error(clingo_backend_project(backend, atoms.data(), atoms.size()));
+        Py_RETURN_NONE;
+    }
+
+    Object addAssume(Reference pyargs, Reference pykwds) {
+        static char const *kwlist[] = {"literals", nullptr};
+        Reference pyLiterals = nullptr;
+        ParseTupleAndKeywords(pyargs, pykwds, "O", kwlist, pyLiterals);
+        auto literals = pyToCpp<std::vector<clingo_literal_t>>(pyLiterals);
+        handle_c_error(clingo_backend_assume(backend, literals.data(), literals.size()));
+        Py_RETURN_NONE;
+    }
+
+    Object addHeuristic(Reference pyargs, Reference pykwds) {
+        static char const *kwlist[] = {"atom", "type", "bias", "priority", "condition", nullptr};
+        Reference pyAtom, pyType, pyBias, pyPriority, pyCondition;
+        ParseTupleAndKeywords(pyargs, pykwds, "OOOOO", kwlist, pyAtom, pyType, pyBias, pyPriority, pyCondition);
+        auto atom = pyToCpp<clingo_atom_t>(pyAtom);
+        auto type = enumValue<HeuristicType>(pyType);
+        auto bias = pyToCpp<int>(pyBias);
+        auto priority = pyToCpp<unsigned>(pyPriority);
+        auto condition = pyToCpp<std::vector<clingo_literal_t>>(pyCondition);
+        handle_c_error(clingo_backend_heuristic(backend, atom, type, bias, priority, condition.data(), condition.size()));
+        Py_RETURN_NONE;
+    }
+
+    Object addAcycEdge(Reference pyargs, Reference pykwds) {
+        static char const *kwlist[] = {"node_u", "node_v", "condition", nullptr};
+        Reference pyU, pyV, pyCondition;
+        ParseTupleAndKeywords(pyargs, pykwds, "OOO", kwlist, pyU, pyV, pyCondition);
+        auto u = pyToCpp<int>(pyU);
+        auto v = pyToCpp<int>(pyV);
+        auto condition = pyToCpp<std::vector<clingo_literal_t>>(pyCondition);
+        handle_c_error(clingo_backend_acyc_edge(backend, u, v, condition.data(), condition.size()));
         Py_RETURN_NONE;
     }
 
@@ -3557,83 +4684,208 @@ R"(__enter__(self) -> Backend
 
 Initialize the backend.
 
-Must be called before using the backend.)"},
+Returns
+-------
+Backend
+    Returns the backend itself.
+
+Notes
+-----
+Must be called before using the backend.
+)"},
     {"__exit__", to_function<&Backend::exit>(), METH_VARARGS,
-R"(__exit__(self, type, value, traceback) -> bool
+R"(__exit__(self, type : Optional[Type[BaseException]], value : Optional[BaseException], traceback : Optional[TracebackType]) -> bool
 
 Finalize the backend.
 
-Follows python __exit__ conventions. Does not suppress exceptions.
+Notes
+-----
+Follows Python's __exit__ conventions. Does not suppress exceptions.
 )"},
     // add_atom
     {"add_atom", to_function<&Backend::addAtom>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_atom(self, symbol) -> Int
+R"(add_atom(self, symbol : Optional[Symbol]=None) -> int
 
 Return a fresh program atom or the atom associated with the given symbol.
 
 If the given symbol does not exist in the atom base, it is added first. Such
-atoms will be used in susequents calls to ground for instantiation.
+atoms will be used in subequents calls to ground for instantiation.
 
-Keyword Arguments:
-symbol -- optional symbol (Default: None)
+Parameters
+----------
+symbol : Optional[Symbol]=None
+    The symbol associated with the atom.
+
+Returns
+-------
+int
+    The program atom representing the atom.
 )"},
     // add_external
     {"add_external", to_function<&Backend::addExternal>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_atom(self, atom, value) -> Int
+R"(add_external(self, atom : int, value : TruthValue=TruthValue.False_) -> None
 
-Mark an atom as external optionally fixing its truth value.
+Mark a program atom as external optionally fixing its truth value.
 
-Can also be used to unmark an external atom.
+Parameters
+----------
+atom : int
+    The program atom to mark as external.
+value : TruthValue=TruthValue.False_
+    Optional truth value.
 
-Arguments:
-atom -- the atom to mark as external
+Returns
+-------
+None
 
-Keyword Arguments:
-value -- optional truth value (Default: TruthValue._False)
+Notes
+-----
+Can also be used to release an external atom using `TruthValue.Release`.
 )"},
     // add_rule
     {"add_rule", to_function<&Backend::addRule>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_rule(self, head, body, choice) -> None
+R"(add_rule(self, head: List[int], body: List[int]=[], choice: bool=False) -> None
 
 Add a disjuntive or choice rule to the program.
 
-Arguments:
-head -- list of program atoms
+Parameters
+----------
+head : List[int]
+    The program atoms forming the rule head.
+body : List[int]=[]
+    The program literals forming the rule body.
+choice : bool=False
+    Whether to add a disjunctive or choice rule.
 
-Keyword Arguments:
-body   -- list of program literals (Default: [])
-choice -- whether to add a disjunctive or choice rule (Default: False)
+Returns
+-------
+None
 
+Notes
+-----
 Integrity constraints and normal rules can be added by using an empty or
-singleton head list, respectively.)"},
+singleton head list, respectively.
+)"},
     // add_weight_rule
     {"add_weight_rule", to_function<&Backend::addWeightRule>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_weight_rule(self, head, lower, body, choice) -> None
+R"(add_weight_rule(self, head: List[int], lower: int, body: List[Tuple[int,int]], choice: bool=False) -> None
+
 Add a disjuntive or choice rule with one weight constraint with a lower bound
 in the body to the program.
 
-Arguments:
-head  -- list of program atoms
-lower -- integer for the lower bound
-body  -- list of pairs of program literals and weights
+Parameters
+----------
+head : List[int]
+    The program atoms forming the rule head.
+lower : int
+    The lower bound.
+body : List[Tuple[int,int]]
+    The pairs of program literals and weights forming the elements of the
+    weight constraint.
+choice : bool=False
+    Whether to add a disjunctive or choice rule.
 
-Keyword Arguments:
-choice -- whether to add a disjunctive or choice rule (Default: False)
+Returns
+-------
+None
 )"},
     // add_minimize
     {"add_minimize", to_function<&Backend::addMinimize>(), METH_VARARGS | METH_KEYWORDS,
-R"(add_minimize(self, priority, literals) -> None
+R"(add_minimize(self, priority: int, literals: List[Tuple[int,int]]) -> None
+
 Add a minimize constraint to the program.
 
-Arguments:
-priority -- integer for the priority
-literals -- list of pairs of program literals and weights
+Parameters
+----------
+priority : int
+    Integer for the priority.
+literals : List[Tuple[int,int]]
+    List of pairs of program literals and weights.
+
+Returns
+-------
+None
+)"},
+    // add_project
+    {"add_project", to_function<&Backend::addProject>(), METH_VARARGS | METH_KEYWORDS,
+R"(add_project(self, atoms: List[int]) -> None
+
+Add a project statement to the program.
+
+Parameters
+----------
+atoms : List[int]
+    List of program atoms to project on.
+
+Returns
+-------
+None
+)"},
+    // add_assume
+    {"add_assume", to_function<&Backend::addAssume>(), METH_VARARGS | METH_KEYWORDS,
+R"(add_assume(self, literals: List[int]) -> None
+
+Add assumptions to the program.
+
+Parameters
+----------
+literals : List[int]
+    The list of literals to assume true.
+
+Returns
+-------
+None
+)"},
+    // add_heuristic
+    {"add_heuristic", to_function<&Backend::addHeuristic>(), METH_VARARGS | METH_KEYWORDS,
+R"(add_heuristic(self, atom: int, type: HeuristicType, bias: int, priority: int, condition: List[int]) -> None
+
+Add a heuristic directive to the program.
+
+Parameters
+----------
+atom : int
+    Program atom to heuristically modify.
+type : HeuristicType
+    The type of modification.
+bias : int
+    A signed integer.
+priority : int
+    An unsigned integer.
+condition : List[int]
+    List of program literals.
+
+Returns
+-------
+None
+)"},
+    // add_acyc_edge
+    {"add_acyc_edge", to_function<&Backend::addAcycEdge>(), METH_VARARGS | METH_KEYWORDS,
+R"(add_acyc_edge(self, node_u: int, node_v: int, condition: List[int]) -> None
+
+Add an edge directive to the program.
+
+Parameters
+----------
+node_u : int
+    The start node represented as an unsigned integer.
+node_v : int
+    The end node represented as an unsigned integer.
+condition : List[int]
+    List of program literals.
+
+Returns
+-------
+None
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef Backend::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&Backend::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_backend_t struct.)", nullptr},
+    {(char *)"_to_c", to_getter<&Backend::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_backend_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -3694,11 +4946,25 @@ struct AggregateFunction : EnumType<AggregateFunction> {
     static constexpr char const *tp_doc =
 R"(Enumeration of aggegate functions.
 
-AggregateFunction.Count   -- the #count function
-AggregateFunction.Sum     -- the #sum function
-AggregateFunction.SumPlus -- the #sum+ function
-AggregateFunction.Min     -- the #min function
-AggregateFunction.Max     -- the #max function)";
+`AggregateFunction` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+Count : AggregateFunction
+    The `#count` function.
+Sum : AggregateFunction
+    The `#sum` function.
+SumPlus : AggregateFunction
+    The `#sum+` function.
+Min : AggregateFunction
+    The `#min` function.
+Max : AggregateFunction
+    The `#max` function.
+)";
 
     static constexpr clingo_ast_aggregate_function_t const values[] = {
         clingo_ast_aggregate_function_count,
@@ -3735,12 +5001,27 @@ struct ComparisonOperator : EnumType<ComparisonOperator> {
     static constexpr char const *tp_doc =
 R"(Enumeration of comparison operators.
 
-ComparisonOperator.GreaterThan  -- the > operator
-ComparisonOperator.LessThan     -- the < operator
-ComparisonOperator.LessEqual    -- the <= operator
-ComparisonOperator.GreaterEqual -- the >= operator
-ComparisonOperator.NotEqual     -- the != operator
-ComparisonOperator.Equal        -- the = operator)";
+`ComparisonOperator` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+GreaterThan : ComparisonOperator
+    The `>` operator.
+LessThan : ComparisonOperator
+    The `<` operator.
+LessEqual : ComparisonOperator
+    The `<=` operator.
+GreaterEqual : ComparisonOperator
+    The `>=` operator.
+NotEqual : ComparisonOperator
+    The `!=` operator.
+Equal : ComparisonOperator
+    The `=` operator
+)";
 
     static constexpr clingo_ast_comparison_operator_t const values[] = {
         clingo_ast_comparison_operator_greater_than,
@@ -3822,11 +5103,23 @@ struct Sign : EnumType<Sign> {
     static constexpr char const *tp_type = "Sign";
     static constexpr char const *tp_name = "clingo.ast.Sign";
     static constexpr char const *tp_doc =
-R"(The available signs for literals.
+R"(Enumeration of signs for literals.
 
-Sign.NoSign         --
-Sign.Negation       -- not
-Sign.DoubleNegation -- not not)";
+`Sign` objects have a readable string representation, implement Python's rich
+comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+NoSign : Sign
+    For positive literals.
+Negation : Sign
+    For negative literals (with prefix `not`).
+DoubleNegation : Sign
+    For double negated literals (with prefix `not not`)
+)";
 
     static constexpr clingo_ast_sign_t const values[] = {
         clingo_ast_sign_none,
@@ -3852,16 +5145,27 @@ constexpr clingo_ast_sign_t const Sign::values[];
 constexpr const char * const Sign::strings[];
 
 struct UnaryOperator : EnumType<UnaryOperator> {
-    static PyMethodDef tp_methods[];
+    static PyGetSetDef tp_getset[];
 
     static constexpr char const *tp_type = "UnaryOperator";
     static constexpr char const *tp_name = "clingo.ast.UnaryOperator";
     static constexpr char const *tp_doc =
-R"(Enumeration of unary operators.
+R"(Enumeration of signs for literals.
 
-UnaryOperator.Negation -- bitwise negation
-UnaryOperator.Minus    -- unary minus and classical negation
-UnaryOperator.Absolute -- absolute value
+`UnaryOperator` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+Negation : UnaryOperator
+    For bitwise negation.
+Minus : UnaryOperator
+    For unary minus and classical negation.
+Absolute : UnaryOperator
+    For taking the absolute value.
 )";
 
     static constexpr clingo_ast_unary_operator_t const values[] = {
@@ -3874,31 +5178,31 @@ UnaryOperator.Absolute -- absolute value
         "Minus",
         "Negation",
     };
-    static PyObject *leftHandSide(UnaryOperator *self) {
-        switch (static_cast<enum clingo_ast_unary_operator>(self->values[self->offset])) {
+    Object leftHandSide() {
+        switch (static_cast<enum clingo_ast_unary_operator>(values[offset])) {
             case clingo_ast_unary_operator_absolute: { return PyString_FromString("|"); }
             case clingo_ast_unary_operator_minus:    { return PyString_FromString("-"); }
             case clingo_ast_unary_operator_negation: { return PyString_FromString("~"); }
         }
         return PyString_FromString("");
     }
-    static PyObject *rightHandSide(UnaryOperator *self) {
-        return self->values[self->offset] == clingo_ast_unary_operator_absolute
+    Object rightHandSide() {
+        return values[offset] == clingo_ast_unary_operator_absolute
             ? PyString_FromString("|")
             : PyString_FromString("");
     }
 };
 
-PyMethodDef UnaryOperator::tp_methods[] = {
-    { "left_hand_side", (PyCFunction)leftHandSide, METH_NOARGS,
-R"(left_hand_side(self) -> str
+PyGetSetDef UnaryOperator::tp_getset[] = {
+    {(char*)"left_hand_side", to_getter<&UnaryOperator::leftHandSide>(), nullptr, (char*)R"(left_hand_side: str
 
-Left-hand side representation of the operator.)"},
-    { "right_hand_side", (PyCFunction)rightHandSide, METH_NOARGS,
-R"(right_hand_side(self) -> str
+Left-hand side representation of the operator.
+)", nullptr},
+    {(char*)"right_hand_side", to_getter<&UnaryOperator::rightHandSide>(), nullptr, (char*)R"(right_hand_side: str
 
-Right-hand side representation of the operator.)"},
-    { nullptr, nullptr, 0, nullptr }
+Right-hand side representation of the operator.
+)", nullptr},
+    {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 constexpr clingo_ast_unary_operator_t const UnaryOperator::values[];
@@ -3910,15 +5214,32 @@ struct BinaryOperator : EnumType<BinaryOperator> {
     static constexpr char const *tp_doc =
 R"(Enumeration of binary operators.
 
-BinaryOperator.XOr            -- bitwise exclusive or
-BinaryOperator.Or             -- bitwise or
-BinaryOperator.And            -- bitwise and
-BinaryOperator.Plus           -- arithmetic addition
-BinaryOperator.Minus          -- arithmetic subtraction
-BinaryOperator.Multiplication -- arithmetic multipilcation
-BinaryOperator.Division       -- arithmetic division
-BinaryOperator.Modulo         -- arithmetic modulo
-BinaryOperator.Power          -- arithmetic exponentiation
+`BinaryOperator` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the
+following preconstructed class attributes are available:
+
+Attributes
+----------
+XOr : BinaryOperator
+    For bitwise exclusive or.
+Or : BinaryOperator
+    For bitwise or.
+And : BinaryOperator
+    For bitwise and.
+Plus : BinaryOperator
+    For arithmetic addition.
+Minus : BinaryOperator
+    For arithmetic subtraction.
+Multiplication : BinaryOperator
+    For arithmetic multipilcation.
+Division : BinaryOperator
+    For arithmetic division.
+Modulo : BinaryOperator
+    For arithmetic modulo.
+Power : BinaryOperator
+    For arithmetic exponentiation.
 )";
     static constexpr clingo_ast_binary_operator_t const values[] = {
         clingo_ast_binary_operator_xor,
@@ -3963,16 +5284,27 @@ constexpr const char * const BinaryOperator::strings[];
 
 struct TheorySequenceType : EnumType<TheorySequenceType> {
     enum T { Set, Tuple, List };
-    static PyMethodDef tp_methods[];
+    static PyGetSetDef tp_getset[];
 
     static constexpr char const *tp_type = "TheorySequenceType";
     static constexpr char const *tp_name = "clingo.ast.TheorySequenceType";
     static constexpr char const *tp_doc =
 R"(Enumeration of theory term sequence types.
 
-TheorySequenceType.Tuple -- sequence enclosed in parenthesis
-TheorySequenceType.List  -- sequence enclosed in brackets
-TheorySequenceType.Set   -- sequence enclosed in braces
+`TheorySequenceType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+Tuple : TheorySequenceType
+    For sequences enclosed in parenthesis.
+List : TheorySequenceType
+    For sequences enclosed in brackets.
+Set : TheorySequenceType
+    For sequences enclosed in braces.
 )";
 
     static constexpr T const values[] = {
@@ -3985,16 +5317,16 @@ TheorySequenceType.Set   -- sequence enclosed in braces
         "Tuple",
         "List",
     };
-    static PyObject *leftHandSide(TheorySequenceType *self) {
-        switch (self->values[self->offset]) {
+    Object leftHandSide() {
+        switch (values[offset]) {
             case Set:   { return PyString_FromString("{"); }
             case Tuple: { return PyString_FromString("("); }
             case List:  { return PyString_FromString("["); }
         }
         return PyString_FromString("");
     }
-    static PyObject *rightHandSide(TheorySequenceType *self) {
-        switch (self->values[self->offset]) {
+    Object rightHandSide() {
+        switch (values[offset]) {
             case Set:   { return PyString_FromString("}"); }
             case Tuple: { return PyString_FromString(")"); }
             case List:  { return PyString_FromString("]"); }
@@ -4003,16 +5335,16 @@ TheorySequenceType.Set   -- sequence enclosed in braces
     }
 };
 
-PyMethodDef TheorySequenceType::tp_methods[] = {
-    { "left_hand_side", (PyCFunction)leftHandSide, METH_NOARGS,
-R"(left_hand_side(self) -> str
+PyGetSetDef TheorySequenceType::tp_getset[] = {
+    {(char*)"left_hand_side", to_getter<&TheorySequenceType::leftHandSide>(), nullptr, (char*)R"(left_hand_side: str
 
-Left-hand side representation of the sequence.)"},
-    { "right_hand_side", (PyCFunction)rightHandSide, METH_NOARGS,
-R"(right_hand_side(self) -> str
+Left-hand side representation of the sequence.
+)", nullptr},
+    {(char*)"right_hand_side", to_getter<&TheorySequenceType::rightHandSide>(), nullptr, (char*)R"(right_hand_side: str
 
-Right-hand side representation of the sequence.)"},
-    { nullptr, nullptr, 0, nullptr }
+Right-hand side representation of the sequence.
+)", nullptr},
+    {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
 constexpr TheorySequenceType::T const TheorySequenceType::values[];
@@ -4024,9 +5356,21 @@ struct TheoryOperatorType : EnumType<TheoryOperatorType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of operator types.
 
-TheoryOperatorType.Unary       -- unary operator
-TheoryOperatorType.BinaryLeft  -- binary left associative operator
-TheoryOperatorType.BinaryRight -- binary right associative operator)";
+`TheoryOperatorType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+Unary : TheoryOperatorType
+    For unary operators.
+BinaryLeft : TheoryOperatorType
+    For binary left associative operators.
+BinaryRight : TheoryOperatorType
+    For binary right associative operator.
+)";
 
     static constexpr clingo_ast_theory_operator_type_t const values[] = {
         clingo_ast_theory_operator_type_unary,
@@ -4057,10 +5401,22 @@ struct TheoryAtomType : EnumType<TheoryAtomType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of theory atom types.
 
-TheoryAtomType.Any       -- atom can occur anywhere
-TheoryAtomType.Body      -- atom can only occur in rule bodies
-TheoryAtomType.Head      -- atom can only occur in rule heads
-TheoryAtomType.Directive -- atom can only occur in facts
+`TheoryAtomType` objects have a readable string representation, implement
+Python's rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+Any : TheoryAtomType
+    For atoms that can occur anywhere.
+Body : TheoryAtomType
+    For atoms that can only occur in rule bodies.
+Head : TheoryAtomType
+    For atoms that can only occur in rule heads.
+Directive : TheoryAtomType
+    For atoms that can only occur in facts.
 )";
 
     static constexpr clingo_ast_theory_atom_definition_type_t const values[] = {
@@ -4096,8 +5452,18 @@ struct ScriptType : EnumType<ScriptType> {
     static constexpr char const *tp_doc =
 R"(Enumeration of theory atom types.
 
-ScriptType.Python -- python code
-ScriptType.Lua    -- lua code
+`ScriptType` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
+
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+Python : ScriptType
+    For Python code.
+Lua : ScriptType
+    For Lua code.
 )";
 
     static constexpr T const values[] = {
@@ -4130,21 +5496,28 @@ struct AST : ObjectBase<AST> {
     static PyGetSetDef tp_getset[];
     static constexpr char const *tp_type = "AST";
     static constexpr char const *tp_name = "clingo.ast.AST";
-    static constexpr char const *tp_doc = R"(AST(type, **arguments) -> AST
+    static constexpr char const *tp_doc = R"(AST(type: ASTType, **arguments: Mapping[str,Any]) -> AST
 
-Node in the abstract syntax tree.
+Represents a node in the abstract syntax tree.
 
-Arguments:
-type -- value in the enumeration ASTType
+AST nodes implement Python's rich comparison operators and are ordered
+structurally ignoring the location. They can also be used as dictionary keys.
+Their string representation corresponds to their gringo representation.
 
-Additionally, the functions takes an arbitrary number of keyword arguments.
-These should contain the required fields of the node but can also be set
-later.
+Parameters
+----------
+type : ASTType
+    The type of the onde.
+arguments : Mapping[str,Any]
+    Additionally, the functions takes an arbitrary number of keyword arguments.
+    These should contain the required fields of the node but can also be set
+    later.
 
-AST nodes can be structually compared ignoring the location.
-
-Note that it is also possible to create AST nodes using one of the functions
-provided in this module.
+Notes
+-----
+It is also possible to create AST nodes using one of the functions provided in
+this module. The parameters of the functions correspond to the nonterminals as
+given in the [grammar](.) above.
 )";
     static Object tp_new(PyTypeObject *type) {
         auto self = new_(type);
@@ -4167,6 +5540,14 @@ provided in this module.
         new (&self->fields_) Dict();
         new (&self->children) List(nullptr);
         self->type_ = t;
+        return self;
+    }
+    Object copy() {
+        auto self = new_();
+        new (&self->fields_) Dict();
+        new (&self->children) List(nullptr);
+        self->type_ = type_;
+        self->fields_ = Dict{PyDict_Copy(fields_.toPy())};
         return self;
     }
     static Object construct(ASTType::T type, char const **kwlist, PyObject **vals) {
@@ -4226,7 +5607,7 @@ provided in this module.
             case ASTType::Minimize:                  { return ret({ "weight", "priority", "tuple", "body" }); }
             case ASTType::Script:                    { return ret({ }); }
             case ASTType::Program:                   { return ret({ "parameters" }); }
-            case ASTType::External:                  { return ret({ "atom", "body" }); }
+            case ASTType::External:                  { return ret({ "atom", "body", "external_type" }); }
             case ASTType::Edge:                      { return ret({ "u", "v", "body" }); }
             case ASTType::Heuristic:                 { return ret({ "atom", "body", "bias", "priority", "modifier" }); }
             case ASTType::ProjectAtom:               { return ret({ "atom", "body" }); }
@@ -4261,9 +5642,19 @@ provided in this module.
             ? ret
             : PyObject_GenericGetAttr(reinterpret_cast<PyObject*>(this), name.toPy());
     }
+
+    void tp_traverse(Traverse const &visit) {
+        visit(fields_);
+        visit(children);
+    }
+
+    void tp_clear() {
+        fields_.clear();
+        children.clear();
+    }
+
     void tp_dealloc() {
-        fields_.~Dict();
-        children.~List();
+        tp_clear();
     }
 
     Object tp_repr() {
@@ -4275,7 +5666,7 @@ provided in this module.
             case ASTType::Symbol:   { return fields_.getItem("symbol").str(); }
             case ASTType::UnaryOperation: {
                 Object unop = fields_.getItem("operator");
-                out << unop.call("left_hand_side") << fields_.getItem("argument") << unop.call("right_hand_side");
+                out << unop.getAttr("left_hand_side") << fields_.getItem("argument") << unop.getAttr("right_hand_side");
                 break;
             }
             case ASTType::BinaryOperation: {
@@ -4296,7 +5687,44 @@ provided in this module.
             case ASTType::Pool: {
                 Object args = fields_.getItem("arguments");
                 if (args.empty()) { out << "(1/0)"; }
-                else              { out << printList(args, "(", ";", ")", true); }
+                if (args.size() == 1) { out << args.getItem(0); }
+                else {
+                    bool equal = true, old_ext = false;
+                    Object old_name;
+                    for (auto arg : args.iter()) {
+                        if (arg.getAttr("type") == ASTType::getAttr(ASTType::Function)) {
+                            auto name = arg.getAttr("name");
+                            auto ext = pyToCpp<bool>(arg.getAttr("external"));
+                            if (!old_name.valid()) {
+                                old_name = name;
+                                old_ext = ext;
+                            }
+                            else if (name != old_name || ext != old_ext) {
+                                equal = false;
+                                break;
+                            }
+                        }
+                        else {
+                            equal = false;
+                            break;
+                        }
+                    }
+                    if (equal) {
+                        out << (old_ext ? "@" : "") << old_name << "(";
+                        bool sem = false;
+                        for (auto arg : args.iter()) {
+                            if (sem) { out << ";"; }
+                            else { sem = true; }
+                            auto pargs = arg.getAttr("arguments");
+                            bool tc = old_name.size() == 0 && pargs.size() == 1;
+                            out << printList(pargs, "", ",", tc ? "," : "", true);
+                        }
+                        out << ")";
+                    }
+                    else {
+                        out << printList(args, "(", ";", ")", true);
+                    }
+                }
                 break;
             }
             case ASTType::CSPProduct: {
@@ -4391,7 +5819,7 @@ provided in this module.
             case ASTType::TheorySequence: {
                 auto type = fields_.getItem("sequence_type"), terms = fields_.getItem("terms");
                 bool tc = terms.size() == 1 && type == TheorySequenceType::getAttr(TheorySequenceType::Tuple);
-                out << type.call("left_hand_side") << printList(terms, "", ",", "", true) << (tc ? "," : "") << type.call("right_hand_side");
+                out << type.getAttr("left_hand_side") << printList(terms, "", ",", "", true) << (tc ? "," : "") << type.getAttr("right_hand_side");
                 break;
             }
             case ASTType::TheoryFunction: {
@@ -4499,7 +5927,7 @@ provided in this module.
                 break;
             }
             case ASTType::External: {
-                out << "#external " << fields_.getItem("atom") << printBody(fields_.getItem("body"));
+                out << "#external " << fields_.getItem("atom") << printBody(fields_.getItem("body")) << " [" << fields_.getItem("external_type") << "]";
                 break;
             }
             case ASTType::Edge: {
@@ -4557,26 +5985,53 @@ provided in this module.
 
 PyMethodDef AST::tp_methods[] = {
     {"keys", to_function<&AST::keys>(), METH_NOARGS,
-R"(keys(self) -> list
+R"(keys(self) -> List[str]
 
 The list of keys of the AST node.
+
+Returns
+-------
+List[str]
 )"},
     {"values", to_function<&AST::values>(), METH_NOARGS,
-R"(values(self) -> list
+R"(values(self) -> List[AST]
 
 The list of values of the AST node.
+
+Returns
+-------
+List[AST]
 )"},
     {"items", to_function<&AST::items>(), METH_NOARGS,
-R"(items(self) -> list
+R"(items(self) -> List[Tuple[str,AST]]
 
 The list of items of the AST node.
+
+Returns
+-------
+List[Tuple[str,AST]]
+)"},
+    {"__copy__", to_function<&AST::copy>(), METH_NOARGS,
+R"(__copy__(self) -> AST
+
+Return a copy of the node.
+
+Returns
+-------
+AST
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef AST::tp_getset[] = {
-    {(char*)"child_keys", to_getter<&AST::childKeys>(), nullptr, (char*)"List of names of all AST child nodes.", nullptr},
-    {(char*)"type", to_getter<&AST::getType>(), to_setter<&AST::setType>(), (char*)"The type of the node.", nullptr},
+    {(char*)"child_keys", to_getter<&AST::childKeys>(), nullptr, (char*)R"(child_keys: List[str]
+
+List of names of all AST child nodes.
+)", nullptr},
+    {(char*)"type", to_getter<&AST::getType>(), to_setter<&AST::setType>(), (char*)R"(type: ASTType
+
+The type of the node.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -4642,7 +6097,7 @@ CREATE4(ShowTerm, location, term, body, csp)
 CREATE5(Minimize, location, weight, priority, tuple, body)
 CREATE3(Script, location, script_type, code)
 CREATE3(Program, location, name, parameters)
-CREATE3(External, location, atom, body)
+CREATE4(External, location, atom, body, external_type)
 CREATE4(Edge, location, u, v, body)
 CREATE6(Heuristic, location, atom, body, bias, priority, modifier)
 CREATE3(ProjectAtom, location, atom, body)
@@ -4953,7 +6408,7 @@ Object cppToPy(clingo_ast_statement_t const &stm) {
             return call(createProgram, cppToPy(stm.location), cppToPy(stm.program->name), cppToPy(stm.program->parameters, stm.program->size));
         }
         case clingo_ast_statement_type_external: {
-            return call(createExternal, cppToPy(stm.location), call(createSymbolicAtom, cppToPy(stm.external->atom)), cppToPy(stm.external->body, stm.external->size));
+            return call(createExternal, cppToPy(stm.location), call(createSymbolicAtom, cppToPy(stm.external->atom)), cppToPy(stm.external->body, stm.external->size), cppToPy(stm.external->type));
         }
         case clingo_ast_statement_type_edge: {
             return call(createEdge, cppToPy(stm.location), cppToPy(stm.edge->u), cppToPy(stm.edge->v), cppToPy(stm.edge->body, stm.edge->size));
@@ -5573,6 +7028,7 @@ struct ASTToC {
                 external->atom = convSymbolicAtom(x.getAttr("atom"));
                 external->body = convBodyLiteralVec(body);
                 external->size = body.size();
+                external->type = convTerm(x.getAttr("external_type"));
                 ret.type     = clingo_ast_statement_type_external;
                 ret.external = external;
                 return ret;
@@ -5686,7 +7142,33 @@ struct ProgramBuilder : ObjectBase<ProgramBuilder> {
     static constexpr char const *tp_type = "ProgramBuilder";
     static constexpr char const *tp_name = "clingo.ProgramBuilder";
     static constexpr char const *tp_doc =
-R"(Object to build non-ground programs.)";
+R"(Object to build non-ground programs.
+
+See Also
+--------
+Control.builder, parse_program
+
+Notes
+-----
+A `ProgramBuilder` is a context manager and must be used with Python's `with`
+statement.
+
+Examples
+--------
+The following example parses a program from a string and passes the resulting
+`AST` to the builder:
+
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> prg = "a."
+    >>> with ctl.builder() as bld:
+    ...    clingo.parse_program(prg, lambda stm: bld.add(stm))
+    ...
+    >>> ctl.ground([("base", [])])
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: a
+    SAT
+)";
 
     static Object construct(clingo_program_builder_t *builder) {
         auto self = new_();
@@ -5727,21 +7209,34 @@ Begin building a program.
 
 Must be called before adding statements.)"},
     {"add", to_function<&ProgramBuilder::add>(), METH_O,
-R"(add(self, statement) -> None
+R"(add(self, statement: ast.AST) -> None
 
-Adds a statement in form of an ast.AST node to the program.)"},
+Adds a statement in form of an `ast.AST` node to the program.
+
+Parameters
+----------
+statement: ast.AST
+    The statement to add.
+
+Returns
+-------
+None
+)"},
     {"__exit__", to_function<&ProgramBuilder::exit>(), METH_VARARGS,
-R"(__exit__(self, type, value, traceback) -> bool
+R"(__exit__(self, type : Optional[Type[BaseException]], value : Optional[BaseException], traceback : Optional[TracebackType]) -> bool
 
 Finish building a program.
 
-Follows python __exit__ conventions. Does not suppress exceptions.
+Follows Python's __exit__ conventions. Does not suppress exceptions.
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef ProgramBuilder::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&ProgramBuilder::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_program_builder_t struct.)", nullptr},
+    {(char *)"_to_c", to_getter<&ProgramBuilder::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_program_builder_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -5753,16 +7248,29 @@ struct MessageCode : EnumType<MessageCode> {
     static constexpr char const *tp_doc =
 R"(Enumeration of the different types of messages.
 
-MessageCode objects cannot be constructed from python. Instead the following
-preconstructed objects are available:
+`MessageCode` objects have a readable string representation, implement Python's
+rich comparison operators, and can be used as dictionary keys.
 
-MessageCode.OperationUndefined -- undefined arithmetic operation or weight of aggregate
-MessageCode.RuntimeError       -- to report multiple errors; a corresponding runtime error is raised later
-MessageCode.AtomUndefined      -- undefined atom in program
-MessageCode.FileIncluded       -- same file included multiple times
-MessageCode.VariableUnbounded  -- CSP variable with unbounded domain
-MessageCode.GlobalVariable     -- global variable in tuple of aggregate element
-MessageCode.Other              -- other kinds of messages
+Furthermore, they cannot be constructed from Python. Instead the following
+preconstructed class attributes are available:
+
+Attributes
+----------
+OperationUndefined : MessageCode
+    Inform about an undefined arithmetic operation or unsupported weight of an
+    aggregate.
+RuntimeError : MessageCode
+    To report multiple errors; a corresponding runtime error is raised later.
+AtomUndefined : MessageCode
+    Informs about an undefined atom in program.
+FileIncluded : MessageCode
+    Indicates that the same file was included multiple times.
+VariableUnbounded : MessageCode
+    Informs about a CSP variable with an unbounded domain.
+GlobalVariable : MessageCode
+    Informs about a global variable in a tuple of an aggregate element.
+Other : MessageCode
+    Reports other kinds of messages.
 )";
     static constexpr clingo_warning const values[] = {
         clingo_warning_operation_undefined,
@@ -5848,14 +7356,19 @@ struct StatisticsArray : ObjectBase<StatisticsArray> {
     static constexpr char const *tp_type = "StatisticsArray";
     static constexpr char const *tp_name = "clingo.StatisticsArray";
     static constexpr char const *tp_doc =
-    R"(StatisticsArray object to capture statistics stored in an array.
+    R"(Object to modify statistics stored in an array.
 
-This class implements the sequence protocol but does not support deletion.
-Furthermore, only existing numeric values in a statistics array can be changed
-using the assignment operator.
+This class implements `Sequence[Union[StatisticsArray,StatisticsMap,float]]`
+but only supports inplace concatenation and does not support deletion.
 
-The update function provides a convenient means to initialize and modify a
-statistics array.
+See Also
+--------
+Control.solve
+
+Notes
+-----
+The `StatisticsArray.update` function provides convenient means to initialize
+and modify a statistics array.
 )";
 
     static SharedObject<StatisticsArray> construct(clingo_statistics_t *stats, int64_t key) {
@@ -5875,6 +7388,7 @@ statistics array.
         return getUserStatistics(stats, subkey);
     };
     void sq_ass_item(Py_ssize_t index, Reference value) {
+        if (!value.valid()) { throw std::runtime_error("item deletion is not supported"); }
         uint64_t subkey;
         clingo_statistics_type_t type;
         handle_c_error(clingo_statistics_array_at(stats, key, index, &subkey));
@@ -5889,7 +7403,7 @@ statistics array.
         return None();
     }
     Object extend(Reference value) {
-        for (auto x : value.iter()) { append(x); }
+        sq_inplace_concat(value);
         return None();
     }
     Object update(Reference value) {
@@ -5901,6 +7415,9 @@ statistics array.
         }
         return None();
     }
+    void sq_inplace_concat(Reference other) {
+        for (auto x : other.iter()) { append(x); }
+    };
     Object to_c() {
         return PyLong_FromVoidPtr(stats);
     }
@@ -5909,37 +7426,65 @@ statistics array.
 PyMethodDef StatisticsArray::tp_methods[] = {
     // append
     {"append", to_function<&StatisticsArray::append>(), METH_O,
-R"(append(self, statistics) -> None
+R"(append(self, value: Any) -> None
 
-Append a statistics to an array.
+Append a value.
 
-The statistics parameter has to be a nested structure composed of numbers,
-sequences, and mappings.
+Parameters
+----------
+value: Any
+    A nested structure composed of floats, sequences, and mappings.
+
+Returns
+-------
+None
 )"},
-    // append
+    // extend
     {"extend", to_function<&StatisticsArray::extend>(), METH_O,
-R"(extend(self, values) -> None
+R"(extend(self, values: Sequence[Any]) -> None
 
 Extend the statistics array with the given values.
 
-Calls append() for each element of values.
+Paremeters
+----------
+values: Sequence[Any]
+    A sequence of nested structures composed of floats, sequences, and
+    mappings.
+
+Returns
+-------
+None
+
+See Also
+-----
+append
 )"},
     // update
     {"update", to_function<&StatisticsArray::update>(), METH_O,
-R"(update(self, statistics) -> None
+R"(update(self, values: Sequence[Any]) -> None
 
 Update a statistics array.
 
-The statistics argument must be a sequence. Further, it has to be a nested
-structure composed of numbers, sequences, mappings, and callables. A callable
-can be used to update an existing value, it receives the previous numeric value
-(or None if absent) as argument and must return an updated numeric value.
+Parameters
+----------
+values: Sequence[Any]
+    A sequence of nested structures composed of floats, callable, sequences,
+    and mappings. A callable can be used to update an existing value, it
+    receives the previous numeric value (or None if absent) as argument and
+    must return an updated numeric value.
+
+Returns
+-------
+None
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef StatisticsArray::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&StatisticsArray::to_c>(), nullptr, (char *)"An int representing the pointer to the underlying C clingo_statistics_t struct.", nullptr},
+    {(char *)"_to_c", to_getter<&StatisticsArray::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_statistics_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -5953,7 +7498,20 @@ struct StatisticsMap : ObjectBase<StatisticsMap> {
     static constexpr char const *tp_type = "StatisticsMap";
     static constexpr char const *tp_name = "clingo.StatisticsMap";
     static constexpr char const *tp_doc =
-    R"(StatisticsMap object to capture statistics stored in a map.)";
+    R"(Object to capture statistics stored in a map.
+
+This class implements `Mapping[str,Union[StatisticsArray,StatisticsMap,float]]`
+but does not support item deletion.
+
+See Also
+--------
+Control.solve
+
+Notes
+-----
+The `StatisticsMap.update` function provides convenient means to initialize
+and modify a statistics map.
+)";
 
     static SharedObject<StatisticsMap> construct(clingo_statistics_t *stats, int64_t key) {
         auto self = new_();
@@ -5972,6 +7530,7 @@ struct StatisticsMap : ObjectBase<StatisticsMap> {
         return getUserStatistics(stats, subkey);
     };
     void mp_ass_subscript(Reference pyName, Reference value) {
+        if (!value.valid()) { throw std::runtime_error("item deletion is not supported"); }
         std::string name = pyToCpp<std::string>(pyName);
         uint64_t subkey;
         bool has_subkey;
@@ -6039,36 +7598,63 @@ struct StatisticsMap : ObjectBase<StatisticsMap> {
 PyMethodDef StatisticsMap::tp_methods[] = {
     // keys
     {"keys", to_function<&StatisticsMap::keys>(), METH_NOARGS,
-R"(keys(self) -> [str]
+R"(keys(self) -> List[str]
 
-Return the keys in the statistics map.
+Return the keys of the map.
+
+Returns
+-------
+List[str]
+    The keys of the map.
 )"},
     // values
     {"values", to_function<&StatisticsMap::values>(), METH_NOARGS,
-R"(values(self) -> [Statistics]
+R"(values(self) -> List[Union[StatisticsArray,StatisticsMap,float]]
 
-Return the values in the statistics map.
+Return the values of the map.
+
+Returns
+-------
+List[Union[StatisticsArray,StatisticsMap,float]]
+    The values of the map.
 )"},
     // items
     {"items", to_function<&StatisticsMap::items>(), METH_NOARGS,
-R"(items(self) -> [(str, Statstics)]
+R"(items(self) -> List[Tuple[str, Union[StatisticsArray,StatisticsMap,float]]]
 
-Return the items in the statistics map.
+Return the items of the map.
+
+Returns
+-------
+List[Tuple[str, Union[StatisticsArray,StatisticsMap,float]]]
+    The items of the map.
 )"},
     // update
     {"update", to_function<&StatisticsMap::update>(), METH_O,
-R"(update(self, statistics) -> None
+R"(update(self, values: Mappping[str,Any]) -> None
 
-Update a statistics array.
+Update the map with the given values.
 
-The statistics argument must be a map. Otherwise, it is equivalent to
-StatisticsArray.update().
+Parameters
+----------
+values: Mapping[Any]
+    A mapping of nested structures composed of floats, callable, sequences,
+    and mappings. A callable can be used to update an existing value, it
+    receives the previous numeric value (or None if absent) as argument and
+    must return an updated numeric value.
+
+Returns
+-------
+None
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef StatisticsMap::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&StatisticsMap::to_c>(), nullptr, (char *)"An int representing the pointer to the underlying C clingo_statistics_t struct.", nullptr},
+    {(char *)"_to_c", to_getter<&StatisticsMap::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An int representing the pointer to the underlying C `clingo_statistics_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -6129,15 +7715,15 @@ void pycall(Reference fun, clingo_symbol_t const *arguments, size_t arguments_si
         pyToCpp(sym, val);
         handle_c_error(symbol_callback(&val.symbol, 1, symbol_callback_data));
     };
-    if (PyList_Check(ret.toPy())) {
+    if (pyIsSymbol(ret)) { add(ret); }
+    else {
         for (auto &&x : ret.iter()) { add(x); }
     }
-    else { add(ret); }
 }
 
 static void logger_callback(clingo_warning_t code, char const *message, void *data) {
+    PyBlock block;
     try {
-        PyBlock block;
         Object pyMsg = cppToPy(message);
         Object pyCode = MessageCode::getAttr(code);
         Object ret = PyObject_CallFunctionObjArgs(static_cast<PyObject*>(data), pyCode.toPy(), pyMsg.toPy(), nullptr);
@@ -6150,16 +7736,14 @@ static void logger_callback(clingo_warning_t code, char const *message, void *da
 }
 
 struct ControlWrap : ObjectBase<ControlWrap> {
-    using Propagators = std::vector<Object>;
-    using Observers = std::vector<Object>;
-    using UserStatistics = std::forward_list<Object>;
+    using Objects = std::vector<Object>;
     clingo_control_t *ctl;
     clingo_control_t *freeCtl;
     PyObject         *stats;
     PyObject         *logger;
-    Propagators       prop;
-    Observers         observers;
+    Objects           objects;
     bool              blocked;
+    double            stats_call;
 
     static PyGetSetDef tp_getset[];
     static PyMethodDef tp_methods[];
@@ -6167,19 +7751,25 @@ struct ControlWrap : ObjectBase<ControlWrap> {
     static constexpr char const *tp_type = "Control";
     static constexpr char const *tp_name = "clingo.Control";
     static constexpr char const *tp_doc =
-    R"(Control(arguments) -> Control
+    R"(Control(arguments: List[str]=[], logger: Callback[[MessageCode,str],None]=None, message_limit: int=20) -> Control
 
 Control object for the grounding/solving process.
 
-Keyword Arguments:
-arguments     -- arguments to the grounder and solver (default: []).
-logger        -- function to intercept messages normally printed to standard
-                 error (default: None)
-message_limit -- maximum number of messages passed to the logger (default: 20)
+Parameters
+----------
+arguments : List[str]
+    Arguments to the grounder and solver.
+logger : Callback[[MessageCode,str],None]=None
+    Function to intercept messages normally printed to standard error.
+message_limit : int
+    The maximum number of messages passed to the logger.
 
-Note that only gringo options (without --text) and clasp's search options are
-supported. Furthermore, a Control object is blocked while a search call is
-active; you must not call any member function during search.)";
+Notes
+-----
+Note that only gringo options (without `--text`) and clasp's search options are
+supported. Furthermore, a `Control` object is blocked while a search call is
+active; you must not call any member function during search.
+)";
     struct Block {
         Block(bool &blocked, char const *function) : blocked_(blocked) {
             if (blocked) {
@@ -6196,32 +7786,41 @@ active; you must not call any member function during search.)";
     static Object construct(clingo_control_t *ctl) {
         auto self = new_();
         self->ctl = ctl;
-        self->freeCtl = nullptr;
-        self->stats   = nullptr;
-        self->logger  = nullptr;
-        self->blocked = false;
-        new (&self->prop) Propagators();
-        new (&self->observers) Observers();
+        self->freeCtl    = nullptr;
+        self->stats      = nullptr;
+        self->stats_call = -1;
+        self->logger     = nullptr;
+        self->blocked    = false;
+        new (&self->objects) Objects();
         return self;
     }
     static Object tp_new(PyTypeObject *type) {
         auto self = new_(type);
-        self->ctl     = nullptr;
-        self->freeCtl = nullptr;
-        self->stats   = nullptr;
-        self->logger  = nullptr;
-        self->blocked = false;
-        new (&self->prop) Propagators();
-        new (&self->observers) Observers();
+        self->ctl        = nullptr;
+        self->freeCtl    = nullptr;
+        self->stats      = nullptr;
+        self->stats_call = -1;
+        self->logger     = nullptr;
+        self->blocked    = false;
+        new (&self->objects) Objects();
         return self;
     }
+    void tp_traverse(Traverse const &visit) {
+        visit(stats);
+        visit(logger);
+        for (auto &object : objects) { visit(object); }
+    }
+    void tp_clear() {
+        Py_CLEAR(stats);
+        Py_CLEAR(logger);
+        // NOTE: tp_dealloc might be called from an objects deconstructor while tp_clear is running
+        Objects{}.swap(objects);
+    }
     void tp_dealloc() {
+        tp_clear();
         if (freeCtl) { clingo_control_free(freeCtl); }
         ctl = freeCtl = nullptr;
-        prop.~Propagators();
-        observers.~Observers();
-        Py_XDECREF(stats);
-        Py_XDECREF(logger);
+        objects.~Objects();
     }
     void tp_init(Reference pyargs, Reference pykwds) {
         static char const *kwlist[] = {"arguments", "logger", "message_limit", nullptr};
@@ -6311,7 +7910,7 @@ active; you must not call any member function during search.)";
         ParseTupleAndKeywords(args, kwds, "|OOOOOOO", kwlist, pyAss, pyM, pyS, pyF, pyYield, pyAsync, pyAsync_);
         std::vector<clingo_literal_t> ass;
         if (!pyAss.is_none()) {
-            clingo_symbolic_atoms_t *atoms;
+            clingo_symbolic_atoms_t const *atoms;
             handle_c_error(clingo_control_symbolic_atoms(ctl, &atoms));
             ass = pyToLits(pyAss, atoms, false, false);
         }
@@ -6342,7 +7941,7 @@ active; you must not call any member function during search.)";
             PyErr_Format(PyExc_RuntimeError, "unexpected %s() object as second argumet", pyVal.toPy()->ob_type->tp_name);
             return nullptr;
         }
-        clingo_symbolic_atoms_t *atoms;
+        clingo_symbolic_atoms_t const *atoms;
         handle_c_error(clingo_control_symbolic_atoms(ctl, &atoms));
         auto ext = pyToAtom(pyExt, atoms);
         handle_c_error(clingo_control_assign_external(ctl, ext, val));
@@ -6352,7 +7951,7 @@ active; you must not call any member function during search.)";
         CHECK_BLOCKED("release_external");
         Reference pyExt;
         ParseTuple(args, "O", pyExt);
-        clingo_symbolic_atoms_t *atoms;
+        clingo_symbolic_atoms_t const *atoms;
         handle_c_error(clingo_control_symbolic_atoms(ctl, &atoms));
         auto ext = pyToAtom(pyExt, atoms);
         handle_c_error(clingo_control_assign_external(ctl, ext, clingo_external_type_release));
@@ -6363,11 +7962,20 @@ active; you must not call any member function during search.)";
     }
     Object getStats() {
         CHECK_BLOCKED("statistics");
+        clingo_statistics_t const *s;
+        handle_c_error(clingo_control_statistics(ctl, &s));
+        uint64_t root, key_summary, key_calls;
+        handle_c_error(clingo_statistics_root(s, &root));
+        handle_c_error(clingo_statistics_map_at(s, root, "summary", &key_summary));
+        handle_c_error(clingo_statistics_map_at(s, key_summary, "call", &key_calls));
+        double call;
+        handle_c_error(clingo_statistics_value_get(s, key_calls, &call));
+        if (stats && call != stats_call) {
+            Py_XDECREF(stats);
+            stats = nullptr;
+        }
         if (!stats) {
-            clingo_statistics_t const *s;
-            handle_c_error(clingo_control_statistics(ctl, &s));
-            uint64_t root;
-            handle_c_error(clingo_statistics_root(s, &root));
+            stats_call = call;
             stats = getStatistics(s, root).release();
         }
         Py_XINCREF(stats);
@@ -6388,25 +7996,29 @@ active; you must not call any member function during search.)";
     }
     Object symbolicAtoms() {
         CHECK_BLOCKED("symbolic_atoms");
-        clingo_symbolic_atoms_t *atoms;
+        clingo_symbolic_atoms_t const *atoms;
         handle_c_error(clingo_control_symbolic_atoms(ctl, &atoms));
         return SymbolicAtoms::construct(atoms);
     }
     Object theoryIter() {
         CHECK_BLOCKED("theory_atoms");
-        clingo_theory_atoms_t *atoms;
+        clingo_theory_atoms_t const *atoms;
         handle_c_error(clingo_control_theory_atoms(ctl, &atoms));
         return TheoryAtomIter::construct(atoms, 0);
     }
+    bool has_method(Reference tp, char const *name) {
+        return PyObject_HasAttrString(tp.toPy(), name);
+    }
     Object registerPropagator(Reference tp) {
         CHECK_BLOCKED("register_propagator");
-        static clingo_propagator_t propagator = {
-            reinterpret_cast<decltype(clingo_propagator_t::init)>(propagator_init),
-            reinterpret_cast<decltype(clingo_propagator_t::propagate)>(propagator_propagate),
-            reinterpret_cast<decltype(clingo_propagator_t::undo)>(propagator_undo),
-            reinterpret_cast<decltype(clingo_propagator_t::check)>(propagator_check),
+        clingo_propagator_t propagator = {
+            has_method(tp, "init")      ? propagator_init      : nullptr,
+            has_method(tp, "propagate") ? propagator_propagate : nullptr,
+            has_method(tp, "undo")      ? propagator_undo      : nullptr,
+            has_method(tp, "check")     ? propagator_check     : nullptr,
+            has_method(tp, "decide")    ? propagator_decide    : nullptr,
         };
-        prop.emplace_back(tp);
+        objects.emplace_back(tp);
         handle_c_error(clingo_control_register_propagator(ctl, &propagator, tp.toPy(), false));
         Py_RETURN_NONE;
     }
@@ -6438,7 +8050,7 @@ active; you must not call any member function during search.)";
             observer_theory_atom_with_guard
         };
 
-        observers.emplace_back(obs);
+        objects.emplace_back(obs);
         handle_c_error(clingo_control_register_observer(ctl, &observer, rep.isTrue(), obs.toPy()));
         return None();
     }
@@ -6466,188 +8078,202 @@ PyMethodDef ControlWrap::tp_methods[] = {
     {"builder", to_function<&ControlWrap::builder>(), METH_NOARGS,
 R"(builder(self) -> ProgramBuilder
 
-Return a builder to construct non-ground logic programs.
+Return a builder to construct a non-ground logic programs.
 
-Example:
+Returns
+-------
+ProgramBuilder
 
-#script (python)
-
-import clingo
-
-def main(prg):
-    s = "a."
-    with prg.builder() as b:
-        clingo.parse_program(s, lambda stm: b.add(stm))
-    prg.ground([("base", [])])
-    prg.solve()
-
-#end.
+See Also
+--------
+ProgramBuilder
 )"},
     // ground
     {"ground", to_function<&ControlWrap::ground>(), METH_KEYWORDS | METH_VARARGS,
-R"(ground(self, parts, context) -> None
+R"(ground(self, parts: List[Tuple[str,List[Symbol]]], context: Any=None) -> None
 
 Ground the given list of program parts specified by tuples of names and arguments.
 
-Keyword Arguments:
-parts   -- list of tuples of program names and program arguments to ground
-context -- context object whose methods are called during grounding using
-           the @-syntax (if omitted methods from the main module are used)
+Parameters
+----------
+parts : List[Tuple[str,List[Symbol]]]
+    List of tuples of program names and program arguments to ground.
+context : Any=None
+    A context object whose methods are called during grounding using the
+    `@`-syntax (if omitted methods, from the main module are used).
 
-Note that parts of a logic program without an explicit #program specification
-are by default put into a program called base without arguments.
+Notes
+-----
+Note that parts of a logic program without an explicit `#program` specification
+are by default put into a program called `base` without arguments.
 
-Example:
+Examples
+--------
 
-#script (python)
-import clingo
-
-def main(prg):
-    parts = []
-    parts.append(("p", [1]))
-    parts.append(("p", [2]))
-    prg.ground(parts)
-    prg.solve()
-
-#end.
-
-#program p(t).
-q(t).
-
-Expected Answer Set:
-q(1) q(2))"},
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> ctl.add("p", ["t"], "q(t).")
+    >>> parts = []
+    >>> parts.append(("p", [1]))
+    >>> parts.append(("p", [2]))
+    >>> ctl.ground(parts)
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: q(1) q(2)
+    SAT
+)"},
     // get_const
     {"get_const", to_function<&ControlWrap::getConst>(), METH_VARARGS,
-R"(get_const(self, name) -> Symbol
+R"(get_const(self, name: str) -> Optional[Symbol]
 
-Return the symbol for a constant definition of form: #const name = symbol.)"},
+Return the symbol for a constant definition of form: `#const name = symbol.`
+
+Parameters
+----------
+name : str
+    The name of the constant to retrieve.
+
+Returns
+-------
+Optional[Symbol]
+    The function returns `None` if no matching constant definition exists.
+)"},
     // add
     {"add", to_function<&ControlWrap::add>(), METH_VARARGS,
-R"(add(self, name, params, program) -> None
+R"(add(self, name: str, parameters: List[str], program: str) -> None
 
 Extend the logic program with the given non-ground logic program in string form.
 
-Arguments:
-name    -- name of program block to add
-params  -- parameters of program block
-program -- non-ground program as string
+Parameters
+----------
+name : str
+    The name of program block to add.
+parameters : List[str]
+    The parameters of the program block to add.
+program : str
+    The non-ground program in string form.
 
-Example:
+Returns
+-------
+None
 
-#script (python)
-import clingo
-
-def main(prg):
-    prg.add("p", ["t"], "q(t).")
-    prg.ground([("p", [2])])
-    prg.solve()
-
-#end.
-
-Expected Answer Set:
-q(2))"},
+See Also
+--------
+Control.ground
+)"},
     // load
     {"load", to_function<&ControlWrap::load>(), METH_VARARGS,
-R"(load(self, path) -> None
+R"(load(self, path: str) -> None
 
 Extend the logic program with a (non-ground) logic program in a file.
 
-Arguments:
-path -- path to program)"},
+Parameters
+----------
+path : str
+    The path of the file to load.
+
+Returns
+-------
+None
+)"},
     // solve
     {"solve", to_function<&ControlWrap::solve>(), METH_KEYWORDS | METH_VARARGS,
-R"(solve(self, assumptions, on_model, on_finish, yield_, async_) -> SolveHandle|SolveResult
+R"(solve(self, assumptions: List[Union[Tuple[Symbol,bool],int]]=[], on_model: Callback[[Model],Optional[bool]]=None, on_statistics : Callback[[StatisticsMap,StatisticsMap],None]=None, on_finish: Callback[[SolveResult],None]=None, yield_: bool=False, async_: bool=False) -> Union[SolveHandle,SolveResult]
 
 Starts a search.
 
-Keyword Arguments:
-on_model      -- Optional callback for intercepting models.
-                 A Model object is passed to the callback.
-                 The search can be interruped from the model callback by
-                 returning False.
-                 (Default: None)
-on_statistics -- Optional callback to update statistics.
-                 The step and accumulated statistics are passed as arguments.
-                 (Default: None)
-on_finish     -- Optional callback called once search has finished.
-                 A SolveResult and a Boolean indicating whether the solve call
-                 has been canceled is passed to the callback.
-                 (Default: None)
-assumptions   -- List of (atom, boolean) tuples or program literals that serve
-                 as assumptions for the solve call, e.g. - solving under
-                 assumptions [(Function("a"), True)] only admits answer sets
-                 that contain atom a.
-                 (Default: [])
-yield_        -- The resulting SolveHandle is iterable yielding Model objects.
-                 (Default: False)
-async_        -- The solve call and SolveHandle.resume() are non-blocking.
-                 (Default: False)
+Parameters
+----------
+assumptions : List[Union[Tuple[Symbol,bool],int]]=[]
+    List of (atom, boolean) tuples or program literals that serve
+    as assumptions for the solve call, e.g., solving under
+    assumptions `[(Function("a"), True)]` only admits answer sets
+    that contain atom `a`.
+on_model : Callback[[Model],Optional[bool]]=None
+    Optional callback for intercepting models.
+    A `Model` object is passed to the callback.
+    The search can be interruped from the model callback by
+    returning False.
+on_statistics : Callback[[StatisticsMap,StatisticsMap],None]=None
+    Optional callback to update statistics.
+    The step and accumulated statistics are passed as arguments.
+on_finish : Callback[[SolveResult],None]=None
+    Optional callback called once search has finished.
+    A `SolveResult` also indicating whether the solve call has been intrrupted
+    is passed to the callback.
+yield_ : bool=False
+    The resulting `SolveHandle` is iterable yielding `Model` objects.
+async_ : bool=False
+    The solve call and the method `SolveHandle.resume` of the returned handle
+    are non-blocking.
 
-If neither yield_ nor async_ is set, the function returns a SolveResult right
+Returns
+-------
+Union[SolveHandle,SolveResult]
+    The return value depends on the parameters. If either `yield_` or `async_`
+    is true, then a handle is returned. Otherwise, a `SolveResult` is returned.
+
+Notes
+-----
+If neither `yield_` nor `async_` is set, the function returns a SolveResult right
 away.
 
 Note that in gringo or in clingo with lparse or text output enabled this
-function just grounds and returns a SolveResult where SolveResult.satisfiable
-is True.
+function just grounds and returns a SolveResult where `SolveResult.unknown`
+is true.
 
-You might want to start clingo using the --outf=3 option to disable all output
-from clingo.
+If this function is used in embedded Python code, you might want to start
+clingo using the `--outf=3` option to disable all output from clingo.
 
 Note that asynchronous solving is only available in clingo with thread support
 enabled. Furthermore, the on_model and on_finish callbacks are called from
-another thread.  To ensure that the methods can be called, make sure to not use
-any functions that block the GIL indefinitely.
+another thread. To ensure that the methods can be called, make sure to not use
+any functions that block Python's GIL indefinitely.
 
-This function as well as blocking functions on the SolveHandle release the GIL
+This function as well as blocking functions on the `SolveHandle` release the GIL
 but are not thread-safe.
 
-Example:
+Examples
+--------
 
-#script (python)
-import clingo
+The following example shows how to intercept models with a callback:
 
-def main(prg):
-    prg.add("p", [], "{a;b;c}.")
-    prg.ground([("p", [])])
-    ret = prg.solve()
-    print(ret)
+    >>> import clingo
+    >>> ctl = clingo.Control("0")
+    >>> ctl.add("p", [], "1 { a; b } 1.")
+    >>> ctl.ground([("p", [])])
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: a
+    Answer: b
+    SAT
 
-#end.
+The following example shows how to yield models:
 
-Yielding Example:
+    >>> import clingo
+    >>> ctl = clingo.Control("0")
+    >>> ctl.add("p", [], "1 { a; b } 1.")
+    >>> ctl.ground([("p", [])])
+    >>> with ctl.solve(yield_=True) as handle:
+    ...     for m in handle: print("Answer: {}".format(m))
+    ...     handle.get()
+    ...
+    Answer: a
+    Answer: b
+    SAT
 
-#script (python)
-import clingo
+The following example shows how to solve asynchronously:
 
-def main(prg):
-    prg.add("p", [], "{a;b;c}.")
-    prg.ground([("p", [])])
-    with prg.solve(yield_=True) as handle:
-        for m in handle: print m
-        print(handle.get())
-
-#end.
-
-Asynchronous Example:
-
-#script (python)
-import clingo
-
-def on_model(model):
-    print model
-
-def on_finish(res, canceled):
-    print res, canceled
-
-def main(prg):
-    prg.add("p", [], "{a;b;c}.")
-    prg.ground([("base", [])])
-    with prg.solve(on_model=on_model, on_finish=on_finish, async_=True) as handle:
-        while not handle.wait(0):
-            # do something asynchronously
-        print(handle.get())
-
-#end.)"},
+    >>> import clingo
+    >>> ctl = clingo.Control("0")
+    >>> ctl.add("p", [], "1 { a; b } 1.")
+    >>> ctl.ground([("p", [])])
+    >>> with ctl.solve(on_model=lambda m: print("Answer: {}".format(m)), async_=True) as handle:
+    ...     while not handle.wait(0): pass
+    ...     handle.get()
+    ...
+    Answer: a
+    Answer: b
+    SAT
+)"},
     // cleanup
     {"cleanup", to_function<&ControlWrap::cleanup>(), METH_NOARGS,
 R"(cleanup(self) -> None
@@ -6660,37 +8286,51 @@ simplifying the current program representation (falsifying released external
 atoms).  Afterwards, the top-level implications are used to either remove atoms
 from the domain or mark them as facts.
 
-Note that any atoms falsified are completely removed from the logic program.
-Hence, a definition for such an atom in a successive step introduces a fresh atom.)"},
+Returns
+-------
+None
+
+Notes
+-----
+Any atoms falsified are completely removed from the logic program. Hence, a
+definition for such an atom in a successive step introduces a fresh atom.
+)"},
     // assign_external
     {"assign_external", to_function<&ControlWrap::assign_external>(), METH_VARARGS,
-R"(assign_external(self, external, truth) -> None
+R"(assign_external(self, external: Union[Symbol,int], truth: Optional[bool]) -> None
 
-Assign a truth value to an external atom (represented as a function symbol or
-program literal).
+Assign a truth value to an external atom.
 
-It is possible to assign a Boolean or None.  A Boolean fixes the external to the
-respective truth value; and None leaves its truth value open.
+Parameters
+----------
+external : Union[Symbol,int]
+    A symbol or program literal representing the external atom.
+truth : Optional[bool]
+    A Boolean fixes the external to the respective truth value; and None leaves
+    its truth value open.
 
+Returns
+-------
+None
+
+See Also
+--------
+Control.release_external, SolveControl.symbolic_atoms, SymbolicAtom.is_external
+
+Notes
+-----
 The truth value of an external atom can be changed before each solve call. An
-atom is treated as external if it has been declared using an #external
-directive, and has not been forgotten by calling release_external() or defined
+atom is treated as external if it has been declared using an `#external`
+directive, and has not been released by calling release_external() or defined
 in a logic program with some rule. If the given atom is not external, then the
 function has no effect.
 
 For convenience, the truth assigned to atoms over negative program literals is
 inverted.
-
-Arguments:
-external -- symbol or program literal representing the external atom
-truth    -- bool or None indicating the truth value
-
-To determine whether an atom a is external, inspect the symbolic_atoms using
-SolveControl.symbolic_atoms[a].is_external. See release_external() for an
-example.)"},
+)"},
     // release_external
     {"release_external", to_function<&ControlWrap::release_external>(), METH_VARARGS,
-R"(release_external(self, symbol) -> None
+R"(release_external(self, symbol: Union[Symbol,int]) -> None
 
 Release an external atom represented by the given symbol or program literal.
 
@@ -6698,328 +8338,703 @@ This function causes the corresponding atom to become permanently false if
 there is no definition for the atom in the program. Otherwise, the function has
 no effect.
 
+Parameters
+----------
+symbol : Union[Symbol,int]
+    The symbolic atom or program atom to release.
+
+Returns
+-------
+None
+
+Notes
+-----
 If the program literal is negative, the corresponding atom is released.
 
-Example:
+Examples
+--------
+The following example shows the effect of assigning and releasing and external
+atom.
 
-#script (python)
-from clingo import function
-
-def main(prg):
-    prg.ground([("base", [])])
-    prg.assign_external(Function("b"), True)
-    prg.solve()
-    prg.release_external(Function("b"))
-    prg.solve()
-
-#end.
-
-a.
-#external b.
-
-Expected Answer Sets:
-a b
-a)"},
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> ctl.add("base", [], "a. #external b.")
+    >>> ctl.ground([("base", [])])
+    >>> ctl.assign_external(clingo.Function("b"), True)
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: b a
+    SAT
+    >>> ctl.release_external(clingo.Function("b"))
+    >>> ctl.solve(on_model=lambda m: print("Answer: {}".format(m)))
+    Answer: a
+    SAT
+)"},
     {"register_observer", to_function<&ControlWrap::registerObserver>(), METH_VARARGS | METH_KEYWORDS,
-R"(register_observer(self, observer, replace) -> None
+R"(register_observer(self, observer: Observer, replace: bool=False) -> None
 
 Registers the given observer to inspect the produced grounding.
 
-Arguments:
-observer -- the observer to register
+Parameters
+----------
+observer : Observer
+    The observer to register. See below for a description of the requirede
+    interface.
+replace : bool=False
+    If set to true, the output is just passed to the observer and nolonger to
+    the underlying solver (or any previously registered observers).
 
-Keyword Arguments:
-replace  -- if set to true, the output is just passed to the observer and no
-            longer to the underlying solver
-            (Default: False)
+Returns
+-------
+None
 
+Notes
+-----
 An observer should be a class of the form below. Not all functions have to be
 implemented and can be omitted if not needed.
 
-class GroundProgramObserver:
-    init_program(self, incremental) -> None
+```python
+class Observer:
+    def init_program(self, incremental: bool) -> None:
+        """
         Called once in the beginning.
 
-        If the incremental flag is true, there can be multiple calls to
-        Control.solve().
+        Parameters
+        ----------
+        incremental : bool
+            Whether the program is incremental. If the incremental flag is
+            true, there can be multiple calls to `Control.solve`.
 
-        Arguments:
-        incremental -- whether the program is incremental
+        Returns
+        -------
+        None
+        """
 
-    begin_step(self) -> None
+    def begin_step(self) -> None:
+        """
         Marks the beginning of a block of directives passed to the solver.
 
-    rule(self, choice, head, body) -> None
+        Returns
+        -------
+        None
+        """
+
+    def rule(self, choice: bool, head: List[int], body: List[int]) -> None:
+        """
         Observe rules passed to the solver.
 
-        Arguments:
-        choice -- determines if the head is a choice or a disjunction
-        head   -- list of program atoms
-        body   -- list of program literals
+        Parameters
+        ----------
+        choice : bool
+            Determines if the head is a choice or a disjunction.
+        head : List[int]
+            List of program atoms forming the rule head.
+        body : List[int]
+            List of program literals forming the rule body.
 
-    weight_rule(self, choice, head, lower_bound, body) -> None
-        Observe weight rules passed to the solver.
+        Returns
+        -------
+        None
+        """
 
-        Arguments:
-        choice      -- determines if the head is a choice or a disjunction
-        head        -- list of program atoms
-        lower_bound -- the lower bound of the weight rule
-        body        -- list of weighted literals (pairs of literal and weight)
-
-    minimize(self, priority, literals) -> None
-        Observe minimize constraints (or weak constraints) passed to the
+    def weight_rule(self, choice: bool, head: List[int], lower_bound: int,
+                    body: List[Tuple[int,int]]) -> None:
+        """
+        Observe rules with one weight constraint in the body passed to the
         solver.
 
-        Arguments:
-        priority -- the priority of the constraint
-        literals -- list of weighted literals whose sum to minimize
-                    (pairs of literal and weight)
+        Parameters
+        ----------
+        choice : bool
+            Determines if the head is a choice or a disjunction.
+        head : List[int]
+            List of program atoms forming the head of the rule.
+        lower_bound:
+            The lower bound of the weight constraint in the rule body.
+        body : List[Tuple[int,int]]
+            List of weighted literals (pairs of literal and weight) forming the
+            elements of the weight constraint.
 
-    project(self, atoms) -> None
+        Returns
+        -------
+        None
+        """
+
+    def minimize(self, priority: int, literals: List[Tuple[int,int]]) -> None:
+        """
+        Observe minimize directives (or weak constraints) passed to the
+        solver.
+
+        Parameters
+        ----------
+        priority : int
+            The priority of the directive.
+        literals : List[Tuple[int,int]]
+            List of weighted literals whose sum to minimize (pairs of literal
+            and weight).
+
+        Returns
+        -------
+        None
+        """
+
+    def project(self, atoms: List[int]) -> None:
+        """
         Observe projection directives passed to the solver.
 
-        Arguments:
-        atoms -- the program atoms to project on
+        Parameters
+        ----------
+        atoms : List[int]
+            The program atoms to project on.
 
-    output_atom(self, symbol, atom) -> None
+        Returns
+        -------
+        None
+        """
+
+    def output_atom(self, symbol: Symbol, atom: int) -> None:
+        """
         Observe shown atoms passed to the solver.  Facts do not have an
-        associated program atom.  The value of the atom is set to zero.
+        associated program atom. The value of the atom is set to zero.
 
-        Arguments:
-        symbol -- the symbolic representation of the atom
-        atom   -- the program atom (0 for facts)
+        Parameters
+        ----------
+        symbol : Symbolic
+            The symbolic representation of the atom.
+        atom : int
+            The associated program atom (0 for facts).
 
-    output_term(self, symbol, condition) -> None
+        Returns
+        -------
+        None
+        """
+
+    def output_term(self, symbol: Symbol, condition: List[int]) -> None:
+        """
         Observe shown terms passed to the solver.
 
-        Arguments:
-        symbol    -- the symbolic representation of the term
-        condition -- list of program literals
+        Parameters
+        ----------
+        symbol : Symbol
+            The symbolic representation of the term.
+        condition : List[int]
+            List of program literals forming the condition when to show the
+            term.
 
-    output_csp(self, symbol, value, condition) -> None
+        Returns
+        -------
+        None
+        """
+
+    def output_csp(self, symbol: Symbol, value: int,
+                   condition: List[int]) -> None:
+        """
         Observe shown csp variables passed to the solver.
 
-        Arguments:
-        symbol    -- the symbolic representation of the variable
-        value     -- the integer value of the variable
-        condition -- list of program literals
+        Parameters
+        ----------
+        symbol : Symbol
+            The symbolic representation of the variable.
+        value : int
+            The integer value of the variable.
+        condition : List[int]
+            List of program literals forming the condition when to show the
+            variable with its value.
 
-    external(self, atom, value) -> None
+        Returns
+        -------
+        None
+        """
+
+    def external(self, atom: int, value: TruthValue) -> None:
+        """
         Observe external statements passed to the solver.
 
-        Arguments:
-        atom  -- the external atom in form of a literal
-        value -- the TruthValue of the external statement
+        Parameters
+        ----------
+        atom : int
+            The external atom in form of a program literal.
+        value : TruthValue
+            The truth value of the external statement.
 
-    assume(self, literals) -> None
+        Returns
+        -------
+        None
+        """
+
+    def assume(self, literals: List[int]) -> None:
+        """
         Observe assumption directives passed to the solver.
 
-        Arguments:
-        literals -- the program literals to assume (positive literals are true
-                    and negative literals false for the next solve call)
+        Parameters
+        ----------
+        literals : List[int]
+            The program literals to assume (positive literals are true and
+            negative literals false for the next solve call).
 
-    heuristic(self, atom, type, bias, priority, condition) -> None
+        Returns
+        -------
+        None
+        """
+
+    def heuristic(self, atom: int, type: HeuristicType, bias: int,
+                  priority: int, condition: List[int]) -> None:
+        """
         Observe heuristic directives passed to the solver.
 
-        Arguments:
-        atom      -- the target atom
-        type      -- the HeuristicType
-        bias      -- the heuristic bias
-        priority  -- the heuristic priority
-        condition -- list of program literals
+        Parameters
+        ----------
+        atom : int
+            The program atom heuristically modified.
+        type : HeuristicType
+            The type of the modification.
+        bias : int
+            A signed integer.
+        priority : int
+            An unsigned integer.
+        condition : List[int]
+            List of program literals.
 
-    acyc_edge(self, node_u, node_v, condition) -> None
+        Returns
+        -------
+        None
+        """
+
+    def acyc_edge(self, node_u: int, node_v: int,
+                  condition: List[int]) -> None:
+        """
         Observe edge directives passed to the solver.
 
-        Arguments:
-        node_u    -- the start vertex of the edge (in form of an integer)
-        node_v    -- the end vertex of the edge (in form of an integer)
-        condition -- list of program literals
+        Parameters
+        ----------
+        node_u : int
+            The start vertex of the edge (in form of an integer).
+        node_v : int
+            Тhe end vertex of the edge (in form of an integer).
+        condition : List[int]
+            The list of program literals forming th condition under which to
+            add the edge.
 
-    theory_term_number(self, term_id, number) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_term_number(self, term_id: int, number: int) -> None:
+        """
         Observe numeric theory terms.
 
-        Arguments:
-        term_id -- the id of the term
-        number  -- the (integer) value of the term
+        Parameters
+        ----------
+        term_id : int
+            The id of the term.
+        number : int
+            The value of the term.
 
-    theory_term_string(self, term_id, name) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_term_string(self, term_id : int, name : str) -> None:
+        """
         Observe string theory terms.
 
-        Arguments:
-        term_id -- the id of the term
-        name    -- the string value of the term
+        Parameters
+        ----------
+        term_id : int
+            The id of the term.
+        name : str
+            The string value of the term.
 
-    theory_term_compound(self, term_id, name_id_or_type, arguments) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_term_compound(self, term_id: int, name_id_or_type: int,
+                             arguments: List[int]) -> None:
+        """
         Observe compound theory terms.
 
-        The name_id_or_type gives the type of the compound term:
-        - if it is -1, then it is a tuple
-        - if it is -2, then it is a set
-        - if it is -3, then it is a list
-        - otherwise, it is a function and name_id_or_type refers to the id of
-          the name (in form of a string term)
+        Parameters
+        ----------
+        term_id : int
+            The id of the term.
+        name_id_or_type : int
+            The name or type of the term where
+            - if it is -1, then it is a tuple
+            - if it is -2, then it is a set
+            - if it is -3, then it is a list
+            - otherwise, it is a function and name_id_or_type refers to the id
+            of the name (in form of a string term)
+        arguments : List[int]
+            The arguments of the term in form of a list of term ids.
 
-        Arguments:
-        term_id         -- the id of the term
-        name_id_or_type -- the name or type of the term
-        arguments       -- the arguments of the term
+        Returns
+        -------
+        None
+        """
 
-    theory_element(self, element_id, terms, condition) -> None
+    def theory_element(self, element_id: int, terms: List[int],
+                       condition: List[int]) -> None:
+        """
         Observe theory elements.
 
-        Arguments:
-        element_id -- the id of the element
-        terms      -- term tuple of the element
-        condition  -- list of program literals
+        Parameters
+        ----------
+        element_id : int
+            The id of the element.
+        terms : List[int]
+            The term tuple of the element in form of a list of term ids.
+        condition : List[int]
+            The list of program literals forming the condition.
 
-    theory_atom(self, atom_id_or_zero, term_id, elements) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_atom(self, atom_id_or_zero: int, term_id: int,
+                    elements: List[int]) -> None:
+        """
         Observe theory atoms without guard.
 
-        Arguments:
-        atom_id_or_zero -- the id of the atom or zero for directives
-        term_id         -- the term associated with the atom
-        elements        -- the list of elements of the atom
+        Parameters
+        ----------
+        atom_id_or_zero : int
+            The id of the atom or zero for directives.
+        term_id : int
+            The term associated with the atom.
+        elements : List[int]
+            The elements of the atom in form of a list of element ids.
 
-    theory_atom_with_guard(self, atom_id_or_zero, term_id, elements,
-                           operator_id, right_hand_side_id) -> None
+        Returns
+        -------
+        None
+        """
+
+    def theory_atom_with_guard(self, atom_id_or_zero: int, term_id: int,
+                               elements: List[int], operator_id: int,
+                               right_hand_side_id: int) -> None:
+        """
         Observe theory atoms with guard.
 
-        Arguments:
-        atom_id_or_zero    -- the id of the atom or zero for directives
-        term_id            -- the term associated with the atom
-        elements           -- the elements of the atom
-        operator_id        -- the id of the operator (a string term)
-        right_hand_side_id -- the id of the term on the right hand side of the atom
+        Parameters
+        ----------
+        atom_id_or_zero : int
+            The id of the atom or zero for directives.
+        term_id : int
+            The term associated with the atom.
+        elements : List[int]
+            The elements of the atom in form of a list of element ids.
+        operator_id : int
+            The id of the operator (a string term).
+        right_hand_side_id : int
+            The id of the term on the right hand side of the atom.
 
-    end_step(self) -> None
+        Returns
+        -------
+        None
+        """
+
+    def end_step(self) -> None:
+        """
         Marks the end of a block of directives passed to the solver.
 
-        This function is called right before solving starts.)"},
+        This function is called right before solving starts.
+
+        Returns
+        -------
+        None
+        """
+```
+)"},
     {"register_propagator", to_function<&ControlWrap::registerPropagator>(), METH_O,
-R"(register_propagator(self, propagator) -> None
+R"(register_propagator(self, propagator: Propagator) -> None
 
 Registers the given propagator with all solvers.
 
-Arguments:
-propagator -- the propagator to register
+Parameters
+----------
+propagator : Propagator
+    The propagator to register.
+
+Returns
+-------
+None
+
+Notes
+-----
+Each symbolic or theory atom is uniquely associated with a positive program
+atom in form of a positive integer. Program literals additionally have a sign
+to represent default negation. Furthermore, there are non-zero integer solver
+literals. There is a surjective mapping from program atoms to solver literals.
+
+All methods called during propagation use solver literals whereas
+`SymbolicAtom.literal` and `TheoryAtom.literal` return program literals. The
+function `PropagateInit.solver_literal` can be used to map program literals or
+condition ids to solver literals.
 
 A propagator should be a class of the form below. Not all functions have to be
 implemented and can be omitted if not needed.
 
-class Propagator(object)
-    init(self, init) -> None
-        This function is called once before each solving step.  It is used to
-        map relevant program literals to solver literals, add watches for
-        solver literals, and initialize the data structures used during
-        propagation.
+```python
+class Propagator:
+    def init(self, init: PropagateInit) -> None:
+        """
+        This function is called once before each solving step.
 
-        Arguments:
-        init -- PropagateInit object
+        It is used to map relevant program literals to solver literals, add
+        watches for solver literals, and initialize the data structures used
+        during propagation.
 
-        Note that this is the last point to access theory atoms.  Once the
-        search has started, they are no longer accessible.
+        Parameters
+        ----------
+        init : PropagateInit
+            Object to initialize the propagator.
 
-    propagate(self, control, changes) -> None
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This is the last point to access theory atoms.  Once the search has
+        started, they are no longer accessible.
+        """
+
+    def propagate(self, control: PropagateControl, changes: List[int]) -> None:
+        """
         Can be used to propagate solver literals given a partial assignment.
 
-        Arguments:
-        control -- PropagateControl object
-        changes -- list of watched solver literals assigned to true
+        Parameters
+        ----------
+        control : PropagateControl
+            Object to control propagation.
+        changes : List[int]
+            List of watched solver literals assigned to true.
 
-        Usage:
+        Returns
+        -------
+        None
+
+        Notes
+        -----
         Called during propagation with a non-empty list of watched solver
         literals that have been assigned to true since the last call to either
-        propagate, undo, (or the start of the search) - the change set.  Only
-        watched solver literals are contained in the change set.  Each literal
+        propagate, undo, (or the start of the search) - the change set. Only
+        watched solver literals are contained in the change set. Each literal
         in the change set is true w.r.t. the current Assignment.
-        PropagateControl.add_clause can be used to add clauses.  If a clause is
-        unit resulting, it can be propagated using
-        PropagateControl.propagate().  If either of the two methods returns
+        `PropagateControl.add_clause` can be used to add clauses. If a clause
+        is unit resulting, it can be propagated using
+        `PropagateControl.propagate`. If either of the two methods returns
         False, the propagate function must return immediately.
 
-          c = ...
-          if not control.add_clause(c) or not control.propagate(c):
-              return
+            c = ...
+            if not control.add_clause(c) or not control.propagate(c):
+                return
 
         Note that this function can be called from different solving threads.
         Each thread has its own assignment and id, which can be obtained using
-        PropagateControl.id().
+        `PropagateControl.id`.
+        """
 
-    undo(self, thread_id, assign, changes) -> None
+    def undo(self, thread_id: int, assignment: Assignment,
+             changes: List[int]) -> None:
+        """
         Called whenever a solver with the given id undos assignments to watched
         solver literals.
 
-        Arguments:
-        thread_id -- the solver thread id
-        changes   -- list of watched solver literals whose assignment is undone
+        Parameters
+        ----------
+        thread_id : int
+            The solver thread id.
+        assignment : Assignment
+            Object for inspecting the partial assignment of the solver.
+        changes : List[int]
+            The list of watched solver literals whose assignment is undone.
 
+        Returns
+        -------
+        None
+
+        Notes
+        -----
         This function is meant to update assignment dependent state in a
-        propagator.
+        propagator but not to modify the current state of the solver.
+        Furthermore, errors raised in the function lead to program termination.
+        """
 
-    check(self, control) -> None
+    def check(self, control: PropagateControl) -> None:
+        """
         This function is similar to propagate but is called without a change
-        set on propagation fixpoints.  When exactly this function is called,
-        can be configured using the @ref PropagateInit.check_mode property.
+        set on propagation fixpoints.
 
-        Note that this function is called even if no watches have been added.
+        When exactly this function is called, can be configured using the @ref
+        PropagateInit.check_mode property.
 
-        Arguments:
-        control -- PropagateControl object
+        Parameters
+        ----------
+        control : PropagateControl
+            Object to control propagation.
 
-        This function is called even if no watches have been added.)"},
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This function is called even if no watches have been added.
+        """
+
+    def decide(self, thread_id: int, assignment: Assignment, fallback: int) -> int:
+        """
+        This function allows a propagator to implement domain-specific
+        heuristics.
+
+        It is called whenever propagation reaches a fixed point.
+
+        Parameters
+        ----------
+        thread_id : int
+            The solver thread id.
+        assignment : Assignment
+            Object for inspecting the partial assignment of the solver.
+        fallback : int
+            The literal choosen by the solver's heuristic.
+
+        Returns
+        -------
+        int
+            Тhe next solver literal to make true.
+
+        Notes
+        -----
+        This function should return a free solver literal that is to be
+        assigned true. In case multiple propagators are registered, this
+        function can return 0 to let a propagator registered later make a
+        decision. If all propagators return 0, then the fallback literal is
+        used.
+        """
+```
+        )"},
     {"interrupt", to_function<&ControlWrap::interrupt>(), METH_NOARGS,
 R"(interrupt(self) -> None
 
 Interrupt the active solve call.
 
-This function is thread-safe and can be called from a signal handler. If no
-search is active the subsequent call to solve() is interrupted. The SolveResult
-of the above solving methods can be used to query if the search was
-interrupted.)"},
-    {"backend", to_function<&ControlWrap::backend>(), METH_NOARGS,
-R"(backend() -> Backend
+Returns
+-------
+None
 
-Returns a Backend object providing a low level interface to extend a logic program.)"},
+Notes
+-----
+This function is thread-safe and can be called from a signal handler. If no
+search is active, the subsequent call to `Control.solve` is interrupted. The
+result of the `Control.solve` method can be used to query if the search was
+interrupted.
+)"},
+    {"backend", to_function<&ControlWrap::backend>(), METH_NOARGS,
+R"(backend(self) -> Backend
+
+Returns a `Backend` object providing a low level interface to extend a logic
+program.
+
+Returns
+-------
+Backend
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef ControlWrap::tp_getset[] = {
-    {(char*)"configuration", to_getter<&ControlWrap::conf>(), nullptr, (char*)"Configuration object to change the configuration.", nullptr},
-    {(char*)"symbolic_atoms", to_getter<&ControlWrap::symbolicAtoms>(), nullptr, (char*)"SymbolicAtoms object to inspect the symbolic atoms.", nullptr},
+    {(char*)"configuration", to_getter<&ControlWrap::conf>(), nullptr, (char*)R"(configuration: Configuration
+`Configuration` object to change the configuration.
+)", nullptr},
+    {(char*)"symbolic_atoms", to_getter<&ControlWrap::symbolicAtoms>(), nullptr, (char*)R"(symbolic_atoms: SymbolicAtoms
+
+`SymbolicAtoms` object to inspect the symbolic atoms.
+)", nullptr},
     {(char*)"use_enumeration_assumption", nullptr, to_setter<&ControlWrap::set_use_enumeration_assumption>(),
-(char*)R"(Boolean determining how learnt information from enumeration modes is treated.
+(char*)R"(set_use_enumeration_assumption: bool
+
+Whether do discard or keep learnt information from enumeration modes.
 
 If the enumeration assumption is enabled, then all information learnt from
 clasp's various enumeration modes is removed after a solve call. This includes
 enumeration of cautious or brave consequences, enumeration of answer sets with
-or without projection, or finding optimal models; as well as clauses/nogoods
-added with Model.add_clause()/Model.add_nogood().
+or without projection, or finding optimal models; as well as clauses added with
+`SolveControl.add_clause`.
 
-Note that initially the enumeration assumption is enabled.)", nullptr},
-    {(char*)"is_conflicting", to_getter<&ControlWrap::isConflicting>(), nullptr,
-(char*)R"(Whether the internal program representation is conflicting.
+Notes
+-----
+Initially the enumeration assumption is enabled.
+
+In general, the enumeration assumption should be enabled whenever there are
+multiple calls to solve. Otherwise, the behavior of the solver will be
+unpredictable because there are no guarantees which information exactly is
+kept. There might be small speed benefits when disabling the enumeration
+assumption for single shot solving.
+)", nullptr},
+    {(char*)"is_conflicting", to_getter<&ControlWrap::isConflicting>(), nullptr, (char*)R"(is_conflicting: bool
+
+Whether the internal program representation is conflicting.
 
 If this (read-only) property is true, solve calls return immediately with an
-unsatisfiable solve result.  Note that conflicts first have to be detected,
-e.g. - initial unit propagation results in an empty clause, or later if an
-empty clause is resolved during solving.  Hence, the property might be false
-even if the problem is unsatisfiable.)", nullptr},
+unsatisfiable solve result.
+
+Notes
+-----
+Conflicts first have to be detected, e.g., initial unit propagation results in
+an empty clause, or later if an empty clause is resolved during solving. Hence,
+the property might be false even if the problem is unsatisfiable.
+)", nullptr},
     {(char*)"statistics", to_getter<&ControlWrap::getStats>(), nullptr,
-(char*)R"(A dictionary containing solve statistics of the last solve call.
+(char*)R"(statistics: dict
 
-Contains the statistics of the last solve() call. The statistics correspond to
-the --stats output of clingo.  The detail of the statistics depends on what
-level is requested on the command line. Furthermore, you might want to start
-clingo using the --outf=3 option to disable all output from clingo.
+A `dict` containing solve statistics of the last solve call.
 
-Note that this (read-only) property is only available in clingo.
+Notes
+-----
+The statistics correspond to the `--stats` output of clingo. The detail of the
+statistics depends on what level is requested on the command line. Furthermore,
+there are some functions like `Control.release_external` that start a new
+solving step resetting the current step statistics. It is best to access the
+statistics right after solving.
 
-Example:
-import json
-json.dumps(prg.statistics, sort_keys=True, indent=4, separators=(',', ': ')))", nullptr},
-    {(char *)"theory_atoms", to_getter<&ControlWrap::theoryIter>(), nullptr, (char *)R"(A TheoryAtomIter object, which can be used to iterate over the theory atoms.)", nullptr},
-    {(char *)"_to_c", to_getter<&ControlWrap::to_c>(), nullptr, (char *)R"(An int representing the pointer to the underlying C clingo_control_t struct.)", nullptr},
+This property is only available in clingo.
+
+Examples
+--------
+The following example shows how to dump the solving statistics in json format:
+
+    >>> import json
+    >>> import clingo
+    >>> ctl = clingo.Control()
+    >>> ctl.add("base", [], "{a}.")
+    >>> ctl.ground([("base", [])])
+    >>> ctl.solve()
+    SAT
+    >>> print(json.dumps(ctl.statistics['solving'], sort_keys=True, indent=4,
+    ... separators=(',', ': ')))
+    {
+        "solvers": {
+            "choices": 1.0,
+            "conflicts": 0.0,
+            "conflicts_analyzed": 0.0,
+            "restarts": 0.0,
+            "restarts_last": 0.0
+        }
+    }
+)", nullptr},
+    {(char *)"theory_atoms", to_getter<&ControlWrap::theoryIter>(), nullptr, (char *)R"(theory_atoms: TheoryAtomIter
+
+A `TheoryAtomIter` object, which can be used to iterate over the theory atoms.
+)", nullptr},
+    {(char *)"_to_c", to_getter<&ControlWrap::to_c>(), nullptr, (char *)R"(_to_c: int
+
+An `int` representing the pointer to the underlying C `clingo_control_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -7029,10 +9044,14 @@ struct Flag : ObjectBase<Flag> {
     bool flag;
     static constexpr char const *tp_type = "Flag";
     static constexpr char const *tp_name = "clingo.Flag";
-    static constexpr char const *tp_doc = R"(Helper object to parse flags.
+    static constexpr char const *tp_doc = R"(Flag(value: bool=False) -> Flag
 
-Keyword Arguments:
-value -- initial value of the flag
+Helper object to parse command-line flags.
+
+Parameters
+----------
+value : bool=False
+    The initial value of the flag.
 )";
     static PyGetSetDef tp_getset[];
     static Object tp_new(PyTypeObject *type) {
@@ -7046,6 +9065,12 @@ value -- initial value of the flag
         ParseTupleAndKeywords(args, kwargs, "|O", kwlist, pyValue);
         flag = pyValue.isTrue();
     }
+    bool nb_bool() {
+        return flag;
+    }
+    Object nb_int() {
+        return cppToPy(static_cast<int>(flag));
+    }
     Object get_value() {
         return cppToPy(flag);
     }
@@ -7055,7 +9080,10 @@ value -- initial value of the flag
 };
 
 PyGetSetDef Flag::tp_getset[] = {
-    {(char*)"value", to_getter<&Flag::get_value>(), to_setter<&Flag::set_value>(), (char*)"The value of the flag.", nullptr},
+    {(char*)"value", to_getter<&Flag::get_value>(), to_setter<&Flag::set_value>(), (char*)R"(flag: bool
+
+The value of the flag.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -7064,7 +9092,7 @@ struct ApplicationOptions : ObjectBase<ApplicationOptions> {
     std::vector<Object> *refs;
     static constexpr char const *tp_type = "ApplicationOptions";
     static constexpr char const *tp_name = "clingo.ApplicationOptions";
-    static constexpr char const *tp_doc = R"(Object add custom options to a clingo based application.)";
+    static constexpr char const *tp_doc = R"(Object to add custom options to a clingo based application.)";
     static PyMethodDef tp_methods[];
     static PyGetSetDef tp_getset[];
 
@@ -7119,56 +9147,75 @@ struct ApplicationOptions : ObjectBase<ApplicationOptions> {
 };
 
 PyMethodDef ApplicationOptions::tp_methods[] = {
-    {"add", to_function<&ApplicationOptions::add>(), METH_VARARGS | METH_KEYWORDS, R"(add_flag(self, group, option, description, parser, multi, argument) -> None
+    {"add", to_function<&ApplicationOptions::add>(), METH_VARARGS | METH_KEYWORDS, R"(add(self, group: str, option: str, description: str, parser: Callback[[str], bool], multi: bool=False, argument: str=None) -> None
 
 Add an option that is processed with a custom parser.
 
-Note that the parser also has to take care of storing the semantic value of
-the option somewhere.
+Parameters
+----------
+group : str
+    Options are grouped into sections as given by this string.
+option : str
+    Parameter option specifies the name(s) of the option. For example,
+    `"ping,p"` adds the short option `-p` and its long form `--ping`. It is
+    also possible to associate an option with a help level by adding `",@l"` to
+    the option specification. Options with a level greater than zero are only
+    shown if the argument to help is greater or equal to `l`.
+description : str
+    The description of the option shown in the help output.
+parser : Callback[[str], bool]
+    An option parser is a function that takes a string as input and returns
+    true or false depending on whether the option was parsed successively.
+multi : bool=False
+    Whether the option can appear multiple times on the command-line.
+argument : str=None
+    Optional string to change the value name in the generated help.
 
-Parameter option specifies the name(s) of the option. For example, "ping,p"
-adds the short option "-p" and its long form "--ping". It is also possible to
-associate an option with a help level by adding "@l" to the option
-specification. Options with a level greater than zero are only shown if the
-argument to help is greater or equal to l.
+Returns
+-------
+None
 
-An option parser is a function that takes a string as input and returns true or
-false depending on whether the option was parsed successively.
+Raises
+------
+RuntimeError
+    An error is raised if an option with the same name already exists.
 
-Note that an error is raised if an option with the same name already exists.
-
-Arguments:
-options     -- object to register the option with
-group       -- options are grouped into sections as given by this string
-option      -- specifies the command line option
-description -- the description of the option
-parser      -- callback to parse the value of the option
-
-Keyword Arguments:
-multi    -- whether the option can appear multiple times on the command-line
-            (Default: False)
-argument -- optional string to change the value name in the generated help
-            output
+Notes
+-----
+The parser also has to take care of storing the semantic value of the option
+somewhere.
 )"},
-    {"add_flag", to_function<&ApplicationOptions::add_flag>(), METH_VARARGS | METH_KEYWORDS, R"(add_flag(self, group, option, description, target) -> None
+    {"add_flag", to_function<&ApplicationOptions::add_flag>(), METH_VARARGS | METH_KEYWORDS, R"(add_flag(self, group: str, option: str, description: str, target: Flag) -> None
 
 Add an option that is a simple flag.
 
-This function is similar to add() but simpler because it only supports flags,
-which do not have values. Note that the target parameter must be of type Flag,
-which is set to true if the flag is passed on the command line.
+This function is similar to `ApplicationOptions.add` but simpler because
+it only supports flags, which do not have values. Note that the target
+parameter must be of type Flag, which is set to true if the flag is passed on
+the command line.
 
-Arguments:
-group       -- options are grouped into sections as given by this string
-option      -- name on the command line
-description -- description of the option
-target      -- Flag object
+Parameters
+----------
+group : str
+    Options are grouped into sections as given by this string.
+option : str
+    Same as for `ApplicationOptions.add`.
+description : str
+    The description of the option shown in the help output.
+target : Flag
+    The object that receives the value.
+
+Returns
+-------
+None
 )"},
     {nullptr, nullptr, 0, nullptr}
 };
 
 PyGetSetDef ApplicationOptions::tp_getset[] = {
-    {(char *)"_to_c", to_getter<&ApplicationOptions::to_c>(), nullptr, (char *)"An int representing the pointer to the underlying C clingo_options_t struct.", nullptr},
+    {(char *)"_to_c", to_getter<&ApplicationOptions::to_c>(), nullptr, (char *)R"(_to_c: int
+An int representing the pointer to the underlying C `clingo_options_t` struct.
+)", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 
@@ -7231,6 +9278,7 @@ bool g_app_main(clingo_control_t *control, char const *const * files, size_t siz
 }
 
 void g_app_logger(clingo_warning_t code, char const *message, void *data) {
+    PyBlock block;
     try {
         AppData &pyApp = *static_cast<AppData*>(data);
         pyApp.first.call("logger", MessageCode::getAttr(code), cppToPy(message));
@@ -7290,11 +9338,15 @@ bool g_app_model_printer(clingo_model_t const *model, clingo_default_model_print
 bool g_app_validate_options(void *data) {
     try {
         AppData &pyApp = *static_cast<AppData*>(data);
-        return pyToCpp<bool>(pyApp.first.call("validate_options"));
+        pyApp.first.call("validate_options");
+        return true;
     }
     catch (...) {
         handle_cxx_error("<application>", "error when validating options");
         std::cerr << clingo_error_message() << std::endl;
+        // NOTE: to avoid getting stack traces for such kind of errors
+        //       could be avoided with a special kind of error that is
+        //       reported differently than a runtime error
         std::terminate();
     }
 }
@@ -7333,6 +9385,15 @@ Object clingoMain(Reference args, Reference kwds) {
     };
     AppData data{pyApp, {}};
     return PyLong_FromLong(clingo_main(&app, cArgs.data(), cArgs.size(), &data));
+}
+
+Object clingoErrorMessage() {
+    char const *msg = clingo_error_message();
+    return msg ? cppToPy(msg) : None();
+}
+
+Object clingoErrorCode() {
+    return cppToPy(static_cast<int>(clingo_error_code()));
 }
 
 // {{{1 gringo module
@@ -7391,17 +9452,16 @@ static PyMethodDef clingoASTModuleMethods[] = {
     {"ProjectSignature", to_function<createProjectSignature>(), METH_VARARGS | METH_KEYWORDS, nullptr},
     {nullptr, nullptr, 0, nullptr}
 };
-static char const *clingoASTModuleDoc = "The clingo.ast-" CLINGO_VERSION " module."
-R"(
-
+static char const *clingoASTModuleDoc = "The clingo.ast-" CLINGO_VERSION " module." R"(
 
 The grammar below defines valid ASTs. For each upper case identifier there is a
 matching function in the module. Arguments follow in parenthesis: each having a
-type given on the right-hand side of the colon. The symbols ?, *, and + are
-used to denote optional arguments (None encodes abscence), list arguments, and
-non-empty list arguments.
+type given on the right-hand side of the colon. The symbols `?`, `*`, and `+`
+are used to denote optional arguments (`None` encodes abscence), list
+arguments, and non-empty list arguments.
 
--- Terms
+```
+# Terms
 
 term = Symbol
         ( location : Location
@@ -7473,7 +9533,7 @@ theory_term = Symbol
                              )+
                )
 
--- Literals
+# Literals
 
 symbolic_atom = SymbolicAtom
                  ( term : term
@@ -7502,7 +9562,7 @@ literal = Literal
                          )+
            )
 
--- Head and Body Literals
+# Head and Body Literals
 
 aggregate_guard = AggregateGuard
                    ( comparison : ComparisonOperator
@@ -7583,7 +9643,7 @@ head = literal
         )
      | theory_atom
 
--- Theory Definitions
+# Theory Definitions
 
 theory = TheoryDefinition
           ( location : Location
@@ -7611,7 +9671,7 @@ theory = TheoryDefinition
                         )
           )
 
--- Statements
+# Statements
 
 statement = Rule
              ( location : Location
@@ -7667,6 +9727,7 @@ statement = Rule
              ( location : Location
              , atom     : symbolic_atom
              , body     : body_literal*
+             , type     : term
              )
           | Edge
              ( location : Location
@@ -7693,82 +9754,142 @@ statement = Rule
              , arity      : int
              , positive   : bool
              )
+```
 )";
 
 static PyMethodDef clingoModuleMethods[] = {
     {"parse_term", to_function<parseTerm>(), METH_VARARGS | METH_KEYWORDS,
-R"(parse_term(string, logger, message_limit) -> Symbol
+R"(parse_term(string: str, logger: Callback[[MessageCode,str],None]=None, message_limit: int=20) -> Symbol
 
-Parse the given string using gringo's term parser for ground terms. The
-function also evaluates arithmetic functions.
+Parse the given string using gringo's term parser for ground terms.
 
-Arguments:
-string -- the string to be parsed
+The function also evaluates arithmetic functions.
 
-Keyword Arguments:
-logger        -- function to intercept messages normally printed to standard
-                 error (default: None)
-message_limit -- maximum number of messages passed to the logger (default: 20)
+Parameters
+----------
+string : str
+    The string to be parsed.
+logger : Callback[[MessageCode,str],None] = None
+    Function to intercept messages normally printed to standard error.
+message_limit : int = 20
+    Maximum number of messages passed to the logger.
 
-Example:
+Returns
+-------
+Symbol
 
-clingo.parse_term('p(1+2)') == clingo.Function("p", [3])
+Examples
+--------
+
+    >>> import clingo
+    >>> clingo.parse_term('p(1+2)')
+    p(3)
 )"},
     {"clingo_main", to_function<clingoMain>(), METH_VARARGS | METH_KEYWORDS,
-R"(clingo_main(application, files) -> int
+R"(clingo_main(application: Application, files: List[str]=[]) -> int
 
-Runs the given applications using clingo's default output and signal handling.
+Runs the given application using clingo's default output and signal handling.
 
 The application can overwrite clingo's default behaviour by registering
 additional options and overriding its default main function.
 
-Arguments:
-application -- the Application object
+Parameters
+----------
+application : Application
+    The Application object (see notes).
+files : List[str]
+    The files to pass to the main function of the application.
 
-Keyword Arguments:
-files -- files passed on the command line
-
+Returns
+-------
+int
+    The exit code of the application.
+Notes
+-----
 The application object must implement a main function and additionally can
 override the other functions.
 
-class Application(object):
-    main(self, control, files) -> None
-        Function to replace clingo's default main function.
+    class Application(object):
+        """
+        Interface that has to be implemented to customize clingo.
 
-    register_options(self, options) -> None
-        Function to register custom options.
+        Attributes
+        ----------
+        program_name: str = 'clingo'
+            Optional program name to be used in the help output.
 
-        Arguments:
-        options -- ApplicationOptions object that can be used to register
-                   different kind of options
+        message_limit: int = 20
+            Maximum number of messages passed to the logger.
+        """
 
-    validate_options(self) -> bool
-        Function to validate custom options.
+        def main(self, control: Control, files: List[str]) -> None:
+            """
+            Function to replace clingo's default main function.
 
-        This function should return a boolean to indicate that option
-        validation failed.
+            Parameters
+            ----------
+            control : Control
+                The main control object.
+            files : List[str]
+                The files passed to clingo_main.
 
-        Note: this function should not raise execptions
+            Returns
+            -------
+            None
+            """
 
-    logger(self, code, message) -> None
-        Function to intercept messages normally printed to standard error.
-        (Default: messages are printed to stdandard error)
+        def register_options(self, options: ApplicationOptions) -> None:
+            """
+            Function to register custom options.
 
-        Arguments:
-        code    -- MessageCode object
-        message -- message string
+            Parameters
+            ----------
+            options : ApplicationOptions
+                Object to register additional options
 
-        Note: this function should not raise execptions
+            Returns
+            -------
+            None
+            """
 
-    program_name -> String:
-        Optional program name to be used in the help output.
-        (Default: clingo)
+        def validate_options(self) -> bool:
+            """
+            Function to validate custom options.
 
-    message_limit -> Int:
-        Maximum number of messages passed to the logger.
-        (Default: 20)
+            This function should return false or throw an exception if option
+            validation fails.
 
-Example reproducing the default clingo behaviour:
+            Returns
+            -------
+            bool
+            """
+
+        def logger(self, code: MessageCode, message: str) -> None:
+            """
+            Function to intercept messages normally printed to standard error.
+
+            By default, messages are printed to stdandard error.
+
+            Parameters
+            ----------
+            code : MessageCode
+                The message code.
+            message : str
+                The message string.
+
+            Returns
+            -------
+            None
+
+            Notes
+            -----
+            This function should not raise exceptions.
+            """
+
+Examples
+--------
+
+The following example reproduces the default clingo application:
 
     import sys
     import clingo
@@ -7789,52 +9910,132 @@ Example reproducing the default clingo behaviour:
     clingo.clingo_main(Application(sys.argv[0]), sys.argv[1:])
 )"},
     {"parse_program", to_function<parseProgram>(), METH_VARARGS | METH_KEYWORDS,
-R"(parse_program(program, callback) -> None
+R"(parse_program(program: str, callback: Callable[[ast.AST], None]) -> None
 
 Parse the given program and return an abstract syntax tree for each statement
 via a callback.
 
-Arguments:
-program  -- string representation of program
-callback -- callback taking an ast as argument
+Parameters
+----------
+program : str
+    String representation of the program.
+callback : Callable[[ast.AST], None]
+    Callback taking an ast as argument.
+
+Returns
+-------
+None
+
+See Also
+--------
+ProgramBuilder
 )"},
-    {"Function", to_function<Symbol::new_function>(), METH_VARARGS | METH_KEYWORDS, R"(Function(name, arguments, positive) -> Symbol
+    {"Function", to_function<Symbol::new_function>(), METH_VARARGS | METH_KEYWORDS, R"(Function(name: str, arguments: List[Symbol]=[], positive: bool=True) -> Symbol
 
 Construct a function symbol.
 
-Arguments:
-name -- the name of the function (empty for tuples)
-
-Keyword Arguments:
-arguments -- the arguments in form of a list of symbols
-positive  -- the sign of the function (tuples must not have signs)
-             (Default: True)
-
 This includes constants and tuples. Constants have an empty argument list and
 tuples have an empty name. Functions can represent classically negated atoms.
-Argument positive has to be set to False to represent such atoms.)"},
-    {"Tuple", to_function<Symbol::new_tuple>(), METH_O, R"(Tuple(arguments) -> Symbol
+Argument `positive` has to be set to false to represent such atoms.
 
-Shortcut for Function("", arguments).
+Parameters
+----------
+name : str
+    The name of the function (empty for tuples).
+arguments: List[Symbol] = []
+    The arguments in form of a list of symbols.
+positive: bool = True
+    The sign of the function (tuples must not have signs).
+
+Returns
+-------
+Symbol
 )"},
-    {"Number", to_function<Symbol::new_number>(), METH_O, R"(Number(number) -> Symbol
+    {"Tuple", to_function<Symbol::new_tuple>(), METH_O, R"(Tuple(arguments: List[Symbol]) -> Symbol
 
-Construct a numeric symbol given a number.)"},
-    {"String", to_function<Symbol::new_string>(), METH_O, R"(String(string) -> Symbol
+A shortcut for `Function("", arguments)`.
 
-Construct a string symbol given a string.)"},
+Parameters
+----------
+arguments: List[Symbol]
+    The arguments in form of a list of symbols.
+
+Returns
+-------
+Symbol
+
+See Also
+--------
+clingo.Function
+)"},
+    {"Number", to_function<Symbol::new_number>(), METH_O, R"(Number(number: int) -> Symbol
+
+Construct a numeric symbol given a number.
+
+Parameters
+----------
+number : int
+    The given number.
+
+Returns
+-------
+Symbol
+)"},
+    {"String", to_function<Symbol::new_string>(), METH_O, R"(String(string: str) -> Symbol
+
+Construct a string symbol given a string.
+
+Parameters
+----------
+string : str
+    The given string.
+
+Returns
+-------
+Symbol
+)"},
+    {"_Symbol", to_function<Symbol::new_symbol>(), METH_O, R"(_Symbol(value: int) -> Symbol
+
+Construct a symbol from its numeric C representation.
+
+Parameters
+----------
+value : int
+    The internal value of the symbol.
+
+Returns
+-------
+Symbol
+)"},
+    {"_error_message", to_function<clingoErrorMessage>(), METH_NOARGS, R"(_error_message() -> str
+
+Get the internal error message.
+
+Returns
+-------
+str
+)"},
+    {"_error_code", to_function<clingoErrorCode>(), METH_NOARGS, R"(_error_code() -> int
+
+Get the internal error code.
+
+Returns
+-------
+int
+)"},
     {nullptr, nullptr, 0, nullptr}
 };
 static char const *clingoModuleDoc =
 "The clingo-" CLINGO_VERSION R"( module.
 
-This module provides functions and classes to work with ground terms and to
-control the instantiation process.  In clingo builts, additional functions to
-control and inspect the solving process are available.
+This module provides functions and classes to control the grounding and solving
+process.
 
-Functions defined in a python script block are callable during the
-instantiation process using @-syntax. The default grounding/solving process can
-be customized if a main function is provided.
+If the clingo application is build with Python support, clingo will also be
+able to execute Python code embedded in logic programs.  Functions defined in a
+Python script block are callable during the instantiation process using
+`@`-syntax.  The default grounding/solving process can be customized if a main
+function is provided.
 
 Note that gringo's precomputed terms (terms without variables and interpreted
 functions), called symbols in the following, are wrapped in the Symbol class.
@@ -7842,74 +10043,53 @@ Furthermore, strings, numbers, and tuples can be passed wherever a symbol is
 expected - they are automatically converted into a Symbol object.  Functions
 called during the grounding process from the logic program must either return a
 symbol or a sequence of symbols.  If a sequence is returned, the corresponding
-@-term is successively substituted by the values in the sequence.
+`@`-term is successively substituted by the values in the sequence.
 
-Static Objects:
+## Examples
 
-__version__ -- version of the clingo module ()" CLINGO_VERSION  R"()
-Infimum     -- represents an #inf symbol
-Supremum    -- represents a #sup symbol
+The first example shows how to use the clingo module from Python.
 
-Functions:
+    >>> import clingo
+    >>> class Context:
+    ...     def id(self, x):
+    ...         return x
+    ...     def seq(self, x, y):
+    ...         return [x, y]
+    ...
+    >>> def on_model(m):
+    ...     print (m)
+    ...
+    >>> ctl = clingo.Control()
+    >>> ctl.add("base", [], """\
+    ... p(@id(10)).
+    ... q(@seq(1,2)).
+    ... """)
+    >>> ctl.ground([("base", [])], context=Context())
+    >>> ctl.solve(on_model=on_model)
+    p(10) q(1) q(2)
+    SAT
 
-Function()      -- create a function symbol
-Number()        -- create a number symbol
-parse_program() -- parse a logic program
-parse_term()    -- parse ground terms
-String()        -- create a string symbol
-Tuple()         -- create a tuple symbol (shortcut)
+The second example shows how to use Python code from clingo.
 
-Classes:
+    #script (python)
 
-ApplicationOptions  -- add custom options to clingo
-Assignment          -- partial assignment of truth values to solver literals
-Backend             -- extend the logic program
-Configuration       -- modify/inspect the solver configuration
-Control             -- controls the grounding/solving process
-Flag                -- helper object to parse command line flags
-HeuristicType       -- enumeration of heuristic modificators
-MessageCode         -- enumeration of message codes
-Model               -- provides access to a model during solve call
-ModelType           -- captures the type of a model
-ProgramBuilder      -- extend a non-ground logic program
-PropagatorCheckMode -- enumeration of check modes
-PropagateControl    -- controls running search in a custom propagator
-PropagateInit       -- object to initialize custom propagators
-SolveControl        -- controls running search in a model handler
-SolveHandle         -- handle for solve calls
-SolveResult         -- result of a solve call
-StatisticsArray     -- updatable statistics stored in an array
-StatisticsMap       -- updatable statistics stored in a map
-Symbol              -- captures precomputed terms
-SymbolicAtom        -- captures information about a symbolic atom
-SymbolicAtomIter    -- iterate over symbolic atoms
-SymbolicAtoms       -- inspection of symbolic atoms
-SymbolType          -- enumeration of symbol types
-TheoryAtom          -- captures theory atoms
-TheoryAtomIter      -- iterate over theory atoms
-TheoryElement       -- captures theory elements
-TheoryTerm          -- captures theory terms
-TheoryTermType      -- the type of a theory term
-TruthValue          -- enumeration of truth values
+    import clingo
 
-Example:
+    class Context:
+        def id(x):
+            return x
 
-#script (python)
-import clingo
-def id(x):
-    return x
+        def seq(x, y):
+            return [x, y]
 
-def seq(x, y):
-    return [x, y]
+    def main(prg):
+        prg.ground([("base", [])], context=Context())
+        prg.solve()
 
-def main(prg):
-    prg.ground([("base", [])])
-    prg.solve()
+    #end.
 
-#end.
-
-p(@id(10)).
-q(@seq(1,2)).
+    p(@id(10)).
+    q(@seq(1,2)).
 )";
 
 #if PY_MAJOR_VERSION >= 3
@@ -7976,6 +10156,7 @@ PyObject *initclingo_() {
             !ProgramBuilder::initType(m)      || !HeuristicType::initType(m)    || !TruthValue::initType(m)       ||
             !PropagatorCheckMode::initType(m) || !MessageCode::initType(m)      || !Flag::initType(m)             ||
             !ApplicationOptions::initType(m)  || !StatisticsArray::initType(m)  || !StatisticsMap::initType(m)    ||
+            !Trail::initType(m)               || !Slice::initType(m)            ||
             PyModule_AddStringConstant(m.toPy(), "__version__", CLINGO_VERSION) < 0 ||
             false) { return nullptr; }
         Reference a{initclingoast_()};
@@ -7993,6 +10174,14 @@ bool pyIsInt(Reference x) {
 #if PY_MAJOR_VERSION < 3
     if (PyInt_Check(x.toPy())) { return true; }
 #endif
+    return false;
+}
+
+bool pyIsSymbol(Reference obj) {
+    if (obj.isInstance(Symbol::type)) { return true; }
+    if (PyTuple_Check(obj.toPy()))    { return true; }
+    if (pyIsInt(obj))                 { return true; }
+    if (PyString_Check(obj.toPy()))   { return true; }
     return false;
 }
 

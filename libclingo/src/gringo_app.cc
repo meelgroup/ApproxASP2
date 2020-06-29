@@ -171,12 +171,11 @@ struct IncrementalControl : Control {
         parser.pushBlock(name, std::move(idVec), part, logger_);
         parse();
     }
-    Symbol getConst(std::string const &name) override {
-        parse();
+    Symbol getConst(std::string const &name) const override {
         auto ret = defs.defs().find(name.c_str());
         if (ret != defs.defs().end()) {
             bool undefined = false;
-            Symbol val = std::get<2>(ret->second)->eval(undefined, logger_);
+            Symbol val = std::get<2>(ret->second)->eval(undefined, const_cast<Logger&>(logger_));
             if (!undefined) { return val; }
         }
         return Symbol();
@@ -208,12 +207,12 @@ struct IncrementalControl : Control {
     void registerObserver(UBackend prg, bool replace) override {
         out.registerObserver(std::move(prg), replace);
     }
-    Potassco::AbstractStatistics *statistics() override { throw std::runtime_error("statistics not supported (yet)"); }
-    bool isConflicting() noexcept override { return false; }
+    Potassco::AbstractStatistics const *statistics() const override { throw std::runtime_error("statistics not supported (yet)"); }
+    bool isConflicting() const noexcept override { return false; }
     void assignExternal(Potassco::Atom_t ext, Potassco::Value_t val) override {
         if (auto *b = out.backend_()) { b->external(ext, val); }
     }
-    SymbolicAtoms &getDomain() override { throw std::runtime_error("domain introspection not supported"); }
+    SymbolicAtoms const &getDomain() const override { throw std::runtime_error("domain introspection not supported"); }
     ConfigProxy &getConf() override { throw std::runtime_error("configuration not supported"); }
     void registerPropagator(UProp, bool) override { throw std::runtime_error("theory propagators not supported"); }
     void useEnumAssumption(bool) override { }
@@ -229,12 +228,33 @@ struct IncrementalControl : Control {
         if (!backend_) { throw std::runtime_error("backend not available"); }
         return backend_;
     }
-    Id_t addAtom(Symbol sym) override { return out.addAtom(sym); }
+    Id_t addAtom(Symbol sym) override {
+        bool added = false;
+        auto atom  = out.addAtom(sym, &added);
+        if (added) { added_atoms_.emplace_back(sym); }
+        return atom;
+    }
+    void addFact(Potassco::Atom_t uid) override {
+        added_facts_.emplace(uid);
+    }
     void endAddBackend() override {
+        for (auto &sym : added_atoms_) {
+            auto it = out.predDoms().find(sym.sig());
+            assert(it != out.predDoms().end());
+            auto jt = (*it)->find(sym);
+            assert(jt != (*it)->end());
+            assert(jt->hasUid());
+            if (added_facts_.find(jt->uid()) != added_facts_.end()) {
+                jt->setFact(true);
+            }
+        }
+        added_atoms_.clear();
+        added_facts_.clear();
         out.endGround(logger());
         backend_ = nullptr;
     }
     Potassco::Atom_t addProgramAtom() override { return out.data.newAtom(); }
+
     Input::GroundTermParser        termParser;
     Output::OutputBase            &out;
     Scripts                       &scripts;
@@ -244,6 +264,8 @@ struct IncrementalControl : Control {
     Input::NonGroundParser         parser;
     GringoOptions const           &opts;
     Logger                         logger_;
+    std::vector<Symbol>            added_atoms_;
+    std::unordered_set<Potassco::Atom_t> added_facts_;
     Backend                       *backend_ = nullptr;
     std::unique_ptr<Input::NongroundProgramBuilder> builder;
     bool                                   incmode = false;

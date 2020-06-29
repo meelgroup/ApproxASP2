@@ -25,6 +25,8 @@
 #include "tests.hh"
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <iterator>
 #ifdef _MSC_VER
 #pragma warning (disable : 4996) // 'tmpnam': may be unsafe.
 #endif
@@ -262,8 +264,6 @@ TEST_CASE("solving", "[clingo]") {
         SECTION("backend-add-atom") {
             auto a = [](int x) { return Function("a", {Number(x)}); };
             auto b = [](int x) { return Function("b", {Number(x)}); };
-            auto c = [](int x) { return Function("c", {Number(x)}); };
-            auto d = [](int x) { return Function("d", {Number(x)}); };
             auto e = [](int x) { return Function("e", {Number(x)}); };
             {
                 auto backend = ctl.backend();
@@ -450,6 +450,22 @@ TEST_CASE("solving", "[clingo]") {
             REQUIRE(atom.guard().second.number() == 42);
             REQUIRE(atom.literal() == 0);
         }
+        SECTION("theory-not") {
+            char const *theory =
+                "#theory t {\n"
+                "  term {\n"
+                "    not : 0, unary;\n"
+                "    not : 1, binary, left\n"
+                "  };\n"
+                "  &atom/0 : term, directive\n"
+                "}.\n"
+                "&atom { not (1 not 2) }.\n";
+            ctl.add("base", {}, theory);
+            ctl.ground({{"base", {}}});
+            auto atoms = ctl.theory_atoms();
+            REQUIRE(atoms.size() == 1);
+            REQUIRE(atoms.begin()->to_string() == "&atom{(not (1 not 2))}");
+        }
         SECTION("symbolic atoms") {
             ctl.add("base", {}, "p(1). {p(2)}. #external p(3). q.");
             ctl.ground({{"base", {}}});
@@ -602,6 +618,35 @@ TEST_CASE("solving", "[clingo]") {
             REQUIRE(test_solve(ctl.solve(), models).is_unsatisfiable());
             REQUIRE(models == ModelVec({}));
             REQUIRE(trail == std::vector<std::string>({"IP: incremental", "BS", "R: 1:-~1", "ES"}));
+        }
+        SECTION("theory data bug") {
+            struct Observer : Clingo::GroundProgramObserver {
+                Observer(std::vector<id_t> &atoms) : atoms_{atoms} { }
+                void theory_atom(id_t atom_id_or_zero, id_t , IdSpan ) override {
+                    atoms_.emplace_back(atom_id_or_zero);
+                }
+                std::vector<id_t> &atoms_;
+            };
+
+            std::vector<id_t> atoms;
+            Observer o{atoms};
+            ctl.register_observer(o);
+            ctl.add("base",{}, R"(#theory csp {
+                                   dom_term {};
+                                   &dom/0 : dom_term, any}.)");
+            ctl.add("base",{}, "&dom {0}. &dom {1}.");
+            ctl.add("acid",{}, "&dom {1}. &dom {2}.");
+            REQUIRE(atoms == std::vector<id_t>({}));
+            ctl.ground({{"base", {}}});
+            REQUIRE(atoms == std::vector<id_t>({1, 2}));
+            ctl.ground({{"acid", {}}});
+            REQUIRE(atoms == std::vector<id_t>({1, 2, 3}));
+            ctl.cleanup();
+            REQUIRE(atoms == std::vector<id_t>({1, 2, 3}));
+            { ctl.backend(); }
+            REQUIRE(atoms == std::vector<id_t>({1, 2, 3}));
+            { ctl.backend(); }
+            REQUIRE(atoms == std::vector<id_t>({1, 2, 3}));
         }
         SECTION("events") {
             ctl.add("base", {}, "{a}.");

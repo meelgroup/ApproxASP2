@@ -111,11 +111,11 @@ extern "C" {
 //! Major version number.
 #define CLINGO_VERSION_MAJOR 5
 //! Minor version number.
-#define CLINGO_VERSION_MINOR 3
+#define CLINGO_VERSION_MINOR 5
 //! Revision number.
-#define CLINGO_VERSION_REVISION 1
+#define CLINGO_VERSION_REVISION 0
 //! String representation of version.
-#define CLINGO_VERSION "5.3.1"
+#define CLINGO_VERSION "5.5.0"
 
 //! Signed integer type used for aspif and solver literals.
 typedef int32_t clingo_literal_t;
@@ -125,6 +125,12 @@ typedef uint32_t clingo_atom_t;
 typedef uint32_t clingo_id_t;
 //! Signed integer type for weights in sum aggregates and minimize constraints.
 typedef int32_t clingo_weight_t;
+//! A Literal with an associated weight.
+typedef struct clingo_weighted_literal {
+    clingo_literal_t literal;
+    clingo_weight_t weight;
+} clingo_weighted_literal_t;
+
 
 //! Enumeration of error codes.
 //!
@@ -201,6 +207,7 @@ typedef int clingo_truth_value_t;
 //!
 //! @note Not all locations refer to physical files.
 //! By convention, such locations use a name put in angular brackets as filename.
+//! The string members of a location object are internalized and valid for the duration of the process.
 typedef struct clingo_location {
     char const *begin_file; //!< the file where the location begins
     char const *end_file;   //!< the file where the location ends
@@ -260,6 +267,9 @@ typedef uint64_t clingo_signature_t;
 //! - ::clingo_error_bad_alloc
 CLINGO_VISIBILITY_DEFAULT bool clingo_signature_create(char const *name, uint32_t arity, bool positive, clingo_signature_t *signature);
 //! Get the name of a signature.
+//!
+//! @note
+//! The string is internalized and valid for the duration of the process.
 //!
 //! @param[in] signature the target signature
 //! @return the name of the signature
@@ -380,12 +390,18 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbol_create_function(char const *name, c
 CLINGO_VISIBILITY_DEFAULT bool clingo_symbol_number(clingo_symbol_t symbol, int *number);
 //! Get the name of a symbol.
 //!
+//! @note
+//! The string is internalized and valid for the duration of the process.
+//!
 //! @param[in] symbol the target symbol
 //! @param[out] name the resulting name
 //! @return whether the call was successful; might set one of the following error codes:
 //! - ::clingo_error_runtime if symbol is not of type ::clingo_symbol_type_function
 CLINGO_VISIBILITY_DEFAULT bool clingo_symbol_name(clingo_symbol_t symbol, char const **name);
 //! Get the string of a symbol.
+//!
+//! @note
+//! The string is internalized and valid for the duration of the process.
 //!
 //! @param[in] symbol the target symbol
 //! @param[out] string the resulting string
@@ -469,8 +485,7 @@ CLINGO_VISIBILITY_DEFAULT size_t clingo_symbol_hash(clingo_symbol_t symbol);
 //! Internalize a string.
 //!
 //! This functions takes a string as input and returns an equal unique string
-//! that is (at the moment) not freed until the program is closed.  All strings
-//! returned from clingo API functions are internalized and must not be freed.
+//! that is (at the moment) not freed until the program is closed.
 //!
 //! @param[in] string the string to internalize
 //! @param[out] result the internalized string
@@ -540,7 +555,7 @@ typedef uint64_t clingo_symbolic_atom_iterator_t;
 //! @param[in] atoms the target
 //! @param[out] size the number of atoms
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_size(clingo_symbolic_atoms_t *atoms, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_size(clingo_symbolic_atoms_t const *atoms, size_t *size);
 //! Get a forward iterator to the beginning of the sequence of all symbolic
 //! atoms optionally restricted to a given signature.
 //!
@@ -548,13 +563,13 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_size(clingo_symbolic_atoms_
 //! @param[in] signature optional signature
 //! @param[out] iterator the resulting iterator
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_begin(clingo_symbolic_atoms_t *atoms, clingo_signature_t const *signature, clingo_symbolic_atom_iterator_t *iterator);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_begin(clingo_symbolic_atoms_t const *atoms, clingo_signature_t const *signature, clingo_symbolic_atom_iterator_t *iterator);
 //! Iterator pointing to the end of the sequence of symbolic atoms.
 //!
 //! @param[in] atoms the target
 //! @param[out] iterator the resulting iterator
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_end(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t *iterator);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_end(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t *iterator);
 //! Find a symbolic atom given its symbolic representation.
 //!
 //! @param[in] atoms the target
@@ -562,7 +577,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_end(clingo_symbolic_atoms_t
 //! @param[out] iterator iterator pointing to the symbolic atom or to the end
 //! of the sequence if no corresponding atom is found
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_find(clingo_symbolic_atoms_t *atoms, clingo_symbol_t symbol, clingo_symbolic_atom_iterator_t *iterator);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_find(clingo_symbolic_atoms_t const *atoms, clingo_symbol_t symbol, clingo_symbolic_atom_iterator_t *iterator);
 //! Check if two iterators point to the same element (or end of the sequence).
 //!
 //! @param[in] atoms the target
@@ -570,14 +585,14 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_find(clingo_symbolic_atoms_
 //! @param[in] b the second iterator
 //! @param[out] equal whether the two iterators are equal
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_iterator_is_equal_to(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t a, clingo_symbolic_atom_iterator_t b, bool *equal);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_iterator_is_equal_to(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t a, clingo_symbolic_atom_iterator_t b, bool *equal);
 //! Get the symbolic representation of an atom.
 //!
 //! @param[in] atoms the target
 //! @param[in] iterator iterator to the atom
 //! @param[out] symbol the resulting symbol
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_symbol(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t iterator, clingo_symbol_t *symbol);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_symbol(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t iterator, clingo_symbol_t *symbol);
 //! Check whether an atom is a fact.
 //!
 //! @note This does not determine if an atom is a cautious consequence. The
@@ -588,7 +603,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_symbol(clingo_symbolic_atom
 //! @param[in] iterator iterator to the atom
 //! @param[out] fact whether the atom is a fact
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_is_fact(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t iterator, bool *fact);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_is_fact(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t iterator, bool *fact);
 //! Check whether an atom is external.
 //!
 //! An atom is external if it has been defined using an external directive and
@@ -598,7 +613,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_is_fact(clingo_symbolic_ato
 //! @param[in] iterator iterator to the atom
 //! @param[out] external whether the atom is a external
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_is_external(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t iterator, bool *external);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_is_external(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t iterator, bool *external);
 //! Returns the (numeric) aspif literal corresponding to the given symbolic atom.
 //!
 //! Such a literal can be mapped to a solver literal (see the \ref Propagator
@@ -609,13 +624,13 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_is_external(clingo_symbolic
 //! @param[in] iterator iterator to the atom
 //! @param[out] literal the associated literal
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_literal(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t iterator, clingo_literal_t *literal);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_literal(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t iterator, clingo_literal_t *literal);
 //! Get the number of different predicate signatures used in the program.
 //!
 //! @param[in] atoms the target
 //! @param[out] size the number of signatures
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_signatures_size(clingo_symbolic_atoms_t *atoms, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_signatures_size(clingo_symbolic_atoms_t const *atoms, size_t *size);
 //! Get the predicate signatures occurring in a logic program.
 //!
 //! @param[in] atoms the target
@@ -626,14 +641,14 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_signatures_size(clingo_symb
 //! - ::clingo_error_runtime if the size is too small
 //!
 //! @see clingo_symbolic_atoms_signatures_size()
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_signatures(clingo_symbolic_atoms_t *atoms, clingo_signature_t *signatures, size_t size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_signatures(clingo_symbolic_atoms_t const *atoms, clingo_signature_t *signatures, size_t size);
 //! Get an iterator to the next element in the sequence of symbolic atoms.
 //!
 //! @param[in] atoms the target
 //! @param[in] iterator the current iterator
 //! @param[out] next the succeeding iterator
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_next(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t iterator, clingo_symbolic_atom_iterator_t *next);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_next(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t iterator, clingo_symbolic_atom_iterator_t *next);
 //! Check whether the given iterator points to some element with the sequence
 //! of symbolic atoms or to the end of the sequence.
 //!
@@ -642,7 +657,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_next(clingo_symbolic_atoms_
 //! @param[out] valid whether the iterator points to some element within the
 //! sequence
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_is_valid(clingo_symbolic_atoms_t *atoms, clingo_symbolic_atom_iterator_t iterator, bool *valid);
+CLINGO_VISIBILITY_DEFAULT bool clingo_symbolic_atoms_is_valid(clingo_symbolic_atoms_t const *atoms, clingo_symbolic_atom_iterator_t iterator, bool *valid);
 
 //! Callback function to inject symbols.
 //!
@@ -719,7 +734,7 @@ typedef struct clingo_theory_atoms clingo_theory_atoms_t;
 //! @param[in] term id of the term
 //! @param[out] type the resulting type
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_type(clingo_theory_atoms_t *atoms, clingo_id_t term, clingo_theory_term_type_t *type);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_type(clingo_theory_atoms_t const *atoms, clingo_id_t term, clingo_theory_term_type_t *type);
 //! Get the number of the given numeric theory term.
 //!
 //! @pre The term must be of type ::clingo_theory_term_type_number.
@@ -727,15 +742,18 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_type(clingo_theory_atoms
 //! @param[in] term id of the term
 //! @param[out] number the resulting number
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_number(clingo_theory_atoms_t *atoms, clingo_id_t term, int *number);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_number(clingo_theory_atoms_t const *atoms, clingo_id_t term, int *number);
 //! Get the name of the given constant or function theory term.
+//!
+//! @note
+//! The lifetime of the string is tied to the current solve step.
 //!
 //! @pre The term must be of type ::clingo_theory_term_type_function or ::clingo_theory_term_type_symbol.
 //! @param[in] atoms container where the term is stored
 //! @param[in] term id of the term
 //! @param[out] name the resulting name
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_name(clingo_theory_atoms_t *atoms, clingo_id_t term, char const **name);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_name(clingo_theory_atoms_t const *atoms, clingo_id_t term, char const **name);
 //! Get the arguments of the given function theory term.
 //!
 //! @pre The term must be of type ::clingo_theory_term_type_function.
@@ -744,7 +762,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_name(clingo_theory_atoms
 //! @param[out] arguments the resulting arguments in form of an array of term ids
 //! @param[out] size the number of arguments
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_arguments(clingo_theory_atoms_t *atoms, clingo_id_t term, clingo_id_t const **arguments, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_arguments(clingo_theory_atoms_t const *atoms, clingo_id_t term, clingo_id_t const **arguments, size_t *size);
 //! Get the size of the string representation of the given theory term (including the terminating 0).
 //!
 //! @param[in] atoms container where the term is stored
@@ -752,7 +770,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_arguments(clingo_theory_
 //! @param[out] size the resulting size
 //! @return whether the call was successful; might set one of the following error codes:
 //! - ::clingo_error_bad_alloc
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_to_string_size(clingo_theory_atoms_t *atoms, clingo_id_t term, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_to_string_size(clingo_theory_atoms_t const *atoms, clingo_id_t term, size_t *size);
 //! Get the string representation of the given theory term.
 //!
 //! @param[in] atoms container where the term is stored
@@ -764,7 +782,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_to_string_size(clingo_th
 //! - ::clingo_error_bad_alloc
 //!
 //! @see clingo_theory_atoms_term_to_string_size()
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_to_string(clingo_theory_atoms_t *atoms, clingo_id_t term, char *string, size_t size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_to_string(clingo_theory_atoms_t const *atoms, clingo_id_t term, char *string, size_t size);
 //! @}
 
 //! @name Theory Element Inspection
@@ -777,7 +795,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_term_to_string(clingo_theory_
 //! @param[out] tuple the resulting array of term ids
 //! @param[out] size the number of term ids
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_tuple(clingo_theory_atoms_t *atoms, clingo_id_t element, clingo_id_t const **tuple, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_tuple(clingo_theory_atoms_t const *atoms, clingo_id_t element, clingo_id_t const **tuple, size_t *size);
 //! Get the condition (array of aspif literals) of the given theory element.
 //!
 //! @param[in] atoms container where the element is stored
@@ -785,7 +803,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_tuple(clingo_theory_a
 //! @param[out] condition the resulting array of aspif literals
 //! @param[out] size the number of term literals
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_condition(clingo_theory_atoms_t *atoms, clingo_id_t element, clingo_literal_t const **condition, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_condition(clingo_theory_atoms_t const *atoms, clingo_id_t element, clingo_literal_t const **condition, size_t *size);
 //! Get the id of the condition of the given theory element.
 //!
 //! @note
@@ -797,7 +815,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_condition(clingo_theo
 //! @param[in] element id of the element
 //! @param[out] condition the resulting condition id
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_condition_id(clingo_theory_atoms_t *atoms, clingo_id_t element, clingo_literal_t *condition);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_condition_id(clingo_theory_atoms_t const *atoms, clingo_id_t element, clingo_literal_t *condition);
 //! Get the size of the string representation of the given theory element (including the terminating 0).
 //!
 //! @param[in] atoms container where the element is stored
@@ -805,7 +823,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_condition_id(clingo_t
 //! @param[out] size the resulting size
 //! @return whether the call was successful; might set one of the following error codes:
 //! - ::clingo_error_bad_alloc
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_to_string_size(clingo_theory_atoms_t *atoms, clingo_id_t element, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_to_string_size(clingo_theory_atoms_t const *atoms, clingo_id_t element, size_t *size);
 //! Get the string representation of the given theory element.
 //!
 //! @param[in] atoms container where the element is stored
@@ -815,7 +833,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_to_string_size(clingo
 //! @return whether the call was successful; might set one of the following error codes:
 //! - ::clingo_error_runtime if the size is too small
 //! - ::clingo_error_bad_alloc
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_to_string(clingo_theory_atoms_t *atoms, clingo_id_t element, char *string, size_t size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_to_string(clingo_theory_atoms_t const *atoms, clingo_id_t element, char *string, size_t size);
 //! @}
 
 //! @name Theory Atom Inspection
@@ -826,14 +844,14 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_element_to_string(clingo_theo
 //! @param[in] atoms the target
 //! @param[out] size the resulting number
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_size(clingo_theory_atoms_t *atoms, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_size(clingo_theory_atoms_t const *atoms, size_t *size);
 //! Get the theory term associated with the theory atom.
 //!
 //! @param[in] atoms container where the atom is stored
 //! @param[in] atom id of the atom
 //! @param[out] term the resulting term id
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_term(clingo_theory_atoms_t *atoms, clingo_id_t atom, clingo_id_t *term);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_term(clingo_theory_atoms_t const *atoms, clingo_id_t atom, clingo_id_t *term);
 //! Get the theory elements associated with the theory atom.
 //!
 //! @param[in] atoms container where the atom is stored
@@ -841,29 +859,32 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_term(clingo_theory_atoms
 //! @param[out] elements the resulting array of elements
 //! @param[out] size the number of elements
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_elements(clingo_theory_atoms_t *atoms, clingo_id_t atom, clingo_id_t const **elements, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_elements(clingo_theory_atoms_t const *atoms, clingo_id_t atom, clingo_id_t const **elements, size_t *size);
 //! Whether the theory atom has a guard.
 //!
 //! @param[in] atoms container where the atom is stored
 //! @param[in] atom id of the atom
 //! @param[out] has_guard whether the theory atom has a guard
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_has_guard(clingo_theory_atoms_t *atoms, clingo_id_t atom, bool *has_guard);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_has_guard(clingo_theory_atoms_t const *atoms, clingo_id_t atom, bool *has_guard);
 //! Get the guard consisting of a theory operator and a theory term of the given theory atom.
+//!
+//! @note
+//! The lifetime of the string is tied to the current solve step.
 //!
 //! @param[in] atoms container where the atom is stored
 //! @param[in] atom id of the atom
 //! @param[out] connective the resulting theory operator
 //! @param[out] term the resulting term
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_guard(clingo_theory_atoms_t *atoms, clingo_id_t atom, char const **connective, clingo_id_t *term);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_guard(clingo_theory_atoms_t const *atoms, clingo_id_t atom, char const **connective, clingo_id_t *term);
 //! Get the aspif literal associated with the given theory atom.
 //!
 //! @param[in] atoms container where the atom is stored
 //! @param[in] atom id of the atom
 //! @param[out] literal the resulting literal
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_literal(clingo_theory_atoms_t *atoms, clingo_id_t atom, clingo_literal_t *literal);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_literal(clingo_theory_atoms_t const *atoms, clingo_id_t atom, clingo_literal_t *literal);
 //! Get the size of the string representation of the given theory atom (including the terminating 0).
 //!
 //! @param[in] atoms container where the atom is stored
@@ -871,7 +892,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_literal(clingo_theory_at
 //! @param[out] size the resulting size
 //! @return whether the call was successful; might set one of the following error codes:
 //! - ::clingo_error_bad_alloc
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_to_string_size(clingo_theory_atoms_t *atoms, clingo_id_t atom, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_to_string_size(clingo_theory_atoms_t const *atoms, clingo_id_t atom, size_t *size);
 //! Get the string representation of the given theory atom.
 //!
 //! @param[in] atoms container where the atom is stored
@@ -881,7 +902,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_to_string_size(clingo_th
 //! @return whether the call was successful; might set one of the following error codes:
 //! - ::clingo_error_runtime if the size is too small
 //! - ::clingo_error_bad_alloc
-CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_to_string(clingo_theory_atoms_t *atoms, clingo_id_t atom, char *string, size_t size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_theory_atoms_atom_to_string(clingo_theory_atoms_t const *atoms, clingo_id_t atom, char *string, size_t size);
 //! @}
 
 //! @}
@@ -927,39 +948,46 @@ typedef struct clingo_assignment clingo_assignment_t;
 //!
 //! @param[in] assignment the target assignment
 //! @return the decision level
-CLINGO_VISIBILITY_DEFAULT uint32_t clingo_assignment_decision_level(clingo_assignment_t *assignment);
+CLINGO_VISIBILITY_DEFAULT uint32_t clingo_assignment_decision_level(clingo_assignment_t const *assignment);
+//! Get the current root level.
+//!
+//! Decisions levels smaller or equal to the root level are not backtracked during solving.
+//!
+//! @param[in] assignment the target assignment
+//! @return the decision level
+CLINGO_VISIBILITY_DEFAULT uint32_t clingo_assignment_root_level(clingo_assignment_t const *assignment);
 //! Check if the given assignment is conflicting.
 //!
 //! @param[in] assignment the target assignment
 //! @return whether the assignment is conflicting
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_has_conflict(clingo_assignment_t *assignment);
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_has_conflict(clingo_assignment_t const *assignment);
 //! Check if the given literal is part of a (partial) assignment.
 //!
 //! @param[in] assignment the target assignment
 //! @param[in] literal the literal
 //! @return whether the literal is valid
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_has_literal(clingo_assignment_t *assignment, clingo_literal_t literal);
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_has_literal(clingo_assignment_t const *assignment, clingo_literal_t literal);
 //! Determine the decision level of a given literal.
 //!
 //! @param[in] assignment the target assignment
 //! @param[in] literal the literal
 //! @param[out] level the resulting level
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_level(clingo_assignment_t *assignment, clingo_literal_t literal, uint32_t *level);
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_level(clingo_assignment_t const *assignment, clingo_literal_t literal, uint32_t *level);
 //! Determine the decision literal given a decision level.
 //!
 //! @param[in] assignment the target assignment
 //! @param[in] level the level
 //! @param[out] literal the resulting literal
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_decision(clingo_assignment_t *assignment, uint32_t level, clingo_literal_t *literal);
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_decision(clingo_assignment_t const *assignment, uint32_t level, clingo_literal_t *literal);
 //! Check if a literal has a fixed truth value.
 //!
 //! @param[in] assignment the target assignment
 //! @param[in] literal the literal
 //! @param[out] is_fixed whether the literal is fixed
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_fixed(clingo_assignment_t *assignment, clingo_literal_t literal, bool *is_fixed);
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_fixed(clingo_assignment_t const *assignment, clingo_literal_t literal, bool *is_fixed);
 //! Check if a literal is true.
 //!
 //! @param[in] assignment the target assignment
@@ -967,7 +995,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_fixed(clingo_assignment_t *a
 //! @param[out] is_true whether the literal is true
 //! @return whether the call was successful
 //! @see clingo_assignment_truth_value()
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_true(clingo_assignment_t *assignment, clingo_literal_t literal, bool *is_true);
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_true(clingo_assignment_t const *assignment, clingo_literal_t literal, bool *is_true);
 //! Check if a literal has a fixed truth value.
 //!
 //! @param[in] assignment the target assignment
@@ -975,29 +1003,67 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_true(clingo_assignment_t *as
 //! @param[out] is_false whether the literal is false
 //! @return whether the call was successful
 //! @see clingo_assignment_truth_value()
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_false(clingo_assignment_t *assignment, clingo_literal_t literal, bool *is_false);
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_false(clingo_assignment_t const *assignment, clingo_literal_t literal, bool *is_false);
 //! Determine the truth value of a given literal.
 //!
 //! @param[in] assignment the target assignment
 //! @param[in] literal the literal
 //! @param[out] value the resulting truth value
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_truth_value(clingo_assignment_t *assignment, clingo_literal_t literal, clingo_truth_value_t *value);
-//! The number of assigned literals in the assignment.
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_truth_value(clingo_assignment_t const *assignment, clingo_literal_t literal, clingo_truth_value_t *value);
+//! The number of (positive) literals in the assignment.
 //!
 //! @param[in] assignment the target
 //! @return the number of literals
-CLINGO_VISIBILITY_DEFAULT size_t clingo_assignment_size(clingo_assignment_t *assignment);
-//! The maximum size of the assignment (if all literals are assigned).
+CLINGO_VISIBILITY_DEFAULT size_t clingo_assignment_size(clingo_assignment_t const *assignment);
+//! The (positive) literal at the given offset in the assignment.
 //!
 //! @param[in] assignment the target
+//! @param[in] offset the offset of the literal
+//! @param[out] literal the literal
 //! @return the maximum size
-CLINGO_VISIBILITY_DEFAULT size_t clingo_assignment_max_size(clingo_assignment_t *assignment);
-//! Check if the assignmen is total, i.e. - size == max_size.
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_at(clingo_assignment_t const *assignment, size_t offset, clingo_literal_t *literal);
+//! Check if the assignment is total, i.e. there are no free literal.
 //!
 //! @param[in] assignment the target
 //! @return wheather the assignment is total
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_total(clingo_assignment_t *assignment);
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_is_total(clingo_assignment_t const *assignment);
+//! Returns the number of literals in the trail, i.e., the number of assigned literals.
+//!
+//! @param[in] assignment the target
+//! @param[out] size the number of literals in the trail
+//! @return whether the call was successful
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_trail_size(clingo_assignment_t const *assignment, uint32_t *size);
+//! Returns the offset of the decision literal with the given decision level in
+//! the trail.
+//!
+//! @note Literals in the trail are ordered by decision levels, where the first
+//! literal with a larger level than the previous literals is a decision; the
+//! following literals with same level are implied by this decision literal.
+//! Each decision level up to and including the current decision level has a
+//! valid offset in the trail.
+//!
+//! @param[in] assignment the target
+//! @param[in] level the decision level
+//! @param[out] offset the offset of the decision literal
+//! @return whether the call was successful
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_trail_begin(clingo_assignment_t const *assignment, uint32_t level, uint32_t *offset);
+//! Returns the offset following the last literal with the given decision level.
+//!
+//! @note This function is the counter part to clingo_assignment_trail_begin().
+//!
+//! @param[in] assignment the target
+//! @param[in] level the decision level
+//! @param[out] offset the offset
+//! @return whether the call was successful
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_trail_end(clingo_assignment_t const *assignment, uint32_t level, uint32_t *offset);
+//! Returns the literal at the given position in the trail.
+//!
+//! @param[in] assignment the target
+//! @param[in] offset the offset of the literal
+//! @param[out] literal the literal
+//! @return whether the call was successful
+CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_trail_at(clingo_assignment_t const *assignment, uint32_t offset, clingo_literal_t *literal);
 
 //! @}
 
@@ -1009,6 +1075,15 @@ enum clingo_propagator_check_mode {
 };
 //! Corresponding type to ::clingo_propagator_check_mode.
 typedef int clingo_propagator_check_mode_t;
+
+//! Enumeration of weight_constraint_types.
+enum clingo_weight_constraint_type {
+    clingo_weight_constraint_type_implication_left  = -1, //!< the weight constraint implies the literal
+    clingo_weight_constraint_type_implication_right =  1, //!< the literal implies the weight constraint
+    clingo_weight_constraint_type_equivalence       =  0, //!< the weight constraint is equivalent to the literal
+};
+//! Corresponding type to ::clingo_weight_constraint_type.
+typedef int clingo_weight_constraint_type_t;
 
 //! Object to initialize a user-defined propagator before each solving step.
 //!
@@ -1030,7 +1105,7 @@ typedef struct clingo_propagate_init clingo_propagate_init_t;
 //! @param[in] aspif_literal the aspif literal to map
 //! @param[out] solver_literal the resulting solver literal
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_solver_literal(clingo_propagate_init_t *init, clingo_literal_t aspif_literal, clingo_literal_t *solver_literal);
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_solver_literal(clingo_propagate_init_t const *init, clingo_literal_t aspif_literal, clingo_literal_t *solver_literal);
 //! Add a watch for the solver literal in the given phase.
 //!
 //! @param[in] init the target
@@ -1043,25 +1118,25 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_add_watch(clingo_propagate_
 //! @param[in] solver_literal the solver literal
 //! @param[in] thread_id the id of the solver thread
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_add_watch_to_thread(clingo_propagate_init_t *init, clingo_literal_t solver_literal, uint32_t thread_id);
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_add_watch_to_thread(clingo_propagate_init_t *init, clingo_literal_t solver_literal, clingo_id_t thread_id);
 //! Get an object to inspect the symbolic atoms.
 //!
 //! @param[in] init the target
 //! @param[out] atoms the resulting object
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_symbolic_atoms(clingo_propagate_init_t *init, clingo_symbolic_atoms_t **atoms);
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_symbolic_atoms(clingo_propagate_init_t const *init, clingo_symbolic_atoms_t const **atoms);
 //! Get an object to inspect the theory atoms.
 //!
 //! @param[in] init the target
 //! @param[out] atoms the resulting object
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_theory_atoms(clingo_propagate_init_t *init, clingo_theory_atoms_t **atoms);
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_theory_atoms(clingo_propagate_init_t const *init, clingo_theory_atoms_t const **atoms);
 //! Get the number of threads used in subsequent solving.
 //!
 //! @param[in] init the target
 //! @return the number of threads
 //! @see clingo_propagate_control_thread_id()
-CLINGO_VISIBILITY_DEFAULT int clingo_propagate_init_number_of_threads(clingo_propagate_init_t *init);
+CLINGO_VISIBILITY_DEFAULT int clingo_propagate_init_number_of_threads(clingo_propagate_init_t const *init);
 //! Configure when to call the check method of the propagator.
 //!
 //! @param[in] init the target
@@ -1073,12 +1148,72 @@ CLINGO_VISIBILITY_DEFAULT void clingo_propagate_init_set_check_mode(clingo_propa
 //! @param[in] init the target
 //! @return bitmask when to call the propagator
 //! @see clingo_propagate_init_set_check_mode()
-CLINGO_VISIBILITY_DEFAULT clingo_propagator_check_mode_t clingo_propagate_init_get_check_mode(clingo_propagate_init_t *init);
+CLINGO_VISIBILITY_DEFAULT clingo_propagator_check_mode_t clingo_propagate_init_get_check_mode(clingo_propagate_init_t const *init);
 //! Get the top level assignment solver.
 //!
 //! @param[in] init the target
 //! @return the assignment
-CLINGO_VISIBILITY_DEFAULT clingo_assignment_t *clingo_propagate_init_assignment(clingo_propagate_init_t *init);
+CLINGO_VISIBILITY_DEFAULT clingo_assignment_t const *clingo_propagate_init_assignment(clingo_propagate_init_t const *init);
+//! Add a literal to the solver.
+//!
+//! @attention If varibales were added, subsequent calls to functions adding constraints or ::clingo_propagate_init_propagate() are expensive.
+//! It is best to add varables in batches.
+//!
+//! @param[in] init the target
+//! @param[out] result the added literal
+//! @return whether the call was successful; might set one of the following error codes:
+//! - ::clingo_error_bad_alloc
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_add_literal(clingo_propagate_init_t *init, clingo_literal_t *result);
+//! Add the given clause to the solver.
+//!
+//! @attention No further calls on the init object or functions on the assignment should be called when the result of this method is false.
+//!
+//! @param[in] init the target
+//! @param[in] clause the clause to add
+//! @param[in] size the size of the clause
+//! @param[out] result result indicating whether the problem became unsatisfiable
+//! @return whether the call was successful; might set one of the following error codes:
+//! - ::clingo_error_bad_alloc
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_add_clause(clingo_propagate_init_t *init, clingo_literal_t const *clause, size_t size, bool *result);
+//! Add the given weight constraint to the solver.
+//!
+//! This function adds a constraint of form `literal <=> { lit=weight | (lit, weight) in literals } >= bound` to the solver.
+//! Depending on the type the `<=>` connective can be either a left implication, right implication, or equivalence.
+//!
+//! @attention No further calls on the init object or functions on the assignment should be called when the result of this method is false.
+//!
+//! @param[in] init the target
+//! @param[in] literal the literal of the constraint
+//! @param[in] literals the weighted literals
+//! @param[in] size the number of weighted literals
+//! @param[in] bound the bound of the constraint
+//! @param[in] type the type of the weight constraint
+//! @param[in] compare_equal if true compare equal instead of less than equal
+//! @param[out] result result indicating whether the problem became unsatisfiable
+//! @return whether the call was successful; might set one of the following error codes:
+//! - ::clingo_error_bad_alloc
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_add_weight_constraint(clingo_propagate_init_t *init, clingo_literal_t literal, clingo_weighted_literal_t const *literals, size_t size, clingo_weight_t bound, clingo_weight_constraint_type_t type, bool compare_equal, bool *result);
+//! Add the given literal to minimize to the solver.
+//!
+//! This corresponds to a weak constraint of form `:~ literal. [weight@priority]`.
+//!
+//! @param[in] init the target
+//! @param[in] literal the literal to minimize
+//! @param[in] weight the weight of the literal
+//! @param[in] priority the priority of the literal
+//! @return whether the call was successful; might set one of the following error codes:
+//! - ::clingo_error_bad_alloc
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_add_minimize(clingo_propagate_init_t *init, clingo_literal_t literal, clingo_weight_t weight, clingo_weight_t priority);
+//! Propagates consequences of the underlying problem excluding registered propagators.
+//!
+//! @note The function has no effect if SAT-preprocessing is enabled.
+//! @attention No further calls on the init object or functions on the assignment should be called when the result of this method is false.
+//!
+//! @param[in] init the target
+//! @param[out] result result indicating whether the problem became unsatisfiable
+//! @return whether the call was successful; might set one of the following error codes:
+//! - ::clingo_error_bad_alloc
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_init_propagate(clingo_propagate_init_t *init, bool *result);
 
 //! @}
 
@@ -1107,12 +1242,12 @@ typedef struct clingo_propagate_control clingo_propagate_control_t;
 //!
 //! @param[in] control the target
 //! @return the thread id
-CLINGO_VISIBILITY_DEFAULT clingo_id_t clingo_propagate_control_thread_id(clingo_propagate_control_t *control);
+CLINGO_VISIBILITY_DEFAULT clingo_id_t clingo_propagate_control_thread_id(clingo_propagate_control_t const *control);
 //! Get the assignment associated with the underlying solver.
 //!
 //! @param[in] control the target
 //! @return the assignment
-CLINGO_VISIBILITY_DEFAULT clingo_assignment_t *clingo_propagate_control_assignment(clingo_propagate_control_t *control);
+CLINGO_VISIBILITY_DEFAULT clingo_assignment_t const *clingo_propagate_control_assignment(clingo_propagate_control_t const *control);
 //! Adds a new volatile literal to the underlying solver thread.
 //!
 //! @attention The literal is only valid within the current solving step and solver thread.
@@ -1141,7 +1276,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_control_add_watch(clingo_propaga
 //! @param[in] literal the literal to check
 //!
 //! @return whether the literal is watched
-CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_control_has_watch(clingo_propagate_control_t *control, clingo_literal_t literal);
+CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_control_has_watch(clingo_propagate_control_t const *control, clingo_literal_t literal);
 //! Removes the watch (if any) for the given solver literal.
 //!
 //! @note Similar to @ref clingo_propagate_init_add_watch() this just removes the watch in the current solver thread.
@@ -1184,7 +1319,7 @@ typedef bool (*clingo_propagator_init_callback_t) (clingo_propagate_init_t *, vo
 typedef bool (*clingo_propagator_propagate_callback_t) (clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *);
 
 //! Typedef for @ref ::clingo_propagator::undo().
-typedef bool (*clingo_propagator_undo_callback_t) (clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *);
+typedef void (*clingo_propagator_undo_callback_t) (clingo_propagate_control_t const *, clingo_literal_t const *, size_t, void *);
 
 //! Typedef for @ref ::clingo_propagator::check().
 typedef bool (*clingo_propagator_check_callback_t) (clingo_propagate_control_t *, void *);
@@ -1249,14 +1384,15 @@ typedef struct clingo_propagator {
     //!
     //! This callback is meant to update assignment dependent state in the propagator.
     //!
-    //! @note No clauses must be propagated in this callback.
+    //! @note No clauses must be propagated in this callback and no errors should be set.
     //!
     //! @param[in] control control object for the target solver
     //! @param[in] changes the change set
     //! @param[in] size the size of the change set
     //! @param[in] data user data for the callback
+    //! @return whether the call was successful
     //! @see ::clingo_propagator_undo_callback_t
-    bool (*undo) (clingo_propagate_control_t *control, clingo_literal_t const *changes, size_t size, void *data);
+    void (*undo) (clingo_propagate_control_t const *control, clingo_literal_t const *changes, size_t size, void *data);
     //! This function is similar to @ref clingo_propagate_control_propagate() but is called without a change set on propagation fixpoints.
     //!
     //! When exactly this function is called, can be configured using the @ref clingo_propagate_init_set_check_mode() function.
@@ -1268,6 +1404,20 @@ typedef struct clingo_propagator {
     //! @return whether the call was successful
     //! @see ::clingo_propagator_check_callback_t
     bool (*check) (clingo_propagate_control_t *control, void *data);
+    //! This function allows a propagator to implement domain-specific heuristics.
+    //!
+    //! It is called whenever propagation reaches a fixed point and
+    //! should return a free solver literal that is to be assigned true.
+    //! In case multiple propagators are registered,
+    //! this function can return 0 to let a propagator registered later make a decision.
+    //! If all propagators return 0, then the fallback literal is
+    //!
+    //! @param[in] thread_id the solver's thread id
+    //! @param[in] assignment the assignment of the solver
+    //! @param[in] fallback the literal choosen by the solver's heuristic
+    //! @param[out] decision the literal to make true
+    //! @return whether the call was successful
+    bool (*decide) (clingo_id_t thread_id, clingo_assignment_t const *assignment, clingo_literal_t fallback, void *data, clingo_literal_t *decision);
 } clingo_propagator_t;
 
 //! @}
@@ -1325,13 +1475,6 @@ enum clingo_external_type {
 //! Corresponding type to ::clingo_external_type.
 //! @ingroup ProgramInspection
 typedef int clingo_external_type_t;
-
-//! A Literal with an associated weight.
-//! @ingroup ProgramInspection
-typedef struct clingo_weighted_literal {
-    clingo_literal_t literal;
-    clingo_weight_t weight;
-} clingo_weighted_literal_t;
 
 //! Handle to the backend to add directives in aspif format.
 typedef struct clingo_backend clingo_backend_t;
@@ -1488,7 +1631,7 @@ typedef struct clingo_configuration clingo_configuration_t;
 //! @param[in] configuration the target configuration
 //! @param[out] key the root key
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_root(clingo_configuration_t *configuration, clingo_id_t *key);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_root(clingo_configuration_t const *configuration, clingo_id_t *key);
 //! Get the type of a key.
 //!
 //! @note The type is bitset, an entry can have multiple (but at least one) type.
@@ -1497,14 +1640,14 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_root(clingo_configuration_t 
 //! @param[in] key the key
 //! @param[out] type the resulting type
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_type(clingo_configuration_t *configuration, clingo_id_t key, clingo_configuration_type_bitset_t *type);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_type(clingo_configuration_t const *configuration, clingo_id_t key, clingo_configuration_type_bitset_t *type);
 //! Get the description of an entry.
 //!
 //! @param[in] configuration the target configuration
 //! @param[in] key the key
 //! @param[out] description the description
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_description(clingo_configuration_t *configuration, clingo_id_t key, char const **description);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_description(clingo_configuration_t const *configuration, clingo_id_t key, char const **description);
 
 //! @name Functions to access arrays
 //! @{
@@ -1516,7 +1659,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_description(clingo_configura
 //! @param[in] key the key
 //! @param[out] size the resulting size
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_array_size(clingo_configuration_t *configuration, clingo_id_t key, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_array_size(clingo_configuration_t const *configuration, clingo_id_t key, size_t *size);
 //! Get the subkey at the given offset of an array entry.
 //!
 //! @note Some array entries, like fore example the solver configuration, can be accessed past there actual size to add subentries.
@@ -1526,7 +1669,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_array_size(clingo_configurat
 //! @param[in] offset the offset in the array
 //! @param[out] subkey the resulting subkey
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_array_at(clingo_configuration_t *configuration, clingo_id_t key, size_t offset, clingo_id_t *subkey);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_array_at(clingo_configuration_t const *configuration, clingo_id_t key, size_t offset, clingo_id_t *subkey);
 //! @}
 
 //! @name Functions to access maps
@@ -1539,7 +1682,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_array_at(clingo_configuratio
 //! @param[in] key the key
 //! @param[out] size the resulting number
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_size(clingo_configuration_t *configuration, clingo_id_t key, size_t* size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_size(clingo_configuration_t const *configuration, clingo_id_t key, size_t* size);
 //! Query whether the map has a key.
 //!
 //! @pre The @link clingo_configuration_type() type@endlink of the entry must be @ref ::clingo_configuration_type_map.
@@ -1549,7 +1692,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_size(clingo_configuratio
 //! @param[in] name the name to lookup the subkey
 //! @param[out] result whether the key is in the map
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_has_subkey(clingo_configuration_t *configuration, clingo_id_t key, char const *name, bool *result);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_has_subkey(clingo_configuration_t const *configuration, clingo_id_t key, char const *name, bool *result);
 //! Get the name associated with the offset-th subkey.
 //!
 //! @pre The @link clingo_configuration_type() type@endlink of the entry must be @ref ::clingo_configuration_type_map.
@@ -1558,7 +1701,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_has_subkey(clingo_config
 //! @param[in] offset the offset of the name
 //! @param[out] name the resulting name
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_subkey_name(clingo_configuration_t *configuration, clingo_id_t key, size_t offset, char const **name);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_subkey_name(clingo_configuration_t const *configuration, clingo_id_t key, size_t offset, char const **name);
 //! Lookup a subkey under the given name.
 //!
 //! @pre The @link clingo_configuration_type() type@endlink of the entry must be @ref ::clingo_configuration_type_map.
@@ -1568,7 +1711,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_subkey_name(clingo_confi
 //! @param[in] name the name to lookup the subkey
 //! @param[out] subkey the resulting subkey
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_at(clingo_configuration_t *configuration, clingo_id_t key, char const *name, clingo_id_t* subkey);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_at(clingo_configuration_t const *configuration, clingo_id_t key, char const *name, clingo_id_t* subkey);
 //! @}
 
 //! @name Functions to access values
@@ -1581,7 +1724,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_map_at(clingo_configuration_
 //! @param[in] key the key
 //! @param[out] assigned whether the entry has a value
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_value_is_assigned(clingo_configuration_t *configuration, clingo_id_t key, bool *assigned);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_value_is_assigned(clingo_configuration_t const *configuration, clingo_id_t key, bool *assigned);
 //! Get the size of the string value of the given entry.
 //!
 //! @pre The @link clingo_configuration_type() type@endlink of the entry must be @ref ::clingo_configuration_type_value.
@@ -1589,7 +1732,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_value_is_assigned(clingo_con
 //! @param[in] key the key
 //! @param[out] size the resulting size
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_value_get_size(clingo_configuration_t *configuration, clingo_id_t key, size_t *size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_value_get_size(clingo_configuration_t const *configuration, clingo_id_t key, size_t *size);
 //! Get the string value of the given entry.
 //!
 //! @pre The @link clingo_configuration_type() type@endlink of the entry must be @ref ::clingo_configuration_type_value.
@@ -1599,7 +1742,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_value_get_size(clingo_config
 //! @param[out] value the resulting string value
 //! @param[in] size the size of the given char array
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_value_get(clingo_configuration_t *configuration, clingo_id_t key, char *value, size_t size);
+CLINGO_VISIBILITY_DEFAULT bool clingo_configuration_value_get(clingo_configuration_t const *configuration, clingo_id_t key, char *value, size_t size);
 //! Set the value of an entry.
 //!
 //! @pre The @link clingo_configuration_type() type@endlink of the entry must be @ref ::clingo_configuration_type_value.
@@ -1958,7 +2101,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_model_context(clingo_model_t const *model,
 //! @param[in] control the target
 //! @param[out] atoms the resulting object
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_solve_control_symbolic_atoms(clingo_solve_control_t *control, clingo_symbolic_atoms_t **atoms);
+CLINGO_VISIBILITY_DEFAULT bool clingo_solve_control_symbolic_atoms(clingo_solve_control_t const *control, clingo_symbolic_atoms_t const **atoms);
 //! Add a clause that applies to the current solving step during model
 //! enumeration.
 //!
@@ -2142,6 +2285,9 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_solve_handle_close(clingo_solve_handle_t *
 //! @defgroup AST Abstract Syntax Trees
 //! Functions and data structures to work with program ASTs.
 //!
+//! @note
+//! The lifetime of the ast objects and its members is limited to the duration of the callback.
+//!
 //! @warning There might still be changes to this part of the API and there is not much documentation yet.
 //! In its current form the interface is rather large
 //! but has the advantage that the structure of a logic program is (hopefully) self-explanatory.
@@ -2251,14 +2397,14 @@ struct clingo_ast_interval {
 
 struct clingo_ast_function {
     char const *name;
-    clingo_ast_term_t *arguments;
+    clingo_ast_term_t const *arguments;
     size_t size;
 };
 
 // pool
 
 struct clingo_ast_pool {
-    clingo_ast_term_t *arguments;
+    clingo_ast_term_t const *arguments;
     size_t size;
 };
 
@@ -2272,7 +2418,7 @@ typedef struct clingo_ast_csp_product_term {
 
 typedef struct clingo_ast_csp_sum_term {
     clingo_location_t location;
-    clingo_ast_csp_product_term_t *terms;
+    clingo_ast_csp_product_term_t const *terms;
     size_t size;
 } clingo_ast_csp_sum_term_t;
 
@@ -2357,7 +2503,7 @@ typedef struct clingo_ast_aggregate {
 // body aggregate
 
 typedef struct clingo_ast_body_aggregate_element {
-    clingo_ast_term_t *tuple;
+    clingo_ast_term_t const *tuple;
     size_t tuple_size;
     clingo_ast_literal_t const *condition;
     size_t condition_size;
@@ -2662,6 +2808,7 @@ typedef struct clingo_ast_external {
     clingo_ast_term_t atom;
     clingo_ast_body_literal_t const *body;
     size_t size;
+    clingo_ast_term_t type;
 } clingo_ast_external_t;
 
 // edge
@@ -3249,7 +3396,8 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_control_register_propagator(clingo_control
 //!
 //! @param[in] control the target
 //! @return whether the program representation is conflicting
-CLINGO_VISIBILITY_DEFAULT bool clingo_control_is_conflicting(clingo_control_t *control);
+CLINGO_VISIBILITY_DEFAULT bool clingo_control_is_conflicting(clingo_control_t const *control);
+
 //! Get a statistics object to inspect solver statistics.
 //!
 //! Statistics are updated after a solve call.
@@ -3262,12 +3410,14 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_control_is_conflicting(clingo_control_t *c
 //! The default level zero only provides basic statistics,
 //! level one provides extended and accumulated statistics,
 //! and level two provides per-thread statistics.
+//! Furthermore, the statistics object is best accessed right after solving.
+//! Otherwise, not all of its entries have valid values.
 //!
 //! @param[in] control the target
 //! @param[out] statistics the statistics object
 //! @return whether the call was successful; might set one of the following error codes:
 //! - ::clingo_error_bad_alloc
-CLINGO_VISIBILITY_DEFAULT bool clingo_control_statistics(clingo_control_t *control, clingo_statistics_t const **statistics);
+CLINGO_VISIBILITY_DEFAULT bool clingo_control_statistics(clingo_control_t const *control, clingo_statistics_t const **statistics);
 //! Interrupt the active solve call (or the following solve call right at the beginning).
 //!
 //! @param[in] control the target
@@ -3325,7 +3475,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_control_use_enumeration_assumption(clingo_
 //! @param[in] name the name of the constant
 //! @param[out] symbol the resulting symbol
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_control_get_const(clingo_control_t *control, char const *name, clingo_symbol_t *symbol);
+CLINGO_VISIBILITY_DEFAULT bool clingo_control_get_const(clingo_control_t const *control, char const *name, clingo_symbol_t *symbol);
 //! Check if there is a constant definition for the given constant.
 //!
 //! @param[in] control the target
@@ -3335,7 +3485,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_control_get_const(clingo_control_t *contro
 //! - ::clingo_error_runtime if constant definition does not exist
 //!
 //! @see clingo_control_get_const()
-CLINGO_VISIBILITY_DEFAULT bool clingo_control_has_const(clingo_control_t *control, char const *name, bool *exists);
+CLINGO_VISIBILITY_DEFAULT bool clingo_control_has_const(clingo_control_t const *control, char const *name, bool *exists);
 //! Get an object to inspect symbolic atoms (the relevant Herbrand base) used
 //! for grounding.
 //!
@@ -3344,7 +3494,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_control_has_const(clingo_control_t *contro
 //! @param[in] control the target
 //! @param[out] atoms the symbolic atoms object
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_control_symbolic_atoms(clingo_control_t *control, clingo_symbolic_atoms_t **atoms);
+CLINGO_VISIBILITY_DEFAULT bool clingo_control_symbolic_atoms(clingo_control_t const *control, clingo_symbolic_atoms_t const **atoms);
 //! Get an object to inspect theory atoms that occur in the grounding.
 //!
 //! See the @ref TheoryAtoms module for more information.
@@ -3352,7 +3502,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_control_symbolic_atoms(clingo_control_t *c
 //! @param[in] control the target
 //! @param[out] atoms the theory atoms object
 //! @return whether the call was successful
-CLINGO_VISIBILITY_DEFAULT bool clingo_control_theory_atoms(clingo_control_t *control, clingo_theory_atoms_t **atoms);
+CLINGO_VISIBILITY_DEFAULT bool clingo_control_theory_atoms(clingo_control_t const *control, clingo_theory_atoms_t const **atoms);
 //! Register a program observer with the control object.
 //!
 //! @param[in] control the target
@@ -3477,7 +3627,7 @@ typedef struct clingo_application {
 //!
 //! Parameter option specifies the name(s) of the option.
 //! For example, "ping,p" adds the short option "-p" and its long form "--ping".
-//! It is also possible to associate an option with a help level by adding "@l" to the option specification.
+//! It is also possible to associate an option with a help level by adding ",@l" to the option specification.
 //! Options with a level greater than zero are only shown if the argument to help is greater or equal to l.
 //!
 //! @param[in] options object to register the option with

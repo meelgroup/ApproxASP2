@@ -29,6 +29,7 @@
 #include <cassert>
 #include <mutex>
 #include <condition_variable>
+#include <set>
 
 #include <iostream>
 
@@ -177,9 +178,7 @@ private:
     }
 
     void initialize_occurrence_lists() {
-        for (auto &item : item_map_) {
-            occurrence_list_.emplace_back();
-        }
+        occurrence_list_.resize(occurrence_list_.size() + item_map_.size());
         int sid = 0;
         std::unordered_set<int> seen;
         for (auto &seq : sequence_atoms_) {
@@ -274,7 +273,7 @@ public:
         }
     }
 
-    void undo(PropagateControl const &ctl , LiteralSpan) override {
+    void undo(PropagateControl const &ctl , LiteralSpan) noexcept override {
         auto &state = states_[ctl.thread_id()];
         int sid = state.trail.back().stack_index;
         auto ib = state.stack.begin() + sid, ie = state.stack.end();
@@ -367,7 +366,7 @@ public:
             }
         }
     }
-    void undo(PropagateControl const &ctl, LiteralSpan undo) override {
+    void undo(PropagateControl const &ctl, LiteralSpan undo) noexcept override {
         assert(ctl.thread_id() < state_.size());
         Hole2Lit& holes = state_[ctl.thread_id()];
         for (literal_t lit : undo) {
@@ -394,9 +393,38 @@ public:
         c_ = init.solver_literal(init.symbolic_atoms().find(Id("c"))->literal());
         init.add_watch(a_);
         init.add_watch(b_);
+
+        auto ass = init.assignment();
+        auto trail = ass.trail();
+
+        REQUIRE(ass.decision_level() == 0);
+        REQUIRE(trail.begin_offset(0) == 0);
+        REQUIRE(trail.end_offset(0) == trail.size());
+
+        std::set<Clingo::literal_t> lits;
+        std::set<Clingo::literal_t> check_lits{1, c_};
+
+        lits.clear();
+        for (auto lit : ass) {
+            lits.emplace(lit);
+        }
+        REQUIRE(lits == std::set<Clingo::literal_t>{1, a_, b_, c_});
+
+        lits.clear();
+        for (auto lit : trail) {
+            lits.emplace(lit);
+        }
+        REQUIRE(lits == std::set<Clingo::literal_t>{1, c_});
+
+        lits.clear();
+        for (auto lit : Clingo::make_range(trail.begin(0), trail.end(0))) {
+            lits.emplace(lit);
+        }
+        REQUIRE(lits == std::set<Clingo::literal_t>{1, c_});
     }
     void propagate(PropagateControl &ctl, LiteralSpan changes) override {
         auto ass = ctl.assignment();
+        auto trail = ass.trail();
         count_+= changes.size();
         REQUIRE(ass.is_fixed(c_));
         REQUIRE(!ass.is_fixed(a_));
@@ -405,16 +433,26 @@ public:
         REQUIRE(ass.has_literal(a_));
         REQUIRE(ass.has_literal(b_));
         REQUIRE(!ass.has_literal(1000));
-        auto decision = ass.decision(ass.decision_level());
-        REQUIRE(ass.level(decision) == ass.decision_level());
+        auto level = ass.decision_level();
+        auto decision = ass.decision(level);
+        REQUIRE(ass.level(decision) == level);
         if (count_ == 1) {
-            int a = changes[0];
+            auto a = changes[0];
             REQUIRE(changes.size() == 1);
             REQUIRE(!ass.is_fixed(a_));
             REQUIRE(ass.is_true(a));
             REQUIRE(ass.truth_value(a) == TruthValue::True);
             REQUIRE((ass.is_true(a_) ^ ass.is_true(b_)));
-            REQUIRE(ass.level(a) == ass.decision_level());
+            REQUIRE(ass.level(a) == level);
+            REQUIRE(trail.end_offset(level) - trail.begin_offset(level) >= 1);
+            REQUIRE(trail.end_offset(level) - trail.begin_offset(level) <= 2);
+            bool found = false;
+            for (auto lit : Clingo::make_range(trail.begin(level), trail.end(level))) {
+                if (lit == a) {
+                    found = true;
+                }
+            }
+            REQUIRE(found);
         }
         if (count_ == 2) {
             REQUIRE(!ass.is_fixed(a_));
@@ -423,7 +461,7 @@ public:
             REQUIRE(ass.is_true(b_));
         }
     }
-    void undo(PropagateControl const &, LiteralSpan undo) override {
+    void undo(PropagateControl const &, LiteralSpan undo) noexcept override {
         count_-= undo.size();
     }
 private:
@@ -432,6 +470,27 @@ private:
     literal_t c_;
     size_t count_ = 0;
 };
+
+literal_t get_literal(PropagateInit &init, char const *name) {
+    return init.solver_literal(init.symbolic_atoms().find(Id(name))->literal());
+}
+
+template <typename T>
+class TestInit : public Propagator {
+public:
+    TestInit(T &&f) : f_{std::forward<T>(f)} { }
+    void init(PropagateInit &init) override {
+        f_(init);
+    }
+private:
+    T f_;
+};
+
+template <typename T>
+static TestInit<T> make_init(T &&f) {
+    return {std::forward<T>(f)};
+}
+
 
 class TestAddClause : public Propagator {
 public:
@@ -445,7 +504,7 @@ public:
         count_+= changes.size();
         REQUIRE_FALSE((enable && count_ == 2 && ctl.add_clause({-a_, -b_}, type) && ctl.propagate()));
     }
-    void undo(PropagateControl const &, LiteralSpan undo) override {
+    void undo(PropagateControl const &, LiteralSpan undo) noexcept override {
         count_-= undo.size();
     }
 public:
@@ -658,6 +717,119 @@ TEST_CASE("propagator", "[clingo][propagator]") {
             p.enable = false;
             test_solve(ctl.solve(), models);
             REQUIRE(models.size() == 4);
+        }
+    }
+    SECTION("add_clause_init") {
+        // NOTE: some of the tests would fail if sat preprocessing were activated
+        //       because propagation has no effect in this case
+        ctl.configuration()["sat_prepro"] = "0";
+
+        ctl.add("base", {}, "{a; b}. c. :- a, b.");
+        ctl.ground({{"base", {}}}, nullptr);
+        SECTION("conflict") {
+            auto p{make_init([](Clingo::PropagateInit &init){
+                REQUIRE_FALSE(init.add_clause({-get_literal(init, "c")}));
+            })};
+            ctl.register_propagator(p, false);
+            test_solve(ctl.solve(), models);
+            REQUIRE(models.size() == 0);
+        }
+        SECTION("propagate") {
+            auto p{make_init([](Clingo::PropagateInit &init){
+                REQUIRE(init.add_clause({get_literal(init, "a")}));
+                REQUIRE(init.assignment().is_true(get_literal(init, "a")));
+                REQUIRE(init.propagate());
+                REQUIRE(init.assignment().is_false(get_literal(init, "b")));
+            })};
+            ctl.register_propagator(p, false);
+            test_solve(ctl.solve(), models);
+            REQUIRE(models.size() == 1);
+        }
+        SECTION("propagate") {
+            auto p{make_init([](Clingo::PropagateInit &init){
+                auto ass = init.assignment();
+                auto lit = init.add_literal();
+                auto a = get_literal(init, "a");
+                REQUIRE(init.add_clause({lit}));
+                REQUIRE(ass.is_true(lit));
+                REQUIRE(init.add_clause({-lit, a}));
+                REQUIRE(ass.is_true(a));
+                REQUIRE(init.propagate());
+                REQUIRE(init.assignment().is_false(get_literal(init, "b")));
+            })};
+            ctl.register_propagator(p, false);
+            test_solve(ctl.solve(), models);
+            REQUIRE(models.size() == 1);
+        }
+        SECTION("propagate") {
+            auto p{make_init([](Clingo::PropagateInit &init){
+                auto ass = init.assignment();
+                auto lit = init.add_literal();
+                auto a = get_literal(init, "a");
+                REQUIRE(init.add_clause({-lit, a}));
+                REQUIRE(init.add_clause({lit}));
+                REQUIRE(ass.is_true(lit));
+                REQUIRE(init.propagate());
+                REQUIRE(ass.is_true(a));
+                REQUIRE(init.assignment().is_false(get_literal(init, "b")));
+            })};
+            ctl.register_propagator(p, false);
+            test_solve(ctl.solve(), models);
+            REQUIRE(models.size() == 1);
+        }
+        SECTION("propagate") {
+            auto p{make_init([](Clingo::PropagateInit &init){
+                auto ass = init.assignment();
+                auto lit = init.add_literal();
+                auto a = get_literal(init, "a");
+                auto b = get_literal(init, "b");
+                REQUIRE(init.add_clause({lit}));
+                REQUIRE(ass.is_true(lit));
+                REQUIRE(init.add_clause({-lit, a}));
+                REQUIRE(init.add_clause({-lit, b}));
+                REQUIRE_FALSE(init.propagate());
+            })};
+            ctl.register_propagator(p, false);
+            test_solve(ctl.solve(), models);
+            REQUIRE(models.size() == 0);
+        }
+    }
+    SECTION("add_weight_constraint") {
+        ctl.add("base", {}, "{a; b}.");
+        ctl.ground({{"base", {}}}, nullptr);
+        SECTION("equal") {
+            auto p{make_init([](Clingo::PropagateInit &init){
+                auto t = init.add_literal();
+                auto a = get_literal(init, "a");
+                auto b = get_literal(init, "b");
+                REQUIRE(init.add_clause({t}));
+                auto l = init.add_literal();
+                REQUIRE(init.add_weight_constraint(t, {{a,1}, {b,1}, {l,1}}, 2, Clingo::WeightConstraintType::Equivalence, true));
+            })};
+            ctl.register_propagator(p, false);
+            test_solve(ctl.solve(), models);
+            REQUIRE(models.size() == 3);
+        }
+    }
+    SECTION("add_minimize") {
+        ctl.add("base", {}, "2 {a; b; c}. 2 {b; c; d}.");
+        ctl.ground({{"base", {}}}, nullptr);
+        ctl.configuration()["solve"]["opt_mode"] = "optN";
+            SECTION("minimize") {
+            auto p{make_init([](Clingo::PropagateInit &init){
+                init.add_minimize(get_literal(init, "a"), 1, 0);
+                init.add_minimize(get_literal(init, "b"), 1, 0);
+                init.add_minimize(get_literal(init, "c"), 1, 0);
+                init.add_minimize(get_literal(init, "d"), 1, 0);
+            })};
+            ctl.register_propagator(p, false);
+            {
+                MCB mcb{models};
+                for (auto &m : ctl.solve()) {
+                    if (m.optimality_proven()) { mcb(m); }
+                }
+            }
+            REQUIRE(models.size() == 1);
         }
     }
 }

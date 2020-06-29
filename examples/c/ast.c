@@ -162,7 +162,7 @@ int main(int argc, char const **argv) {
   int ret = 0;
   clingo_solve_result_bitset_t solve_ret;
   clingo_control_t *ctl = NULL;
-  clingo_symbolic_atoms_t *atoms = NULL;
+  clingo_symbolic_atoms_t const *atoms = NULL;
   clingo_solve_handle_t *handle = NULL;
   clingo_symbol_t sym;
   clingo_symbolic_atom_iterator_t atm_it;
@@ -200,6 +200,9 @@ int main(int argc, char const **argv) {
   ext.atom = data.atom;
   ext.body = NULL;
   ext.size = 0;
+  ext.type.location = location;
+  ext.type.type = clingo_ast_term_type_symbol;
+  if (!clingo_symbol_create_function("false", NULL, 0, true, &ext.type.symbol)) { goto error; }
   stm.location = location;
   stm.type = clingo_ast_statement_type_external;
   stm.external = &ext;

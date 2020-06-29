@@ -25,6 +25,7 @@
 #include "tests.hh"
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
 namespace Clingo { namespace Test {
 
@@ -103,8 +104,9 @@ TEST_CASE("parse-ast", "[clingo]") {
         REQUIRE(parse("#minimize{ 1:b }.") == ":~ b. [1@0]");
         REQUIRE(parse("#script (python) 42 #end.") == "#script (python) 42 #end.");
         REQUIRE(parse("#program p(k).") == "#program p(k).");
-        REQUIRE(parse("#external p(k).") == "#external p(k).");
-        REQUIRE(parse("#external p(k) : a, b.") == "#external p(k) : a; b.");
+        REQUIRE(parse("#external p(k).") == "#external p(k). [false]");
+        REQUIRE(parse("#external p(k). [true]") == "#external p(k). [true]");
+        REQUIRE(parse("#external p(k) : a, b.") == "#external p(k) : a; b. [false]");
         REQUIRE(parse("#edge (u,v) : a, b.") == "#edge (u,v) : a; b.");
         REQUIRE(parse("#heuristic a : b, c. [L@P,level]") == "#heuristic a : b; c. [L@P,level]");
         REQUIRE(parse("#project a : b.") == "#project a : b.");
@@ -131,7 +133,7 @@ TEST_CASE("parse-ast", "[clingo]") {
     SECTION("head literal") {
         REQUIRE(parse("a.") == "a.");
         REQUIRE(parse("a:b.") == "a : b.");
-        REQUIRE(parse("a:b,c;d.") == "d : ; a : b, c.");
+        REQUIRE(parse("a:b,c;d.") == "a : b, c; d : .");
         REQUIRE(parse("1{a:b,c;e}2.") == "1 <= { a : b, c; e :  } <= 2.");
         REQUIRE(parse("{a:b,c;e}2.") == "2 >= { a : b, c; e :  }.");
         REQUIRE(parse("1#min{1,2:h:b,c;1:e}2.") == "1 <= #min { 1,2 : h : b, c; 1 : e :  } <= 2.");
@@ -163,8 +165,10 @@ TEST_CASE("parse-ast", "[clingo]") {
         REQUIRE(parse("p((a^b)).") == "p((a^b)).");
         REQUIRE(parse("p(a..b).") == "p((a..b)).");
         REQUIRE(parse("p((),(1,),f(),f(1,2)).") == "p((),(1,),f,f(1,2)).");
-        REQUIRE(parse("p(a;b).") == "(p(a);p(b)).");
+        REQUIRE(parse("p(@f(a;b)).") == "p(@f(a;b)).");
+        REQUIRE(parse("p(a;b).") == "p(a;b).");
         REQUIRE(parse("p((a,;b)).") == "p(((a,);b)).");
+        REQUIRE(parse("p(((a,);b)).") == "p(((a,);b)).");
         REQUIRE(parse("1 $+ 3 $* $x $+ 7 $< 2 $< 3.") == "1$+3$*$x$+7$<2$<3.");
     }
     SECTION("theory terms") {

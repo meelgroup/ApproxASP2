@@ -44,7 +44,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data) {
   // note that the code below assumes that this literal is not negative
   // which holds for the pigeon problem but not in general
   clingo_literal_t max = 0;
-  clingo_symbolic_atoms_t *atoms;
+  clingo_symbolic_atoms_t const *atoms;
   clingo_signature_t sig;
   clingo_symbolic_atom_iterator_t atoms_it, atoms_ie;
   // ensure that solve can be called multiple times
@@ -180,7 +180,7 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
   return true;
 }
 
-bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size, propagator_t *data) {
+void undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size, propagator_t *data) {
   // get the thread specific state
   state_t state = data->states[clingo_propagate_control_thread_id(control)];
 
@@ -194,8 +194,6 @@ bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, 
       state.holes[hole] = 0;
     }
   }
-
-  return true;
 }
 
 bool print_model(clingo_model_t const *model) {
@@ -300,10 +298,11 @@ int main(int argc, char const **argv) {
   // create a propagator with the functions above
   // using the default implementation for the model check
   clingo_propagator_t prop = {
-    (bool (*) (clingo_propagate_init_t *, void *))init,
-    (bool (*) (clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
-    (bool (*) (clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))undo,
-    NULL
+    (clingo_propagator_init_callback_t)init,
+    (clingo_propagator_propagate_callback_t)propagate,
+    (clingo_propagator_undo_callback_t)undo,
+    NULL,
+    NULL,
   };
   // user data for the propagator
   propagator_t prop_data = { NULL, 0, NULL, 0 };

@@ -27,8 +27,8 @@ def stm():
         ("#minimize{ 1:b }.", [":~ b. [1@0]"]),
         ("#script (python) 42 #" + "end.", ["#script (python) 42 #" + "end."]),
         ("#program p(k).", ["#program p(k)."]),
-        ("#external p(k).", ["#external p(k)."]),
-        ("#external p(k) : a, b.", ["#external p(k) : a; b."]),
+        ("#external p(k).", ["#external p(k). [false]"]),
+        ("#external p(k) : a, b.", ["#external p(k) : a; b. [false]"]),
         ("#edge (u,v) : a, b.", ["#edge (u,v) : a; b."]),
         ("#heuristic a : b, c. [L@P,level]", ["#heuristic a : b; c. [L@P,level]"]),
         ("#project a : b.", ["#project a : b."]),
@@ -61,7 +61,7 @@ def hdl():
     return check([
         ("a.", ["a."]),
         ("a:b.", ["a : b."]),
-        ("a:b,c;d.", ["d : ; a : b, c."]),
+        ("a:b,c;d.", ["a : b, c; d : ."]),
         ("1{a:b,c;e}2.", ["1 <= { a : b, c; e :  } <= 2."]),
         ("{a:b,c;e}2.", ["2 >= { a : b, c; e :  }."]),
         ("1#min{1,2:h:b,c;1:e}2.", ["1 <= #min { 1,2 : h : b, c; 1 : e :  } <= 2."]),
@@ -97,8 +97,10 @@ def trm():
         ("p((a^b)).", ["p((a^b))."]),
         ("p(a..b).", ["p((a..b))."]),
         ("p((),(1,),f(),f(1,2)).", ["p((),(1,),f,f(1,2))."]),
-        ("p(a;b).", ["(p(a);p(b))."]),
+        ("p(a;b).", ["p(a;b)."]),
+        ("p(@f(a;b)).", ["p(@f(a;b))."]),
         ("p((a,;b)).", ["p(((a,);b))."]),
+        ("p(((a,);b)).", ["p(((a,);b))."]),
         ("1 $+ 3 $* $x $+ 7 $< 2 $< 3.", ["1$+3$*$x$+7$<2$<3."]),
     ])
 

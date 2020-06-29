@@ -182,7 +182,7 @@ void NonGroundGrammar::parser::error(DefaultLocation const &l, std::string const
 %type <termvec>         termvec ntermvec consttermvec unaryargvec optimizetuple tuplevec tuplevec_sem
 %type <termvecvec>      argvec constargvec binaryargvec
 %type <lit>             literal
-%type <litvec>          litvec nlitvec optcondition noptcondition
+%type <litvec>          litvec nlitvec optcondition
 %type <bodyaggrelem>    bodyaggrelem
 %type <lbodyaggrelem>   altbodyaggrelem conjunction
 %type <bodyaggrelemvec> bodyaggrelemvec
@@ -193,7 +193,7 @@ void NonGroundGrammar::parser::error(DefaultLocation const &l, std::string const
 %type <body>            bodycomma bodydot bodyconddot optimizelitvec optimizecond
 %type <head>            head
 %type <uid>             lubodyaggregate luheadaggregate
-%type <str>             identifier theory_definition_identifier
+%type <str>             identifier theory_definition_identifier theory_op
 %type <fun>             aggregatefunction
 %type <aggr>            bodyaggregate headaggregate
 %type <rel>             cmp csp_rel
@@ -559,11 +559,6 @@ optcondition
     |                   { $$ = BUILDER.litvec(); }
     ;
 
-noptcondition
-    : COLON nlitvec[vec] { $$ = $vec; }
-    |                    { $$ = BUILDER.litvec(); }
-    ;
-
 aggregatefunction
     : SUM   { $$ = AggregateFunction::SUM; }
     | SUMP  { $$ = AggregateFunction::SUMP; }
@@ -678,18 +673,22 @@ dsym
     | VBAR
     ;
 
+// NOTE: this is so complicated because VBAR is also used as the absolute function for terms
+//       due to limited lookahead I found no reasonable way to parse p(X):|q(X)
 disjunctionsep
     : disjunctionsep[vec] literal[lit] COMMA                    { $$ = BUILDER.condlitvec($vec, $lit, BUILDER.litvec()); }
-    | disjunctionsep[vec] literal[lit] noptcondition[cond] dsym { $$ = BUILDER.condlitvec($vec, $lit, $cond); }
-    |                                                           { $$ = BUILDER.condlitvec(); }
+    | disjunctionsep[vec] literal[lit] dsym                     { $$ = BUILDER.condlitvec($vec, $lit, BUILDER.litvec()); }
+    | disjunctionsep[vec] literal[lit] COLON SEM                { $$ = BUILDER.condlitvec($vec, $lit, BUILDER.litvec()); }
+    | disjunctionsep[vec] literal[lit] COLON nlitvec[cond] dsym { $$ = BUILDER.condlitvec($vec, $lit, $cond); }
+    | literal[lit] COMMA                                        { $$ = BUILDER.condlitvec(BUILDER.condlitvec(), $lit, BUILDER.litvec()); }
+    | literal[lit] dsym                                         { $$ = BUILDER.condlitvec(BUILDER.condlitvec(), $lit, BUILDER.litvec()); }
+    | literal[lit] COLON nlitvec[cond] dsym                     { $$ = BUILDER.condlitvec(BUILDER.condlitvec(), $lit, $cond); }
+    | literal[lit] COLON SEM                                    { $$ = BUILDER.condlitvec(BUILDER.condlitvec(), $lit, BUILDER.litvec()); }
     ;
 
-// Note: for simplicity appending first condlit here
 disjunction
-    : literal[lit] COMMA  disjunctionsep[vec] literal[clit] noptcondition[ccond]                    { $$ = BUILDER.condlitvec(BUILDER.condlitvec($vec, $clit, $ccond), $lit, BUILDER.litvec()); }
-    | literal[lit] dsym    disjunctionsep[vec] literal[clit] noptcondition[ccond]                   { $$ = BUILDER.condlitvec(BUILDER.condlitvec($vec, $clit, $ccond), $lit, BUILDER.litvec()); }
-    | literal[lit]  COLON nlitvec[cond] dsym disjunctionsep[vec] literal[clit] noptcondition[ccond] { $$ = BUILDER.condlitvec(BUILDER.condlitvec($vec, $clit, $ccond), $lit, $cond); }
-    | literal[clit] COLON nlitvec[ccond]                                                            { $$ = BUILDER.condlitvec(BUILDER.condlitvec(), $clit, $ccond); }
+    : disjunctionsep[vec] literal[lit] optcondition[cond] { $$ = BUILDER.condlitvec($vec, $lit, $cond); }
+    | literal[lit] COLON litvec[cond]                     { $$ = BUILDER.condlitvec(BUILDER.condlitvec(), $lit, $cond); }
     ;
 
 // {{{1 statements
@@ -876,18 +875,26 @@ statement
 // {{{2 external
 
 statement
-    : EXTERNAL atom[hd] COLON bodydot[bd] { BUILDER.external(@$, $hd, $bd); }
-    | EXTERNAL atom[hd] COLON DOT         { BUILDER.external(@$, $hd, BUILDER.body()); }
-    | EXTERNAL atom[hd] DOT               { BUILDER.external(@$, $hd, BUILDER.body()); }
+    : EXTERNAL atom[hd] COLON bodydot[bd]                       { BUILDER.external(@$, $hd, $bd, BUILDER.term(@$, Symbol::createId("false"))); }
+    | EXTERNAL atom[hd] COLON DOT                               { BUILDER.external(@$, $hd, BUILDER.body(), BUILDER.term(@$, Symbol::createId("false"))); }
+    | EXTERNAL atom[hd] DOT                                     { BUILDER.external(@$, $hd, BUILDER.body(), BUILDER.term(@$, Symbol::createId("false"))); }
+    | EXTERNAL atom[hd] COLON bodydot[bd] LBRACK term[t] RBRACK { BUILDER.external(@$, $hd, $bd, $t); }
+    | EXTERNAL atom[hd] COLON DOT         LBRACK term[t] RBRACK { BUILDER.external(@$, $hd, BUILDER.body(), $t); }
+    | EXTERNAL atom[hd] DOT               LBRACK term[t] RBRACK { BUILDER.external(@$, $hd, BUILDER.body(), $t); }
     ;
 
 // {{{1 theory
 
+theory_op
+    : THEORY_OP[op]  { $$ = $op; }
+    | NOT[not]       { $$ = $not; }
+    ;
+
 // {{{2 theory atoms
 
 theory_op_list
-    : theory_op_list[ops] THEORY_OP[op] { $$ = BUILDER.theoryops($ops, String::fromRep($op)); }
-    | THEORY_OP[op]                     { $$ = BUILDER.theoryops(BUILDER.theoryops(), String::fromRep($op)); }
+    : theory_op_list[ops] theory_op[op] { $$ = BUILDER.theoryops($ops, String::fromRep($op)); }
+    | theory_op[op]                     { $$ = BUILDER.theoryops(BUILDER.theoryops(), String::fromRep($op)); }
     ;
 
 theory_term
@@ -944,14 +951,14 @@ theory_atom_name
 theory_atom
     : AND theory_atom_name[name] { $$ = BUILDER.theoryatom($name, BUILDER.theoryelems()); }
     | AND theory_atom_name[name] enable_theory_lexing LBRACE theory_atom_element_list[elems] enable_theory_lexing RBRACE                                     disable_theory_lexing { $$ = BUILDER.theoryatom($name, $elems); }
-    | AND theory_atom_name[name] enable_theory_lexing LBRACE theory_atom_element_list[elems] enable_theory_lexing RBRACE THEORY_OP[op] theory_opterm[opterm] disable_theory_lexing { $$ = BUILDER.theoryatom($name, $elems, String::fromRep($op), @opterm, $opterm); }
+    | AND theory_atom_name[name] enable_theory_lexing LBRACE theory_atom_element_list[elems] enable_theory_lexing RBRACE theory_op[op] theory_opterm[opterm] disable_theory_lexing { $$ = BUILDER.theoryatom($name, $elems, String::fromRep($op), @opterm, $opterm); }
     ;
 
 // {{{2 theory definition
 
 theory_operator_nlist
-    : THEORY_OP[op]                                  { $$ = BUILDER.theoryops(BUILDER.theoryops(), String::fromRep($op)); }
-    | theory_operator_nlist[ops] COMMA THEORY_OP[op] { $$ = BUILDER.theoryops($ops, String::fromRep($op)); }
+    : theory_op[op]                                  { $$ = BUILDER.theoryops(BUILDER.theoryops(), String::fromRep($op)); }
+    | theory_operator_nlist[ops] COMMA theory_op[op] { $$ = BUILDER.theoryops($ops, String::fromRep($op)); }
     ;
 
 theory_operator_list
@@ -960,9 +967,9 @@ theory_operator_list
     ;
 
 theory_operator_definition
-    : THEORY_OP[op] enable_theory_definition_lexing COLON NUMBER[arity] COMMA UNARY              { $$ = BUILDER.theoryopdef(@$, String::fromRep($op), $arity, TheoryOperatorType::Unary); }
-    | THEORY_OP[op] enable_theory_definition_lexing COLON NUMBER[arity] COMMA BINARY COMMA LEFT  { $$ = BUILDER.theoryopdef(@$, String::fromRep($op), $arity, TheoryOperatorType::BinaryLeft); }
-    | THEORY_OP[op] enable_theory_definition_lexing COLON NUMBER[arity] COMMA BINARY COMMA RIGHT { $$ = BUILDER.theoryopdef(@$, String::fromRep($op), $arity, TheoryOperatorType::BinaryRight); }
+    : theory_op[op] enable_theory_definition_lexing COLON NUMBER[arity] COMMA UNARY              { $$ = BUILDER.theoryopdef(@$, String::fromRep($op), $arity, TheoryOperatorType::Unary); }
+    | theory_op[op] enable_theory_definition_lexing COLON NUMBER[arity] COMMA BINARY COMMA LEFT  { $$ = BUILDER.theoryopdef(@$, String::fromRep($op), $arity, TheoryOperatorType::BinaryLeft); }
+    | theory_op[op] enable_theory_definition_lexing COLON NUMBER[arity] COMMA BINARY COMMA RIGHT { $$ = BUILDER.theoryopdef(@$, String::fromRep($op), $arity, TheoryOperatorType::BinaryRight); }
     ;
 
 theory_operator_definition_nlist
