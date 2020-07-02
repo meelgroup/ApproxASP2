@@ -346,7 +346,7 @@ int main(int argc, char const **argv)
     clingo_propagator_t prop = {
         (bool (*)(clingo_propagate_init_t *, void *))init,
         (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
-        (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))undo,
+        NULL,
         NULL};
     // user data for the propagator
     propagator_t prop_data = {};
@@ -398,7 +398,7 @@ int main(int argc, char const **argv)
     }
     get_symbol_atoms(ctl, &problem);
     generate_k_xors(3, &problem);
-    translation(&ctl, &problem, debug, debug_out);
+    translation(&ctl, &problem, debug, debug_out, 1, -1);
     if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
         goto error;
     }

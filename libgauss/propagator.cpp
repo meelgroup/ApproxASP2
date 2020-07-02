@@ -50,7 +50,7 @@ bool init_all_matrixes(propagator_t *prop)
         EGaussian *g = *i;
         bool created = false;
         // initial arrary. return true is fine , return false means solver already false;
-        assert(false && "THE BUG IS HERE MAHI! You must add all the propagations to the solver fom the full_init!!!");
+        // assert(false && "THE BUG IS HERE MAHI! You must add all the propagations to the solver fom the full_init!!!");
         if (!g->full_init(created)) {
             return false;
         }
@@ -135,7 +135,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     // note that the code below assumes that this literal is not negative
     // which holds for the pigeon problem but not in general
     clingo_literal_t max = 0;
-    clingo_symbolic_atoms_t *atoms;
+    const clingo_symbolic_atoms_t *atoms;
     clingo_signature_t sig;
     clingo_symbolic_atom_iterator_t atoms_it, atoms_ie, finder;
     string_buffer_t buf = {NULL, 0};

@@ -99,7 +99,7 @@ public:
     void get_assignment(clingo_propagate_control_t *control)
     {
         cpc = control;
-        clingo_assignment_t *values = clingo_propagate_control_assignment(control);
+        const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         decision_level = clingo_assignment_decision_level(values);
         clingo_truth_value_t value;
         assigns.assign(nVars(), l_Undef);

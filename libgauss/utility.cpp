@@ -144,7 +144,7 @@ std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream)
 void get_symbol_atoms(clingo_control_t *ctl, Configuration *con)
 {
     assert(ctl != NULL);
-    clingo_symbolic_atoms_t *atoms;
+    const clingo_symbolic_atoms_t *atoms;
     clingo_symbolic_atom_iterator_t it_atoms, ie_atoms;
     string_buffer_t buf = {NULL, 0};
     clingo_control_symbolic_atoms(ctl, &atoms);
