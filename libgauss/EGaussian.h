@@ -133,6 +133,11 @@ class EGaussian {
         bool& early_stop
     );
 
+    void check_xor(
+        GaussQData& gqd,
+        bool& early_stop
+    );
+
     void Debug_funtion(); // used to debug
 };
 

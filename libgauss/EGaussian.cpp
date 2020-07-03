@@ -613,6 +613,54 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
     return true;
 }
 
+void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
+    PackedMatrix::iterator rowI = matrix.matrix.beginMatrix();
+    PackedMatrix::iterator end = matrix.matrix.endMatrix();
+    PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
+    uint32_t num_row = 0; // row inde
+
+    while (rowI != end) {
+        if ((*clauseIt)[num_row]) {
+            ++rowI;
+            num_row++;
+            continue;
+        }
+        const gret ret = (*rowI).propGause(tmp_clause,
+                                                   solver->assigns, matrix.col_to_var,
+                                                   GasVar_state, nb_var, ori_nb_col);
+
+        switch (ret) {
+            case gret::confl: {
+                // printf("%d:This row is conflict in eliminate col    n",num_row);
+                // for tell outside solver
+                gqd.conflict_clause_gauss = tmp_clause;
+                gqd.ret_gauss = 0;                      // gaussian matrix is   conflict
+                gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(num_row).rhs();
+                early_stop = true;
+                return;
+                // If conflict is happened in eliminaiton conflict, then we only return
+                // immediately
+                // solver->qhead = solver->trail.size();
+                // solver->gqhead = solver->trail.size();
+                // break;
+            }
+            case gret::nothing: // this row already tre
+                // printf("%d:This row is nothing( maybe already true) in eliminate col
+                // n",num_row);
+                (*clauseIt).setBit(num_row);        // this clause arleady sat
+                break;
+            }
+            default:
+                // can not here
+                assert(false);
+                break;
+
+        ++rowI;
+        num_row++;
+    }
+    return;
+}
+
 void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
     // cout << "eliminate this column :" << e_var  << " " << p << " " << e_row_n <<  endl;
     PackedMatrix::iterator this_row = matrix.matrix.beginMatrix() + gqd.e_row_n;
