@@ -430,3 +430,5 @@ out:
 
     return ret;
 }
+// g++ -std=c++11 -g packedrow.cpp EGaussian.cpp test.cpp model_counting.cpp propagator.cpp utility.cpp -lclingo > compile.txt
+// ./a.out --asp ../ham_cycle.lp

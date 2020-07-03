@@ -12,7 +12,7 @@
 #
 # for C++ define  CC = g++
 CC = g++
-CFLAGS  = -g -Wall
+CFLAGS  = -g -std=c++11
 # define any directories containing header files other than /usr/include
 #
 # INCLUDES = -I/home/newhall/include  -I../include
@@ -35,7 +35,8 @@ LIBS = -lclingo -lgringo -lpotassco -lclasp -lreify -lpthread
 default: shared
 MAIN = test
 SRCS = EGaussian.cpp packedrow.cpp test.cpp model_counting.cpp propagator.cpp utility.cpp
-OBJS = $(SRCS:.cpp=.o)
+OBJDIR = Obj
+OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(SRCS))
 
 # To create the executable file count we need the object files
 # countwords.o, counter.o, and scanner.o:
@@ -49,7 +50,7 @@ static: $(OBJS)
 # To create the object file countwords.o, we need the source
 # files countwords.c, scanner.h, and counter.h:
 #
-.cpp.o:
+$(OBJDIR)/%.o: %.cpp
 	$(CC) $(CFLAGS) -c $<  -o $@
 # To create the object file counter.o, we need the source files
 # counter.c and counter.h:
@@ -62,5 +63,5 @@ static: $(OBJS)
 # files and *~ backup files:
 #
 clean:
-	$(RM) *.o *~ $(MAIN)
+	$(RM) *.o *~ $(MAIN) $(OBJDIR)/*
 
