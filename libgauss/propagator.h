@@ -55,5 +55,6 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
                propagator_t *data);
 bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
           propagator_t *data);
+bool check(clingo_propagate_control_t *control, propagator_t *data);
 
 #endif //PROPAGATOR_H_

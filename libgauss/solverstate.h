@@ -28,6 +28,7 @@
 #include <vector>
 #include <unordered_set>
 #include <clingo.h>
+#include <cstdlib>
 #include "solvertypesmini.h"
 #include "gausswatched.h"
 #include "Vec.h"
@@ -159,27 +160,78 @@ public:
         if (gwatches[lit].size() >= 1) return;
         clingo_propagate_control_remove_watch(cpc, (clingo_literal_t) lit);
     }
-
+    bool is_assignment_conflicting(clingo_propagate_control_t *control) {
+        const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
+        return clingo_assignment_has_conflict(values);
+    }
     void add_clause(vector<Lit> clause, bool xor_add = false) {
         auto last_literal = literal.end();
         assert(cpc);
         size_t length = clause.size();
         bool result;
-        clingo_literal_t* new_clause = new clingo_literal_t[length];
+        clingo_literal_t* new_clause = (clingo_literal_t *)malloc (length * sizeof(clingo_literal_t));
         auto itr = clause.begin();
         u_int32_t index = 0;
         clingo_literal_t insert_lit, test_lit;
         for (auto itr_end = clause.end(); itr != itr_end; itr++) {
             test_lit = (*itr).var();
-            assert (literal.find(test_lit) != last_literal); 
+            assert(literal.find(test_lit) != last_literal);
+            assert(literal.find(test_lit) != literal.end());
+            if (index == 0 && !xor_add) {
+                assert(assigns[test_lit] == l_Undef);
+            }
+            else if ((*itr).sign())
+            {
+                assert(assigns[test_lit] == l_True);
+            }
+            else
+            {
+                assert(assigns[test_lit] == l_False);
+            }
+            
             insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
             new_clause[index++] = insert_lit;
         }
         assert(index == length);
-        if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
+        
+        if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
         {
-            cout << "Can't insert clause";
+            index = 0;
+            (xor_add) ? printf("\nConflict\n") : printf("\nPropagation\n");
+            char const *error_message;
+            if (!(error_message = clingo_error_message()))
+            {
+                error_message = "error";
+            }
+            printf("%s\n", error_message);
+            
+            // itr = clause.begin();
+            // assert(assigns[(*itr).var()] == l_Undef);
+            // for (auto itr_end = clause.end(); itr != itr_end; itr++)
+            // {
+            //     test_lit = (*itr).var();
+            //     printf("%d\t", (*itr).var());
+            //     assert(literal.find(test_lit) != last_literal);
+            //     insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
+            //     new_clause[index++] = insert_lit;
+            //     printf("%d\t", insert_lit);
+            // }
+            cout << "\nCan't insert clause\n";
+            
         }
+        if (!result) {
+            return;
+        }
+        if (!clingo_propagate_control_propagate(cpc, &result))
+        {
+            cout << "Can't propagate clause";
+        }
+        if (!result) {
+            return;
+        }
+        free(new_clause);
+        assert(result);
+        xor_add = false;
         // if it is a binary clause then add one more new clause
         if (xor_add)
         {

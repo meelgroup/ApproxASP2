@@ -327,6 +327,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
     for (size_t gqhead = 0; gqhead < size; ++gqhead) {
         // the freshly assigned literal
         const Lit p = Lit((int)changes[gqhead], (changes[gqhead] < 0));
+        assert(changes[gqhead] > 0 && "My understanding is wrong");
         vec<GaussWatched> &ws = data->solver->gwatches[p.var()];
         GaussWatched *i = ws.begin();
         GaussWatched *j = i;
@@ -345,6 +346,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 break;
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
+                data->solver->sum_Enpropagate++;
                 data->solver->add_clause(
                     data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
             }
@@ -384,7 +386,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 lbool ret;
                 gqd.big_conflict++;
                 data->solver->sum_Enconflict++;
-                data->solver->add_clause(gqd.conflict_clause_gauss, false);
+                data->solver->add_clause(gqd.conflict_clause_gauss, true);
                 return true;
             }
 
@@ -422,5 +424,35 @@ bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, 
         gauss->canceling();
     }
     data->solver->get_assignment(control);
+    return true;
+}
+
+bool check(clingo_propagate_control_t *control, propagator_t *data)
+{
+    // get the thread specific state
+    data->solver->get_assignment(control);
+    // auto start_literal = data->solver->literal.begin(); 
+    // for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
+    // {
+    //     if (data->solver->assigns[*start_literal] == l_Undef) {
+    //         assert(false && "It was a partial assignment");
+    //     }
+    // }
+    bool immediate_break = false;
+    for (auto &gqd: data->gqueuedata) {
+        gqd.reset();
+    }
+    for (size_t g = 0; g < data->gqueuedata.size(); g++)
+    {
+        data->gmatrixes[g]->check_xor(data->gqueuedata[g], immediate_break);
+
+        if (immediate_break)
+        {
+            for (GaussQData &gqd: data->gqueuedata) {
+                data->solver->sum_Enconflict++;
+                data->solver->add_clause(gqd.conflict_clause_gauss, true);
+            }
+        }
+    }
     return true;
 }

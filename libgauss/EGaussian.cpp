@@ -467,10 +467,10 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
     PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
 
     //if this clause is already satisfied
-    if ((*clauseIt)[row_n]) {
-        *j++ = *i; // store watch list
-        return true;
-    }
+    // if ((*clauseIt)[row_n]) {
+    //     *j++ = *i; // store watch list
+    //     return true;
+    // }
 
     //swap basic and non_basic variable
     if (GasVar_state[p] == basic_var) {
@@ -618,16 +618,16 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
     PackedMatrix::iterator end = matrix.matrix.endMatrix();
     PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
     uint32_t num_row = 0; // row inde
-
+    uint32_t nb_var = 0;
     while (rowI != end) {
-        if ((*clauseIt)[num_row]) {
-            ++rowI;
-            num_row++;
-            continue;
-        }
+        // if ((*clauseIt)[num_row]) {
+        //     ++rowI;
+        //     num_row++;
+        //     continue;
+        // }
         const gret ret = (*rowI).propGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
-                                                   GasVar_state, nb_var, ori_nb_col);
+                                                   GasVar_state, nb_var, 0);
 
         switch (ret) {
             case gret::confl: {
@@ -647,14 +647,14 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
             case gret::nothing: // this row already tre
                 // printf("%d:This row is nothing( maybe already true) in eliminate col
                 // n",num_row);
-                (*clauseIt).setBit(num_row);        // this clause arleady sat
+                // (*clauseIt).setBit(num_row);        // this clause arleady sat
                 break;
-            }
+            
             default:
                 // can not here
                 assert(false);
                 break;
-
+        }
         ++rowI;
         num_row++;
     }

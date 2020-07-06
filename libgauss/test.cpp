@@ -232,7 +232,6 @@ bool solve(clingo_control_t *ctl, model_buffer_t *data, clingo_solve_result_bits
 
         if (model) {
             count++;
-            cout << "Model found" << endl;
             //print_solution(model, data);
         }
         // stop if there are no more models
@@ -347,7 +346,7 @@ int main(int argc, char const **argv)
         (bool (*)(clingo_propagate_init_t *, void *))init,
         (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
         NULL,
-        NULL};
+        (bool (*)(clingo_propagate_control_t *,void *))check};
     // user data for the propagator
     propagator_t prop_data = {};
     bool debug = true;
