@@ -285,6 +285,8 @@ int main(int argc, char const **argv)
         } else if (!strcmp(arg, "--input")) {
             problem.input_file = (char *)malloc(sizeof(char) * (strlen(argv[scan++]) + 1));
             strcpy(problem.input_file, argv[scan]);
+        } else if (!strcmp(arg, "--useind")) {
+            problem.independent_set = std::string(argv[++scan]);
         }
 
         else {
@@ -309,6 +311,15 @@ int main(int argc, char const **argv)
     } else {
         if (stat(problem.asp_file.c_str(), &buffer) == -1) {
             cout << "No asp file with name: " << problem.asp_file << endl;
+            exit(-1);
+        }
+    }
+    if (problem.independent_set.empty()) {
+        cout << "It is recommended to use independent support" << endl;
+        exit(-1);
+    } else {
+        if (stat(problem.asp_file.c_str(), &buffer) == -1) {
+            cout << "No independent support file with name: " << problem.independent_set << endl;
             exit(-1);
         }
     }
