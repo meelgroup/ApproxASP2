@@ -193,17 +193,10 @@ public:
             new_clause[index++] = insert_lit;
         }
         assert(index == length);
-        
-        if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
+        if (xor_add && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
         {
-            index = 0;
             (xor_add) ? printf("\nConflict\n") : printf("\nPropagation\n");
-            char const *error_message;
-            if (!(error_message = clingo_error_message()))
-            {
-                error_message = "error";
-            }
-            printf("%s\n", error_message);
+            
             
             // itr = clause.begin();
             // assert(assigns[(*itr).var()] == l_Undef);
@@ -216,6 +209,13 @@ public:
             //     new_clause[index++] = insert_lit;
             //     printf("%d\t", insert_lit);
             // }
+            cout << "\nCan't insert clause\n";
+            
+        }
+        if (!xor_add && !is_assignment_conflicting(cpc) && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
+        {
+            (xor_add) ? printf("\nConflict\n") : printf("\nPropagation\n");
+            
             cout << "\nCan't insert clause\n";
             
         }

@@ -343,12 +343,14 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 data->gqueuedata[i->matrix_num])
             ) {
                 //conflict
+                immediate_break = true;
                 break;
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
                 data->solver->sum_Enpropagate++;
                 data->solver->add_clause(
                     data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
+                return true;
             }
         }
 
@@ -429,19 +431,23 @@ bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, 
 
 bool check(clingo_propagate_control_t *control, propagator_t *data)
 {
+    // static int c = 0;
+    // c++;
     // get the thread specific state
     data->solver->get_assignment(control);
     // auto start_literal = data->solver->literal.begin(); 
     // for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
     // {
-    //     if (data->solver->assigns[*start_literal] == l_Undef) {
-    //         assert(false && "It was a partial assignment");
+    //     if (data->solver->assigns[*start_literal] == l_True) {
+    //         std::cout << *start_literal << " ";
     //     }
     // }
+    // std::cout << "\n";
     bool immediate_break = false;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
     }
+    // std::cout << "It is called: " << c << std::endl;
     for (size_t g = 0; g < data->gqueuedata.size(); g++)
     {
         data->gmatrixes[g]->check_xor(data->gqueuedata[g], immediate_break);
@@ -452,7 +458,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
                 data->solver->sum_Enconflict++;
                 data->solver->add_clause(gqd.conflict_clause_gauss, true);
             }
+            return true;
         }
     }
+    // std::cout << "One model found ... " << std::endl;
     return true;
 }
