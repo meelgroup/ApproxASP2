@@ -318,7 +318,7 @@ int main(int argc, char const **argv)
         cout << "It is recommended to use independent support" << endl;
         exit(-1);
     } else {
-        if (stat(problem.asp_file.c_str(), &buffer) == -1) {
+        if (stat(problem.independent_set.c_str(), &buffer) == -1) {
             cout << "No independent support file with name: " << problem.independent_set << endl;
             exit(-1);
         }
@@ -341,6 +341,29 @@ int main(int argc, char const **argv)
     problem.thresh = compute_pivot(problem.tol);
     // compute delta
     problem.t = compute_iteration(&problem);
+    std::ifstream infile(problem.independent_set);
+
+    if (infile.good())
+    {
+        string sLine;
+        getline(infile, sLine);
+        if (sLine.rfind("c ind", 0) != 0)
+        {
+            cout << "Independent support should start with \"c ind\" " << endl;
+            exit(-1);
+        }
+        string endding(" 0");
+        if (sLine.rfind(endding) != std::abs(sLine.size()-endding.size())) {
+            cout << "Independent support should end with \" 0\" " << endl;
+            exit(-1);
+        }
+    }
+    else
+    {
+        cout << "Error in " << problem.independent_set << endl;
+        exit(-1);
+    }
+    
     // setting pivot in clingo control
     if (problem.argu_count == 0)
         problem.asp_argument = (const char **)malloc(sizeof(char *));

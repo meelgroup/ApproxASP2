@@ -73,6 +73,8 @@ std::unordered_map<clingo_symbol_t, char *> atom_symbol_map;
 unsigned number_of_active_atoms;
 
 std::vector<XOR> xor_cons;
+std::vector<int> independent_support;
+
 unsigned xor_last_added;
 
 double time_in_clasp;
