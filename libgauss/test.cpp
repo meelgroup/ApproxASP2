@@ -353,7 +353,7 @@ int main(int argc, char const **argv)
             exit(-1);
         }
         string endding(" 0");
-        if (sLine.rfind(endding) != std::abs(sLine.size()-endding.size())) {
+        if (!std::equal(sLine.begin() + sLine.size() - endding.size(), sLine.end(), endding.begin())) {
             cout << "Independent support should end with \" 0\" " << endl;
             exit(-1);
         }

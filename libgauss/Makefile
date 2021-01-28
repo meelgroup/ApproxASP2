@@ -41,10 +41,13 @@ OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(SRCS))
 # To create the executable file count we need the object files
 # countwords.o, counter.o, and scanner.o:
 #
-shared: $(OBJS) 
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
+
+shared: $(OBJDIR) $(OBJS) 
 	$(CC) $(CFLAGS) -o $(MAIN) $(OBJS) -lclingo
 
-static: $(OBJS) 
+static: $(OBJDIR) $(OBJS) 
 	$(CC) $(CFLAGS) -static -o $(MAIN) $(OBJS) $(LFLAGS) $(LIBS)
 
 # To create the object file countwords.o, we need the source
@@ -64,4 +67,5 @@ $(OBJDIR)/%.o: %.cpp
 #
 clean:
 	$(RM) *.o *~ $(MAIN) $(OBJDIR)/*
+	$(RM) -rf $(OBJDIR)
 
