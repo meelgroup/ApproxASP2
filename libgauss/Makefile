@@ -33,7 +33,7 @@ LIBS = -lclingo -lgringo -lpotassco -lclasp -lreify -lpthread
 # are the most commonly used names by convention
 #
 default: shared
-MAIN = test
+MAIN = approxsmc
 SRCS = EGaussian.cpp packedrow.cpp test.cpp model_counting.cpp propagator.cpp utility.cpp
 OBJDIR = Obj
 OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(SRCS))
