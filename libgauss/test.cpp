@@ -33,6 +33,7 @@
 
 #include "utility.h"
 #include "propagator.h"
+#include "model_counting.h"
 
 using std::cout;
 using std::endl;
@@ -430,8 +431,9 @@ int main(int argc, char const **argv)
         goto error;
     }
     get_symbol_atoms(ctl, &problem);
-    generate_k_xors(3, &problem);
+    generate_k_xors(4, &problem);
     translation(&ctl, &problem, debug, debug_out, 1, -1);
+    prop_data.max_assumption_var = 0;
     if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
         goto error;
     }

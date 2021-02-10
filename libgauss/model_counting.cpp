@@ -33,6 +33,8 @@
 
 
 #include "utility.h"
+#include "propagator.h"
+#include "solverstate.h"
 
 using std::cout;
 using std::endl;
@@ -94,28 +96,37 @@ void do_initial_setup(clingo_control_t** ctl, Configuration* con)
     clingo_control_ground(*ctl, parts, 1, NULL, NULL);
 }
 
-unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con, bool gen_xor, bool prefix_slice,
-                         bool no_xor = false, unsigned m_value = 0)
+unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
+     unsigned m_value)
 {
-    if (!no_xor && gen_xor) {
-        // we will generate k xors...
-        generate_k_xors(m_value, con);
-    } else if (!no_xor && !gen_xor) {
-        // we will take prefix slice of previously generated xor
-        int generated_xor = con->xor_cons.size();
-        if (generated_xor < m_value) {
-            // need (m_value - generated_xor) more xors
-            generate_k_xors(m_value, con);
-        }
-    }
-    if (!ctl)
-        do_initial_setup(&ctl, con);
-    if (con->xor_last_added - 1 > m_value) {
-        do_initial_setup(&ctl, con);
-    }
-    if (con->xor_last_added - 1 < m_value) {
-        // translation(ctl, con, con->xor_last_added, m_value);
-    }
+    // if (!no_xor && gen_xor) {
+    //     // we will generate k xors...
+    //     generate_k_xors(m_value, con);
+    // } else if (!no_xor && !gen_xor) {
+    //     // we will take prefix slice of previously generated xor
+    //     int generated_xor = con->xor_cons.size();
+    //     if (generated_xor < m_value) {
+    //         // need (m_value - generated_xor) more xors
+    //         generate_k_xors(m_value, con);
+    //     }
+    // }
+    clingo_propagator_t prop = {
+        (bool (*)(clingo_propagate_init_t *, void *))init,
+        (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
+        NULL,
+        (bool (*)(clingo_propagate_control_t *, void *))check};
+    // user data for the propagator
+    propagator_t prop_data = {};
+    prop_data.max_assumption_var = m_value;
+    // if (!ctl)
+    //     do_initial_setup(&ctl, con);
+    // if (con->xor_last_added - 1 > m_value) {
+    //     do_initial_setup(&ctl, con);
+    // }
+    // if (con->xor_last_added - 1 < m_value) {
+    //     // translation(ctl, con, con->xor_last_added, m_value);
+    // }
+    clingo_control_register_propagator(ctl, &prop, &prop_data, true);
     clingo_solve_handle_t* handle;
     clingo_model_t const* model;
     clingo_control_solve(ctl, clingo_solve_mode_async | clingo_solve_mode_yield, NULL, 0, NULL,
@@ -144,7 +155,6 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con, bool gen_xor
         con->clasp_call_timeout++;
     if (con->clasp_call > 0 && con->clasp_call % con->interval == 0)
         print_stat(con);
-
     return finished ? model_count : -1;
 }
 
@@ -160,7 +170,7 @@ SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
     ret.cellSolCount = -1;
     while (num_explored < con->number_of_active_atoms) {
         swap_var = m_value;
-        unsigned result = Bounded_counter(control, con, generate_xor, true, false, m_value);
+        unsigned result = Bounded_counter(control, con, m_value);
         generate_xor = false;
         if (result == -1) {
             if (repeat_try < 2) {
@@ -257,6 +267,11 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
     get_symbol_atoms(control, con);
     con->number_of_active_atoms = con->active_atoms.size();
 
-    int count = Bounded_counter(control, con, false, false, true, 0);
-    printf("%d", count);
+    generate_k_xors(con->number_of_active_atoms - 1, con);
+    translation(&control, con, false, std::cout, 1, -1);
+
+    clingo_part_t parts[] = {{"base", NULL, 0}};
+    clingo_control_ground(control, parts, 1, NULL, NULL);
+
+    solCount = ApproxSMCCore(control, con);
 }

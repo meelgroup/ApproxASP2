@@ -41,7 +41,7 @@ typedef struct {
 vector<GaussQData> gqueuedata;
 vector<EGaussian*> gmatrixes;
 SolverState* solver;
-
+unsigned max_assumption_var;
 } propagator_t;
 
 bool init_all_matrixes(propagator_t *prop);

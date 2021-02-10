@@ -18,3 +18,7 @@ examples/clingo/pydoc/clingo.html
 cmake/FindBISON.cmake
 doc/py/clingo
 doc/py/Gemfile.lock
+libgauss/.vscode/*
+libgauss/.vscode/
+libgauss/debug.txt
+libgauss/test_parity.txt

@@ -170,49 +170,51 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         return false;
     }
     char *parity;
-    int xor_count = 0;
+    int xor_count = (data->max_assumption_var > 0) ? data->max_assumption_var : 0;
     clingo_literal_t largest_var = std::numeric_limits<uint32_t>::max();
-    while (true) {
-        int id;
-        char *s;
-        bool equal;
-        clingo_literal_t lit, lit2;
-        clingo_symbol_t sym;
-        // stop iteration if the end is reached
-        if (!clingo_symbolic_atoms_iterator_is_equal_to(atoms, atoms_it, atoms_ie, &equal)) {
-            return false;
-        }
-        if (equal) {
-            break;
-        }
-        // get the solver literal for the placement atom
-        if (!clingo_symbolic_atoms_literal(atoms, atoms_it, &lit2)) {
-            return false;
-        }
-        // printf("clingo_symbolic_atoms_literal: %d.\n", lit);
-        if (!clingo_propagate_init_solver_literal(init, lit2, &lit)) {
-            return false;
-        }
-        // printf("clingo_propagate_init_solver_literal: %d.\n", lit);
+    // if (xor_count == 0){
+    //     while (true) {
+    //         int id;
+    //         char *s;
+    //         bool equal;
+    //         clingo_literal_t lit, lit2;
+    //         clingo_symbol_t sym;
+    //         // stop iteration if the end is reached
+    //         if (!clingo_symbolic_atoms_iterator_is_equal_to(atoms, atoms_it, atoms_ie, &equal)) {
+    //             return false;
+    //         }
+    //         if (equal) {
+    //             break;
+    //         }
+    //         // get the solver literal for the placement atom
+    //         if (!clingo_symbolic_atoms_literal(atoms, atoms_it, &lit2)) {
+    //             return false;
+    //         }
+    //         // printf("clingo_symbolic_atoms_literal: %d.\n", lit);
+    //         if (!clingo_propagate_init_solver_literal(init, lit2, &lit)) {
+    //             return false;
+    //         }
+    //         // printf("clingo_propagate_init_solver_literal: %d.\n", lit);
 
-        // extract the hole number from the atom
-        if (!clingo_symbolic_atoms_symbol(atoms, atoms_it, &sym)) {
-            return false;
-        }
-        get_arg(sym, 0, &id);
-        get_arg_str(sym, 1, &parity);
-        assert(!strcmp(parity, "odd") || !strcmp(parity, "even"));
-        if (id + 1 > xor_count)
-            xor_count = id + 1;
-        //   get_symbol_string(sym, &buf);
-        //   printf("get_arg_str: %s.\n", s);
-        //   printf("get_symbol_string: %lu -> %s.\n", lit, buf.string);
+    //         // extract the hole number from the atom
+    //         if (!clingo_symbolic_atoms_symbol(atoms, atoms_it, &sym)) {
+    //             return false;
+    //         }
+    //         get_arg(sym, 0, &id);
+    //         get_arg_str(sym, 1, &parity);
+    //         assert(!strcmp(parity, "odd") || !strcmp(parity, "even"));
+    //         if (id + 1 > xor_count)
+    //             xor_count = id + 1;
+    //         //   get_symbol_string(sym, &buf);
+    //         //   printf("get_arg_str: %s.\n", s);
+    //         //   printf("get_symbol_string: %lu -> %s.\n", lit, buf.string);
 
-        // advance to the next placement atom
-        if (!clingo_symbolic_atoms_next(atoms, atoms_it, &atoms_it)) {
-            return false;
-        }
-    }
+    //         // advance to the next placement atom
+    //         if (!clingo_symbolic_atoms_next(atoms, atoms_it, &atoms_it)) {
+    //             return false;
+    //         }
+    //     }
+    // }
     printf("Total XOR constraints: %d.\n", xor_count);
     xorparity.resize(xor_count);
     if (!clingo_signature_create("__parity", 3, true, &sig)) {
@@ -259,6 +261,10 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
             return false;
         }
         get_arg(sym, 0, &id);
+        if (id >= xor_count) {
+            clingo_symbolic_atoms_next(atoms, atoms_it, &atoms_it);
+            continue;
+        }
         get_arg_str(sym, 1, &parity);
         sym = get_arg_str(sym, 2, &condition);
         assert(id < xor_count);
@@ -303,18 +309,20 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     }
     printf("largest_var %d.\n", largest_var);
     assert(xorclauses.size() == xor_count);
-    data->gqueuedata.clear();
-    clearEnGaussMatrixes(data);
-    data->gqueuedata.resize(1);
-    data->solver = new SolverState(largest_var, init, solver_literal);
-    data->gmatrixes.push_back(new EGaussian(data->solver, 0, xorclauses));
-    // printf("propagation %d.\n", data->solver->value(largest_var));
-
-    if (!init_all_matrixes(data)) {
-        return false;
+    if (xor_count > 0) {
+        data->gqueuedata.clear();
+        clearEnGaussMatrixes(data);
+        data->gqueuedata.resize(1);
+        data->solver = new SolverState(largest_var, init, solver_literal);
+        data->gmatrixes.push_back(new EGaussian(data->solver, 0, xorclauses));
+        // printf("propagation %d.\n", data->solver->value(largest_var));
+        
+        if (!init_all_matrixes(data)) {
+            return false;
+        }
+        // data->solver->printStatistics();
+        // cout << "here" << endl;
     }
-    // data->solver->printStatistics();
-    // cout << "here" << endl;
     return true;
 }
 bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t *changes,
@@ -413,6 +421,9 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
                propagator_t *data)
 {
     // get the thread specific state
+    if (data->max_assumption_var == 0) {
+        return true;
+    } 
     data->solver->get_assignment(control);
     gauss_elimation(control, changes, size, data);
     return true;
@@ -425,7 +436,7 @@ bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, 
     for (EGaussian *gauss: data->gmatrixes) {
         gauss->canceling();
     }
-    data->solver->get_assignment(control);
+    // data->solver->get_assignment(control);
     return true;
 }
 
@@ -434,6 +445,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // static int c = 0;
     // c++;
     // get the thread specific state
+    if (data->max_assumption_var == 0) {
+        return true;
+    }
     data->solver->get_assignment(control);
     // auto start_literal = data->solver->literal.begin(); 
     // for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
