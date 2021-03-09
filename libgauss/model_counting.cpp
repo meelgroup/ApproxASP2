@@ -40,7 +40,7 @@ using std::cout;
 using std::endl;
 
 //TODO fix!!!
-#define TIMEOUT 10
+#define TIMEOUT 1000
 
 int findMin(std::list<int> numList)
 {
@@ -81,7 +81,7 @@ void do_initial_setup(clingo_control_t** ctl, Configuration* con)
     clingo_part_t parts[] = {{"base", NULL, 0}};
     if (*ctl) {
         printf("Here...");
-        clingo_control_free(*ctl);
+        // clingo_control_free(*ctl);
         *ctl = NULL;
     }
     clingo_control_new(con->asp_argument, con->argu_count, NULL, NULL, 20, ctl);
@@ -94,6 +94,12 @@ void do_initial_setup(clingo_control_t** ctl, Configuration* con)
 
     con->xor_last_added = 1;
     clingo_control_ground(*ctl, parts, 1, NULL, NULL);
+    if (!con->parity_string.empty()) {
+        clingo_control_add(*ctl, "base", NULL, 0, con->parity_string.c_str());
+        clingo_part_t parts[] = {{"base", NULL, 0}};
+        clingo_control_ground(*ctl, parts, 1, NULL, NULL);
+    }
+    
 }
 
 unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
@@ -110,6 +116,7 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
     //         generate_k_xors(m_value, con);
     //     }
     // }
+    do_initial_setup(&ctl, con);
     clingo_propagator_t prop = {
         (bool (*)(clingo_propagate_init_t *, void *))init,
         (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
@@ -208,7 +215,7 @@ SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
                 ret.hashCount = m_value;
                 return ret;
             }
-            big_cell[m_value] = true;
+            big_cell[m_value] = false;
             count_list[m_value] = result;
             hi_index = m_value;
             if (abs(m_value - m_prev) < 3 && m_prev != 0) {
@@ -218,7 +225,9 @@ SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
                 if (hash_prev > m_value)
                     hash_prev = 0;
                 hi_index = m_value;
-                lo_index = hash_prev;
+                if (hash_prev > lo_index) {
+                    lo_index = hash_prev;
+                }
                 m_value = (lo_index + hi_index) >> 1;
             }
         }
@@ -270,8 +279,7 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
     generate_k_xors(con->number_of_active_atoms - 1, con);
     translation(&control, con, false, std::cout, 1, -1);
 
-    clingo_part_t parts[] = {{"base", NULL, 0}};
-    clingo_control_ground(control, parts, 1, NULL, NULL);
+    
 
     solCount = ApproxSMCCore(control, con);
 }

@@ -61,6 +61,7 @@ std::vector<float> confidences;
 
 std::string asp_file;
 std::string independent_set;
+std::string parity_string;
 char* input_file;
 
 const char** asp_argument;

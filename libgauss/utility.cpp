@@ -312,5 +312,6 @@ void translation(
             :- { __parity(ID,odd ,X) } = N, N\\2!=1, __parity(ID,odd).";
         debug_file << condition << std::endl;
     }
-    clingo_control_add(*ctl, "base", NULL, 0, string_added.c_str());
+    con->parity_string = string_added;
+    // 
 }

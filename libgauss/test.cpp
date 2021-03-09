@@ -373,7 +373,7 @@ int main(int argc, char const **argv)
             (const char **)realloc(problem.asp_argument, (problem.argu_count + 1) * sizeof(char *));
     }
     char pivot_str[10];
-    sprintf(pivot_str, "-n %d", problem.thresh);
+    sprintf(pivot_str, "-n %d", problem.thresh+1);
     problem.asp_argument[problem.argu_count++] = pivot_str;
     reset_Configuration(&problem);
     // register propagator class
@@ -394,7 +394,7 @@ int main(int argc, char const **argv)
     //   printf("%s ", problem.asp_argument[scan++]);
     // printf("\n");
 
-    // ApproxSMC(ctl, &problem);
+    ApproxSMC(ctl, &problem);
 
     // create a control object and pass command line arguments
     if (!clingo_control_new(problem.asp_argument, problem.argu_count, NULL, NULL, 20, &ctl) != 0) {
@@ -402,7 +402,7 @@ int main(int argc, char const **argv)
     }
 
     // register propagator object
-    clingo_control_register_propagator(ctl, &prop, &prop_data, false);
+    // clingo_control_register_propagator(ctl, &prop, &prop_data, false);
 
     // add a logic program to the base part
     // if (!clingo_control_add(ctl, "base", NULL, 0, "{a; b; c}."))
@@ -410,42 +410,42 @@ int main(int argc, char const **argv)
     //   goto error;
     // }
 
-    clingo_control_load(ctl, problem.asp_file.c_str());
-    if (problem.input_file)
-        clingo_control_load(ctl, problem.input_file);
+    // clingo_control_load(ctl, problem.asp_file.c_str());
+    // if (problem.input_file)
+    //     clingo_control_load(ctl, problem.input_file);
 
-    assert(debug);
-    if (debug) {
-        std::ifstream fin;
-        fin.open(problem.asp_file);
-        debug_out.open("debug.txt", std::ios::trunc);
-        debug_out << fin.rdbuf() << std::endl;
-        if (problem.input_file) {
-            fin.open(problem.input_file);
-            debug_out << fin.rdbuf() << std::endl;
-        }
-    }
+    // assert(debug);
+    // if (debug) {
+    //     std::ifstream fin;
+    //     fin.open(problem.asp_file);
+    //     debug_out.open("debug.txt", std::ios::trunc);
+    //     debug_out << fin.rdbuf() << std::endl;
+    //     if (problem.input_file) {
+    //         fin.open(problem.input_file);
+    //         debug_out << fin.rdbuf() << std::endl;
+    //     }
+    // }
 
     // ground the base part
-    if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
-        goto error;
-    }
-    get_symbol_atoms(ctl, &problem);
-    generate_k_xors(4, &problem);
-    translation(&ctl, &problem, debug, debug_out, 1, -1);
-    prop_data.max_assumption_var = 0;
-    if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
-        goto error;
-    }
-    // clingo_control_add();
-    // print_all(&problem);
-    // solve
+    // if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
+    //     goto error;
+    // }
+    // get_symbol_atoms(ctl, &problem);
+    // generate_k_xors(4, &problem);
+    // translation(&ctl, &problem, debug, debug_out, 1, -1);
+    // prop_data.max_assumption_var = 0;
+    // if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
+    //     goto error;
+    // }
+    // // clingo_control_add();
+    // // print_all(&problem);
+    // // solve
 
-    if (!solve(ctl, &buf, &solve_ret)) {
-        goto error;
-    }
-    add_execution_time(ctl, &problem);
-    prop_data.solver->printStatistics();
+    // if (!solve(ctl, &buf, &solve_ret)) {
+    //     goto error;
+    // }
+    // add_execution_time(ctl, &problem);
+    // prop_data.solver->printStatistics();
     // printf("%g", problem.time_in_clasp);
     goto out;
 
