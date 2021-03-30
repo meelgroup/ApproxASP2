@@ -202,7 +202,10 @@ void generate_k_xors(unsigned k, Configuration *con)
         XOR new_xor;
         new_xor.literals = selectKItems(con->active_atoms);
         new_xor.rhs = rand() % 2;
-        // std::cout << "new_xor.rhs: " << new_xor.rhs << std::endl;
+		//for (int i = 0; i < new_xor.literals.size(); i++) {
+		//  std::cout << new_xor.literals.at(i) << ' ';
+		//}
+		//std::cout << "new_xor.rhs: " << new_xor.rhs << std::endl;
         con->xor_cons.push_back(new_xor);
     }
     printf("\n");
@@ -260,9 +263,9 @@ std::string get_parity_predicate(char *term, int xor_id, int parity)
         pred += "even";
 
     if (term) {
-        pred += ", " + (std::string)term + ") :- " + (std::string)term + ". ";
+        pred += ", " + (std::string)term + ") :- " + (std::string)term + ". \n";
     } else {
-        pred += "). ";
+        pred += "). \n";
     }
     return pred;
 }
@@ -300,7 +303,10 @@ void translation(
         start++;
         start_itr++;
     }
-    // parity constraints are adding as normal rule
+	string_added = "__parity(0,even). __parity(0, even, a) :- a.";
+	//string_added  = "";
+	std::cout << string_added << std::endl;
+    // parity constraints are added as normal rules
     myfile << string_added << std::endl;
     myfile.close();
 

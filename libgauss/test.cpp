@@ -128,10 +128,10 @@ bool print_model(clingo_model_t const *model, model_buffer_t *buf, char const *l
         goto error;
     }
 
-    printf("%s:", label);
+    //printf("%s:", label);
 
     for (it = buf->symbols, ie = buf->symbols + n; it != ie; ++it) {
-        printf(" ");
+	  //printf(" ");
         if (!print_symbol(*it, buf)) {
             goto error;
         }
@@ -184,16 +184,16 @@ bool print_solution(clingo_model_t const *model, model_buffer_t *data)
     if (!print_model(model, data, "  shown", clingo_show_type_shown)) {
         goto error;
     }
-    if (!print_model(model, data, "  atoms", clingo_show_type_atoms)) {
-        goto error;
-    }
-    if (!print_model(model, data, "  terms", clingo_show_type_terms)) {
-        goto error;
-    }
-    if (!print_model(model, data, " ~atoms",
-                     clingo_show_type_complement | clingo_show_type_atoms)) {
-        goto error;
-    }
+    //if (!print_model(model, data, "  atoms", clingo_show_type_atoms)) {
+    //    goto error;
+    //}
+    //if (!print_model(model, data, "  terms", clingo_show_type_terms)) {
+    //    goto error;
+    //}
+    //if (!print_model(model, data, " ~atoms",
+    //                 clingo_show_type_complement | clingo_show_type_atoms)) {
+    //    goto error;
+    //}
 
     goto out;
 
@@ -232,7 +232,7 @@ bool solve(clingo_control_t *ctl, model_buffer_t *data, clingo_solve_result_bits
 
         if (model) {
             count++;
-            //print_solution(model, data);
+            print_solution(model, data);
         }
         // stop if there are no more models
         else {
@@ -264,7 +264,7 @@ int main(int argc, char const **argv)
     clingo_control_t *ctl = NULL;
     clingo_part_t parts[] = {{"base", NULL, 0}};
     model_buffer_t buf = {NULL, 0, NULL, 0};
-    printf("%f, %f, %u.\n", problem.conf, problem.tol, problem.interval);
+    //printf("%f, %f, %u.\n", problem.conf, problem.tol, problem.interval);
 
     int scan = 1;
     char *arg;
@@ -378,9 +378,9 @@ int main(int argc, char const **argv)
     // register propagator class
     clingo_propagator_t prop = {
         (bool (*)(clingo_propagate_init_t *, void *))init,
-        (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
+        NULL,//(bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
         NULL,
-        (bool (*)(clingo_propagate_control_t *,void *))check};
+		(bool (*)(clingo_propagate_control_t *,void *))check};
     // user data for the propagator
     propagator_t prop_data = {};
     bool debug = true;
@@ -430,7 +430,17 @@ int main(int argc, char const **argv)
         goto error;
     }
     get_symbol_atoms(ctl, &problem);
-    generate_k_xors(3, &problem);
+    generate_k_xors(2, &problem);
+
+	
+	/**
+	   Generate systematic test cases, specially for corner cases
+	   Add manually your encoding and XORs in the form:
+	   "{a}. __parity(0,even). __parity(0,even,a) :- a."
+	   Also, add manually the expected answer sets:
+	   "[[]]" depending of the C++ syntax
+	 */
+	
     translation(&ctl, &problem, debug, debug_out, 1, -1);
     if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
         goto error;
@@ -445,6 +455,8 @@ int main(int argc, char const **argv)
     add_execution_time(ctl, &problem);
     prop_data.solver->printStatistics();
     // printf("%g", problem.time_in_clasp);
+
+	
     goto out;
 
 error:
