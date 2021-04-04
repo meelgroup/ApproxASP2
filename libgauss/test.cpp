@@ -32,7 +32,8 @@
 #include <fstream>
 
 #include "utility.h"
-#include "propagator.h"
+//#include "propagator.h"
+#include "countPropagator.h"
 
 using std::cout;
 using std::endl;
@@ -76,8 +77,7 @@ bool print_symbol(clingo_symbol_t symbol, model_buffer_t *buf)
     if (buf->string_n < n) {
         // allocate required memory to hold the symbol's string
         if (!(string = (char *)realloc(buf->string, sizeof(*buf->string) * n))) {
-            clingo_set_error(clingo_error_bad_alloc,
-                             "could not allocate memory for symbol's string");
+            clingo_set_error(clingo_error_bad_alloc, "could not allocate memory for symbol's string");
             goto error;
         }
 
@@ -86,10 +86,8 @@ bool print_symbol(clingo_symbol_t symbol, model_buffer_t *buf)
     }
 
     // retrieve the symbol's string
-    if (!clingo_symbol_to_string(symbol, buf->string, n)) {
-        goto error;
-    }
-    cout << buf->string << endl;
+    if (!clingo_symbol_to_string(symbol, buf->string, n)) { goto error; }
+    cout << buf->string << " ";
     goto out;
 
 error:
@@ -124,20 +122,17 @@ bool print_model(clingo_model_t const *model, model_buffer_t *buf, char const *l
     }
 
     // retrieve the symbols in the model
-    if (!clingo_model_symbols(model, show, buf->symbols, n)) {
-        goto error;
-    }
+    if (!clingo_model_symbols(model, show, buf->symbols, n)) { goto error; }
 
     //printf("%s:", label);
 
     for (it = buf->symbols, ie = buf->symbols + n; it != ie; ++it) {
-	  //printf(" ");
         if (!print_symbol(*it, buf)) {
             goto error;
         }
     }
 
-    printf("\n");
+	printf("\n");
     goto out;
 
 error:
@@ -151,49 +146,36 @@ bool print_solution(clingo_model_t const *model, model_buffer_t *data)
 {
     bool ret = true;
     uint64_t number;
-    clingo_model_type_t type;
-    char const *type_string = "";
-
-    // get model type
-    if (!clingo_model_type(model, &type)) {
-        goto error;
-    }
-
-    switch ((enum clingo_model_type)type) {
-        case clingo_model_type_stable_model: {
-            type_string = "Stable model";
-            break;
-        }
-        case clingo_model_type_brave_consequences: {
-            type_string = "Brave consequences";
-            break;
-        }
-        case clingo_model_type_cautious_consequences: {
-            type_string = "Cautious consequences";
-            break;
-        }
-    }
-
+	clingo_model_type_t type;
+	char const *type_string = "";
+	
+	// get model type
+	if (!clingo_model_type(model, &type)) { goto error; }
+	
+	switch ((enum clingo_model_type_e)type) {
+    case clingo_model_type_stable_model:          { type_string = "Answer:"; break; }
+    case clingo_model_type_brave_consequences:    { type_string = "Brave consequences"; break; }
+    case clingo_model_type_cautious_consequences: { type_string = "Cautious consequences"; break; }
+	}
+	
     // get running number of model
-    if (!clingo_model_number(model, &number)) {
-        goto error;
-    }
+    if (!clingo_model_number(model, &number)) { goto error; }
 
-    printf("%s %" PRIu64 ":\n", type_string, number);
+    printf("%s %" PRIu64 "\n", type_string, number);
 
     if (!print_model(model, data, "  shown", clingo_show_type_shown)) {
         goto error;
     }
-    //if (!print_model(model, data, "  atoms", clingo_show_type_atoms)) {
-    //    goto error;
-    //}
-    //if (!print_model(model, data, "  terms", clingo_show_type_terms)) {
-    //    goto error;
-    //}
-    //if (!print_model(model, data, " ~atoms",
-    //                 clingo_show_type_complement | clingo_show_type_atoms)) {
-    //    goto error;
-    //}
+    /*if (!print_model(model, data, "  atoms", clingo_show_type_atoms)) {
+        goto error;
+    }
+    if (!print_model(model, data, "  terms", clingo_show_type_terms)) {
+        goto error;
+    }
+    if (!print_model(model, data, " ~atoms",
+                     clingo_show_type_complement | clingo_show_type_atoms)) {
+        goto error;
+	}*/
 
     goto out;
 
@@ -236,7 +218,7 @@ bool solve(clingo_control_t *ctl, model_buffer_t *data, clingo_solve_result_bits
         }
         // stop if there are no more models
         else {
-            printf("Number of models: %d.\n", count);
+            printf("\nNumber of models: %d.\n", count);
             break;
         }
     }
@@ -377,12 +359,14 @@ int main(int argc, char const **argv)
     reset_Configuration(&problem);
     // register propagator class
     clingo_propagator_t prop = {
-        (bool (*)(clingo_propagate_init_t *, void *))init,
+		(bool (*)(clingo_propagate_init_t *, void *))init,
         NULL,//(bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
         NULL,
-		(bool (*)(clingo_propagate_control_t *,void *))check};
+		(bool (*)(clingo_propagate_control_t *,void *))check,
+		NULL};
     // user data for the propagator
     propagator_t prop_data = {};
+	
     bool debug = true;
     std::ofstream debug_out;
 
@@ -453,7 +437,7 @@ int main(int argc, char const **argv)
         goto error;
     }
     add_execution_time(ctl, &problem);
-    prop_data.solver->printStatistics();
+    //prop_data.solver->printStatistics();
     // printf("%g", problem.time_in_clasp);
 
 	

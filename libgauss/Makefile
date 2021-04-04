@@ -12,7 +12,7 @@
 #
 # for C++ define  CC = g++
 CC = g++
-CFLAGS  = -g -std=c++11
+CFLAGS  = -g -std=c++14
 # define any directories containing header files other than /usr/include
 #
 # INCLUDES = -I/home/newhall/include  -I../include
@@ -34,7 +34,7 @@ LIBS = -lclingo -lgringo -lpotassco -lclasp -lreify -lpthread
 #
 default: shared
 MAIN = approxsmc
-SRCS = EGaussian.cpp packedrow.cpp test.cpp model_counting.cpp propagator.cpp utility.cpp
+SRCS = test.cpp model_counting.cpp countPropagator.cpp utility.cpp
 OBJDIR = Obj
 OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(SRCS))
 
