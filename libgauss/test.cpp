@@ -372,7 +372,7 @@ int main(int argc, char const **argv)
             (const char **)realloc(problem.asp_argument, (problem.argu_count + 1) * sizeof(char *));
     }
     char pivot_str[10];
-    sprintf(pivot_str, "-n %d", 20);
+    sprintf(pivot_str, "-n %d", problem.thresh);
     problem.asp_argument[problem.argu_count++] = pivot_str;
     reset_Configuration(&problem);
     // register propagator class
@@ -401,7 +401,7 @@ int main(int argc, char const **argv)
     }
 
     // register propagator object
-    // clingo_control_register_propagator(ctl, &prop, &prop_data, false);
+    clingo_control_register_propagator(ctl, &prop, &prop_data, false);
 
     // add a logic program to the base part
     // if (!clingo_control_add(ctl, "base", NULL, 0, "{a; b; c}."))
@@ -414,47 +414,6 @@ int main(int argc, char const **argv)
         clingo_control_load(ctl, problem.input_file);
 
     assert(debug);
-    // if (debug) {
-    //     std::ifstream fin;
-    //     fin.open(problem.asp_file);
-    //     debug_out.open("debug.txt", std::ios::trunc);
-    //     debug_out << fin.rdbuf() << std::endl;
-    //     if (problem.input_file) {
-    //         fin.open(problem.input_file);
-    //         debug_out << fin.rdbuf() << std::endl;
-    //     }
-    // }
-
-    // ground the base part
-    if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
-        goto error;
-    }
-    // get_symbol_atoms(ctl, &problem);
-    // generate_k_xors(3, &problem);
-    // translation(&ctl, &problem, debug, debug_out, 1, -1);
-    if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
-        goto error;
-    }
-    // clingo_control_add();
-    // print_all(&problem);
-    // solve
-
-    if (!solve(ctl, &buf, &solve_ret)) {
-        goto error;
-    }
-    if (solve_ret & clingo_solve_result_exhausted) {
-        // search exhausted
-        goto out;
-    }
-    if (!clingo_control_new(problem.asp_argument, problem.argu_count, NULL, NULL, 20, &ctl) != 0) {
-        goto error;
-    }
-    clingo_control_register_propagator(ctl, &prop, &prop_data, false);
-    clingo_control_load(ctl, problem.asp_file.c_str());
-    if (problem.input_file)
-        clingo_control_load(ctl, problem.input_file);
-
-    
     if (debug) {
         std::ifstream fin;
         fin.open(problem.asp_file);
