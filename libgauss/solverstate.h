@@ -144,7 +144,11 @@ public:
         cout << "sum_Enunit:\t" << sum_Enunit << endl;
     }
     void add_watch_literal(uint32_t lit) {
-        if (gwatches[lit].size() > 1) return;
+        if (gwatches[lit].size() > 1) {
+            // assert(clingo_propagate_control_has_watch(cpc, lit));
+            return;
+        };
+        // cout << lit << endl;
         assert(gwatches[lit].size() == 1);
         if (cpc) {
             clingo_propagate_control_add_watch(cpc, (clingo_literal_t) lit);
@@ -157,6 +161,8 @@ public:
     void remove_watch_literal(uint32_t lit) {
         if (!cpc)
             return; 
+        // cout << lit << endl;
+        // assert(clingo_propagate_control_has_watch(cpc, (clingo_literal_t) lit));
         if (gwatches[lit].size() >= 1) return;
         clingo_propagate_control_remove_watch(cpc, (clingo_literal_t) lit);
     }
@@ -164,7 +170,7 @@ public:
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         return clingo_assignment_has_conflict(values);
     }
-    void add_clause(vector<Lit> clause, bool xor_add = false) {
+    void add_clause(vector<Lit> clause, bool is_conflict_clause = false) {
         auto last_literal = literal.end();
         assert(cpc);
         size_t length = clause.size();
@@ -177,7 +183,7 @@ public:
             test_lit = (*itr).var();
             assert(literal.find(test_lit) != last_literal);
             assert(literal.find(test_lit) != literal.end());
-            if (index == 0 && !xor_add) {
+            if (index == 0 && !is_conflict_clause) {
                 assert(assigns[test_lit] == l_Undef);
             }
             else if ((*itr).sign())
@@ -193,9 +199,9 @@ public:
             new_clause[index++] = insert_lit;
         }
         assert(index == length);
-        if (xor_add && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
+        if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
         {
-            (xor_add) ? printf("\nConflict\n") : printf("\nPropagation\n");
+            (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");
             
             
             // itr = clause.begin();
@@ -212,9 +218,12 @@ public:
             cout << "\nCan't insert clause\n";
             
         }
-        if (!xor_add && !is_assignment_conflicting(cpc) && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
+        if (is_conflict_clause) {
+            assert(!result);  // this is conflicting
+        }
+        if (!is_conflict_clause && !is_assignment_conflicting(cpc) && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
         {
-            (xor_add) ? printf("\nConflict\n") : printf("\nPropagation\n");
+            (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");
             
             cout << "\nCan't insert clause\n";
             
@@ -230,19 +239,19 @@ public:
             return;
         }
         free(new_clause);
-        assert(result);
-        xor_add = false;
+        assert(result);  // this is propagating
+        // is_conflict_clause = false;
         // if it is a binary clause then add one more new clause
-        if (xor_add)
-        {
-            assert(length == 2);
-            new_clause[0] = -new_clause[0];
-            new_clause[1] = -new_clause[1];
-            if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
-            {
-                cout << "Can't insert clause";
-            }
-        }
+        // if (is_conflict_clause)
+        // {
+        //     assert(length == 2);
+        //     new_clause[0] = -new_clause[0];
+        //     new_clause[1] = -new_clause[1];
+        //     if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
+        //     {
+        //         cout << "Can't insert clause";
+        //     }
+        // }
     }
 };
 
