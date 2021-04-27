@@ -129,7 +129,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 {
     // the total number of holes pigeons can be assigned too
     int holes = 0;
-
+    clingo_propagate_init_set_check_mode(init, clingo_propagator_check_mode_total);
     size_t threads = clingo_propagate_init_number_of_threads(init);
     // stores the (numeric) maximum of the solver literals capturing pigeon placements
     // note that the code below assumes that this literal is not negative
@@ -303,6 +303,13 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     }
     printf("largest_var %d.\n", largest_var);
     assert(xorclauses.size() == xor_count);
+    for (int i = 0; i < xorclauses.size(); i++) {
+        cout << "[";
+        for (auto l = 0; l < xorclauses[i].size(); l++) {
+            cout << xorclauses[i][l] << " ";
+        }
+        cout << " ] " << xorclauses[i].rhs << endl;
+    }
     data->gqueuedata.clear();
     clearEnGaussMatrixes(data);
     data->gqueuedata.resize(1);
@@ -435,14 +442,20 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // c++;
     // get the thread specific state
     data->solver->get_assignment(control);
-    // auto start_literal = data->solver->literal.begin(); 
-    // for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
-    // {
-    //     if (data->solver->assigns[*start_literal] == l_True) {
-    //         std::cout << *start_literal << " ";
-    //     }
-    // }
-    // std::cout << "\n";
+    auto start_literal = data->solver->literal.begin(); 
+    for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
+    {
+        if (data->solver->assigns[*start_literal] == l_True) {
+             std::cout << "   " <<  *start_literal << " ";
+         }
+		 if (data->solver->assigns[*start_literal] == l_False) {
+             std::cout << "   -" <<  *start_literal << " ";
+         }
+		 if (data->solver->assigns[*start_literal] == l_Undef) {
+             std::cout << "   -" <<  *start_literal << " ";
+         }
+    }
+    std::cout << "\n";
     bool immediate_break = false;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
