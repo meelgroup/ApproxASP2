@@ -179,6 +179,9 @@ public:
         auto itr = clause.begin();
         u_int32_t index = 0;
         clingo_literal_t insert_lit, test_lit;
+        if (is_conflict_clause) {
+            cout << "Conflict clause added : [ "; 
+        }
         for (auto itr_end = clause.end(); itr != itr_end; itr++) {
             test_lit = (*itr).var();
             assert(literal.find(test_lit) != last_literal);
@@ -196,7 +199,13 @@ public:
             }
             
             insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
+            if (is_conflict_clause) {
+                cout << insert_lit << " "; 
+            }
             new_clause[index++] = insert_lit;
+        }
+        if (is_conflict_clause) {
+            cout << " ]" << endl; 
         }
         assert(index == length);
         if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))

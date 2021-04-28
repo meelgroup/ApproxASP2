@@ -625,35 +625,22 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         //     num_row++;
         //     continue;
         // }
-        const gret ret = (*rowI).propGause(tmp_clause,
+        const gret ret = (*rowI).propGause_debug(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
                                                    GasVar_state, nb_var, 0);
-        auto itr = tmp_clause.begin();
-        u_int32_t index = 0;
-        clingo_literal_t insert_lit, test_lit;
-        cout << "[";
-        for (auto itr_end = tmp_clause.end(); itr != itr_end; itr++) {
-            test_lit = (*itr).var();
-            string tmp = (int)(*itr).sign() ? "" : "-";
-            cout << tmp << (*itr).var() << " ";
-            // assert(literal.find(test_lit) != last_literal);
-            // assert(literal.find(test_lit) != literal.end());
-            // if (index == 0 && !is_conflict_clause) {
-            //     assert(assigns[test_lit] == l_Undef);
-            // }
-            // else if ((*itr).sign())
-            // {
-            //     assert(assigns[test_lit] == l_True);
-            // }
-            // else
-            // {
-            //     assert(assigns[test_lit] == l_False);
-            // }
-            
-            // insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
-            // new_clause[index++] = insert_lit;
+        if (ret == gret::confl) {
+            auto itr = tmp_clause.begin();
+            u_int32_t index = 0;
+            clingo_literal_t insert_lit, test_lit;
+            cout << "[";
+            for (auto itr_end = tmp_clause.end(); itr != itr_end; itr++) {
+                test_lit = (*itr).var();
+                string tmp = (int)(*itr).sign() ? "" : "-";
+                cout << tmp << (*itr).var() << " ";
+            }
+            cout << "]" << endl;
         }
-        cout << "]" << endl;
+        
         switch (ret) {
             case gret::confl: {
                 // printf("%d:This row is conflict in eliminate col    n",num_row);

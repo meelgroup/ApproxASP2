@@ -184,6 +184,78 @@ gret PackedRow::propGause(
 
 }
 
+gret PackedRow::propGause_debug(
+    vector<Lit>& tmp_clause,
+    const vector<lbool>& assigns,
+    const vector<uint32_t>& col_to_var,
+    vec<bool> &GasVar_state, // variable state  : basic or non-basic
+    uint32_t& nb_var,
+    uint32_t start
+) {
+
+    bool final = !rhs_internal;
+    cout << "[ "; 
+    nb_var = std::numeric_limits<uint32_t>::max();
+    tmp_clause.clear();
+
+    for (uint32_t i = start/64; i != size; i++) if (mp[i]) {
+        uint64_t tmp = mp[i];
+        for (uint32_t i2 = 0 ; i2 < 64; i2++) {
+            if(tmp & 1){
+                const uint32_t var = col_to_var[i * 64  + i2];
+                const lbool val = assigns[var];
+                if (val == l_Undef && !GasVar_state[var]) {  // find non basic value
+                    nb_var = var;
+                    return gret::nothing_fnewwatch; // nothing
+                }
+                const bool val_bool = (val == l_True);
+                final ^= val_bool;
+                tmp_clause.push_back(Lit(var, val_bool));
+                string tmp = (int) Lit(var, val_bool).sign() ? "" : "-";
+                cout << Lit(var, val_bool).var() << " ";
+                if (likely(GasVar_state[var])) {
+                    std::swap(tmp_clause[0], tmp_clause.back());
+                }
+            }
+            tmp >>= 1;
+        }
+    }
+
+    for ( uint32_t i =0; i != start/64; i++) if (likely(mp[i])) {
+        uint64_t tmp = mp[i];
+        for (uint32_t i2 = 0 ; i2 < 64; i2++) {
+            if(tmp & 1){
+                const uint32_t var = col_to_var[i * 64  + i2];
+                const lbool val = assigns[var];
+                if (val == l_Undef &&  !GasVar_state[var] ){  // find non basic value
+                    nb_var = var;
+                    return gret::nothing_fnewwatch;   // nothing
+                }
+                const bool val_bool = val == l_True;
+                final ^= val_bool;
+                tmp_clause.push_back(Lit(var, val_bool));
+                
+                cout << Lit(var, val_bool).var() << " ";
+                if ( GasVar_state[var] ) {
+                    std::swap(tmp_clause[0], tmp_clause.back());
+                }
+            }
+            tmp >>= 1;
+        }
+    }
+    cout << "|" << rhs_internal << " ]";
+    if (assigns[tmp_clause[0].var()] == l_Undef) {    // propogate
+        tmp_clause[0] = tmp_clause[0].unsign()^final;
+        return gret::prop;  // propogate
+    } else if (!final) {
+        cout << " <- conflict" << endl;
+        return gret::confl;  // conflict
+    }
+    // this row already true
+    cout << " <- ok" << endl;
+    return gret::nothing;  // nothing
+
+}
 
 
 
