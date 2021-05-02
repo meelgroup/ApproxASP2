@@ -303,6 +303,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     }
     printf("largest_var %d.\n", largest_var);
     assert(xorclauses.size() == xor_count);
+    #ifdef DEBUG_MODE
     for (int i = 0; i < xorclauses.size(); i++) {
         cout << "[";
         for (auto l = 0; l < xorclauses[i].size(); l++) {
@@ -310,6 +311,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         }
         cout << " ] " << xorclauses[i].rhs << endl;
     }
+    #endif
     data->gqueuedata.clear();
     clearEnGaussMatrixes(data);
     data->gqueuedata.resize(1);
@@ -403,7 +405,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             case 3: // unit propagation
                 gqd.big_propagate++;
                 data->solver->sum_Enpropagate++;
-                data->solver->add_clause(gqd.prop_clause_gauss, false);
+                // data->solver->add_clause(gqd.prop_clause_gauss, false);
             case 4:
                 //nothing
                 break;
@@ -442,6 +444,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // c++;
     // get the thread specific state
     data->solver->get_assignment(control);
+    #ifdef DEBUG_MODE
     auto start_literal = data->solver->literal.begin(); 
     for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
     {
@@ -456,6 +459,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
          }
     }
     std::cout << "\n";
+    #endif
     bool immediate_break = false;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();

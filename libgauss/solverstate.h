@@ -101,6 +101,7 @@ public:
     {
         cpc = control;
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
+        assert(!clingo_assignment_has_conflict(values));
         decision_level = clingo_assignment_decision_level(values);
         clingo_truth_value_t value;
         assigns.assign(nVars(), l_Undef);
@@ -179,9 +180,11 @@ public:
         auto itr = clause.begin();
         u_int32_t index = 0;
         clingo_literal_t insert_lit, test_lit;
+        #ifdef DEBUG_MODE
         if (is_conflict_clause) {
             cout << "Conflict clause added : [ "; 
         }
+        #endif
         for (auto itr_end = clause.end(); itr != itr_end; itr++) {
             test_lit = (*itr).var();
             assert(literal.find(test_lit) != last_literal);
@@ -199,14 +202,18 @@ public:
             }
             
             insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
+            #ifdef DEBUG_MODE
             if (is_conflict_clause) {
                 cout << insert_lit << " "; 
             }
+            #endif
             new_clause[index++] = insert_lit;
         }
+        #ifdef DEBUG_MODE
         if (is_conflict_clause) {
             cout << " ]" << endl; 
         }
+        #endif
         assert(index == length);
         if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
         {
@@ -230,7 +237,7 @@ public:
         if (is_conflict_clause) {
             assert(!result);  // this is conflicting
         }
-        if (!is_conflict_clause && !is_assignment_conflicting(cpc) && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
+        if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
         {
             (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");
             
