@@ -677,6 +677,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
 
 void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
     // cout << "eliminate this column :" << e_var  << " " << p << " " << e_row_n <<  endl;
+    gqd.prop_clause_gauss.clear();
     PackedMatrix::iterator this_row = matrix.matrix.beginMatrix() + gqd.e_row_n;
     PackedMatrix::iterator rowI = matrix.matrix.beginMatrix();
     PackedMatrix::iterator end = matrix.matrix.endMatrix();
@@ -734,8 +735,8 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         // printf("%d:This row is propagation in eliminate col    n",num_row);
 
                         // update no_basic_value?
-                        if (gqd.ret_gauss == 1 || gqd.ret_gauss == 0 ||
-                            gqd.ret_gauss == 3
+                        if ( //gqd.ret_gauss == 1 || gqd.ret_gauss == 0 ||
+                            gqd.ret_gauss == 0
                         ) {
                             solver->gwatches[p].push(GaussWatched(num_row, matrix_no));
                             matrix.nb_rows[num_row] = p;
@@ -747,6 +748,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         matrix.nb_rows[num_row] = p;
                         solver->add_watch_literal(p);
                         gqd.prop_clause_gauss = tmp_clause; 
+                        assert(solver->value(tmp_clause[0].var()) == l_Undef);
                         if (solver->decisionLevel() == 0) {
                             //solver->enqueue(tmp_clause[0]);
                             gqd.ret_gauss = 3; // unit_propagation

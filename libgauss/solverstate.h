@@ -52,6 +52,7 @@ public:
     uint32_t sum_initEnGauss;
     uint32_t sum_initUnit;
     uint32_t sum_Enconflict;
+    uint32_t sum_Elimination_Col;
     uint32_t sum_Enpropagate;
     uint32_t sum_Enunit;
     uint32_t sum_EnGauss;
@@ -135,6 +136,7 @@ public:
         sum_initUnit = 0;
         sum_Enpropagate = 0;
         sum_Enunit = 0;
+        sum_Elimination_Col = 0;
     }
     void printStatistics() {
         cout << "sum_Enconflict:\t" <<  sum_Enconflict << endl;
@@ -143,6 +145,7 @@ public:
         cout << "sum_initUnit:\t" << sum_initUnit << endl;
         cout << "sum_Enpropagate:\t" << sum_Enpropagate << endl;
         cout << "sum_Enunit:\t" << sum_Enunit << endl;
+        cout << "sum_Elimination_Col:\t" << sum_Elimination_Col << endl;
     }
     void add_watch_literal(uint32_t lit) {
         if (gwatches[lit].size() > 1) {

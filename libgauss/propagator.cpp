@@ -347,12 +347,14 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
 
         for (; i != end; i++) {
             data->gqueuedata[i->matrix_num].enter_matrix = true;
+            data->gqueuedata[i->matrix_num].do_eliminate = false;
             if (!data->gmatrixes[i->matrix_num]->find_truths2(
                 i, j, p.var(), i->row_id,
                 data->gqueuedata[i->matrix_num])
             ) {
                 //conflict
                 immediate_break = true;
+                i++;
                 break;
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
@@ -363,22 +365,34 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             }
         }
 
-        if (i != end) {
-            i++;
-            //copy remaining watches
-            GaussWatched *j2 = j;
-            GaussWatched *i2 = i;
-            for (; i2 != end; i2++) {
-                *j2 = *i2;
-                j2++;
-            }
+        // if (i != end) {
+        //     i++;
+        //     //copy remaining watches
+        //     GaussWatched *j2 = j;
+        //     GaussWatched *i2 = i;
+        //     for (; i2 != end; i2++) {
+        //         *j2 = *i2;
+        //         j2++;
+        //     }
+        // }
+        for (; i != end; i++) {
+            *j++ = *i;
         }
         ws.shrink_(i - j);
         data->solver->remove_watch_literal(p.var());
         for (size_t g = 0; g < data->gqueuedata.size(); g++)
-            if (data->gqueuedata[g].do_eliminate)
+            if (data->gqueuedata[g].do_eliminate) {
+                assert(data->gqueuedata[g].ret_gauss != 2);
                 data->gmatrixes[g]->eliminate_col2(p.var(), data->gqueuedata[g], immediate_break);
-
+                data->solver->sum_Elimination_Col++;
+                // if (immediate_break == false && !data->gqueuedata[g].prop_clause_gauss.empty()) {
+                //     // cout << "Propagate clause of size: " << data->gqueuedata[g].prop_clause_gauss.size() << endl;
+                //     data->solver->sum_Enpropagate++;
+                //     data->solver->add_clause(
+                //         data->gqueuedata[g].prop_clause_gauss, false);
+                //     return true;
+                // }
+            }
         if (immediate_break)
             break;
     }
