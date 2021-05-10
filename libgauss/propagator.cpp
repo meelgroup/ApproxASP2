@@ -359,9 +359,11 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
                 data->solver->sum_Enpropagate++;
-                data->solver->add_clause(
-                    data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
-                return true;
+                if (!data->solver->add_clause(
+                    data->gqueuedata[i->matrix_num].prop_clause_gauss, false)) {
+                    return true;                            
+                }
+                // return true;
             }
         }
 
@@ -382,16 +384,15 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
         data->solver->remove_watch_literal(p.var());
         for (size_t g = 0; g < data->gqueuedata.size(); g++)
             if (data->gqueuedata[g].do_eliminate) {
-                assert(data->gqueuedata[g].ret_gauss != 2);
                 data->gmatrixes[g]->eliminate_col2(p.var(), data->gqueuedata[g], immediate_break);
                 data->solver->sum_Elimination_Col++;
-                // if (immediate_break == false && !data->gqueuedata[g].prop_clause_gauss.empty()) {
-                //     // cout << "Propagate clause of size: " << data->gqueuedata[g].prop_clause_gauss.size() << endl;
-                //     data->solver->sum_Enpropagate++;
-                //     data->solver->add_clause(
-                //         data->gqueuedata[g].prop_clause_gauss, false);
-                //     return true;
-                // }
+                if (immediate_break == false && !data->gqueuedata[g].prop_clause_gauss.empty()) {
+                    // cout << "Propagate clause of size: " << data->gqueuedata[g].prop_clause_gauss.size() << endl;
+                    data->solver->sum_Enpropagate++;
+                    if (!data->solver->add_clause(data->gqueuedata[g].prop_clause_gauss, false)) { 
+                        return true; 
+                    }                         
+                }
             }
         if (immediate_break)
             break;

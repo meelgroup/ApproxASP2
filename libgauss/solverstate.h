@@ -105,19 +105,23 @@ public:
         assert(!clingo_assignment_has_conflict(values));
         decision_level = clingo_assignment_decision_level(values);
         clingo_truth_value_t value;
+        bool result;
         assigns.assign(nVars(), l_Undef);
         auto start_literal = literal.begin(); 
         for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
         {
             assert(clingo_assignment_has_literal(values, *start_literal));
             clingo_assignment_truth_value(values, *start_literal, &value);
+            clingo_assignment_is_true(values, *start_literal, &result);
             switch (value)
             {
                 case clingo_truth_value_true:
                     assigns[*start_literal] = l_True;
+                    assert(result);
                     break;
                 case clingo_truth_value_false:
                     assigns[*start_literal] = l_False;
+                    assert(!result);
                     break;
                 default:
                     break;
@@ -174,11 +178,12 @@ public:
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         return clingo_assignment_has_conflict(values);
     }
-    void add_clause(vector<Lit> clause, bool is_conflict_clause = false) {
+    bool add_clause(vector<Lit> clause, bool is_conflict_clause = false) {
         auto last_literal = literal.end();
         assert(cpc);
         size_t length = clause.size();
         bool result;
+        clingo_truth_value_t value;
         clingo_literal_t* new_clause = (clingo_literal_t *)malloc (length * sizeof(clingo_literal_t));
         auto itr = clause.begin();
         u_int32_t index = 0;
@@ -188,20 +193,25 @@ public:
             cout << "Conflict clause added : [ "; 
         }
         #endif
+        const clingo_assignment_t *values = clingo_propagate_control_assignment(cpc);
         for (auto itr_end = clause.end(); itr != itr_end; itr++) {
             test_lit = (*itr).var();
             assert(literal.find(test_lit) != last_literal);
             assert(literal.find(test_lit) != literal.end());
+            clingo_assignment_truth_value(values, test_lit, &value);
             if (index == 0 && !is_conflict_clause) {
                 assert(assigns[test_lit] == l_Undef);
+                assert(value == clingo_truth_value_free);
             }
             else if ((*itr).sign())
             {
                 assert(assigns[test_lit] == l_True);
+                assert(value == clingo_truth_value_true);
             }
             else
             {
                 assert(assigns[test_lit] == l_False);
+                assert(value == clingo_truth_value_false);
             }
             
             insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
@@ -218,6 +228,9 @@ public:
         }
         #endif
         assert(index == length);
+        if (is_assignment_conflicting(cpc)) {
+            cout << "### It **Should NOT** come here ###" << endl;
+        }
         if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
         {
             (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");
@@ -248,17 +261,19 @@ public:
             
         }
         if (!result) {
-            return;
+            return false;
         }
         if (!clingo_propagate_control_propagate(cpc, &result))
         {
             cout << "Can't propagate clause";
         }
         if (!result) {
-            return;
+            return false;
         }
+        get_assignment(cpc);
         free(new_clause);
         assert(result);  // this is propagating
+        return true;
         // is_conflict_clause = false;
         // if it is a binary clause then add one more new clause
         // if (is_conflict_clause)
