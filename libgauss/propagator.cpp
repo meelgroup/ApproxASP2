@@ -359,10 +359,11 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
                 data->solver->sum_Enpropagate++;
-                if (!data->solver->add_clause(
-                    data->gqueuedata[i->matrix_num].prop_clause_gauss, false)) {
+                data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
+                return true; 
                     return true;                            
-                }
+                return true; 
+                
                 // return true;
             }
         }
@@ -388,10 +389,10 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 data->solver->sum_Elimination_Col++;
                 if (immediate_break == false && !data->gqueuedata[g].prop_clause_gauss.empty()) {
                     // cout << "Propagate clause of size: " << data->gqueuedata[g].prop_clause_gauss.size() << endl;
-                    data->solver->sum_Enpropagate++;
-                    if (!data->solver->add_clause(data->gqueuedata[g].prop_clause_gauss, false)) { 
-                        return true; 
-                    }                         
+                    // data->solver->sum_Enpropagate++;
+                    // if (!data->solver->add_clause(data->gqueuedata[g].prop_clause_gauss, false)) { 
+                    //     return true; 
+                    // }                        
                 }
             }
         if (immediate_break)

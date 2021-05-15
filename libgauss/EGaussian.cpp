@@ -480,12 +480,15 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
     }
 
     const gret ret = (*rowIt).propGause(tmp_clause, solver->assigns, matrix.col_to_var, GasVar_state, nb_var, var_to_col[p]);
-    
+    int unassigned = 0;
+    bool conflict = false;
+    (*rowIt).degug_propGause(solver->assigns, matrix.col_to_var, unassigned, conflict);
     switch (ret) {
         case gret::confl: {
             // printf("dd %d:This row is conflict %d    n",row_n , solver->level[p] );
             // long conflict clause
             *j++ = *i;
+            assert(unassigned == 0 && conflict);
             gqd.conflict_clause_gauss = tmp_clause; // choose better conflice clause
             gqd.ret_gauss = 0;                      // gaussian matrix is conflict
             gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(row_n).rhs();
@@ -501,7 +504,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
         // propagation
         case gret::prop: {
             // printf("%d:This row is propagation : level: %d    n",row_n, solver->level[p]);
-
+            assert(unassigned == 1);
             // Gaussian matrix is already conflict
             if (gqd.ret_gauss == 0) {
                 *j++ = *i;        // store watch list
@@ -557,7 +560,8 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
         case gret::nothing_fnewwatch: // find new watch list
             // printf("%d:This row is find new watch:%d => orig %d p:%d    n",row_n ,
             // nb_var,orig_basic , p);
-
+            // cout << "Assert unassigned > 1: " << unassigned << endl;
+            assert(unassigned > 1);
             // Gaussian matrix is already conflict
             if (gqd.ret_gauss == 0) {
                 *j++ = *i;        // store watch list
@@ -592,6 +596,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             return true;
 
         case gret::nothing: // this row already treu
+            assert(unassigned == 0 && !conflict);
             // printf("%d:This row is nothing( maybe already true)     n",row_n);
             *j++ = *i;        // store watch list
             if (orig_basic) { // recover
@@ -629,6 +634,9 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         const gret ret = (*rowI).propGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
                                                    GasVar_state, nb_var, 0);
+        int unassigned = 0;
+        bool conflict = false;
+        (*rowI).degug_propGause(solver->assigns, matrix.col_to_var, unassigned, conflict);                                           
         #ifdef DEBUG_MODE
         if (ret == gret::confl) {
             auto itr = tmp_clause.begin();
@@ -647,6 +655,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
             case gret::confl: {
                 // printf("%d:This row is conflict in eliminate col    n",num_row);
                 // for tell outside solver
+                assert(unassigned == 0 && conflict);
                 gqd.conflict_clause_gauss = tmp_clause;
                 gqd.ret_gauss = 0;                      // gaussian matrix is   conflict
                 gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(num_row).rhs();
@@ -662,6 +671,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
                 // printf("%d:This row is nothing( maybe already true) in eliminate col
                 // n",num_row);
                 // (*clauseIt).setBit(num_row);        // this clause arleady sat
+                assert(unassigned == 0 && !conflict);
                 break;
             
             default:
@@ -704,17 +714,21 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                 const gret ret = (*rowI).propGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
                                                    GasVar_state, nb_var, ori_nb_col);
+                int unassigned = 0;
+                bool conflict = false;
+                (*rowI).degug_propGause(solver->assigns, matrix.col_to_var, unassigned, conflict);
 
                 switch (ret) {
                     case gret::confl: {
+                        assert(unassigned == 0 && conflict);
                         // printf("%d:This row is conflict in eliminate col    n",num_row);
-                        if (gqd.ret_gauss == 3) {
-                            solver->gwatches[p].push(GaussWatched(num_row, matrix_no));
-                            solver->add_watch_literal(p);
-                            // update in this row non_basic variable
-                            matrix.nb_rows[num_row] = p;
-                            break;
-                        }
+                        // if (gqd.ret_gauss == 3) {
+                        //     solver->gwatches[p].push(GaussWatched(num_row, matrix_no));
+                        //     solver->add_watch_literal(p);
+                        //     // update in this row non_basic variable
+                        //     matrix.nb_rows[num_row] = p;
+                        //     break;
+                        // }
                         solver->gwatches[p].push(
                             GaussWatched(num_row, matrix_no)); // update gausWatch list
                         matrix.nb_rows[num_row] =
@@ -733,7 +747,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                     }
                     case gret::prop: {
                         // printf("%d:This row is propagation in eliminate col    n",num_row);
-
+                        assert(unassigned == 1);                            
                         // update no_basic_value?
                         if ( //gqd.ret_gauss == 1 || gqd.ret_gauss == 0 ||
                             gqd.ret_gauss == 0
@@ -774,7 +788,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                     case gret::nothing_fnewwatch: // find new watch list
                         // printf("%d::This row find new watch list :%d in eliminate col
                         // n",num_row,nb_var);
-
+                        assert(unassigned > 1);
                         solver->gwatches[nb_var].push(GaussWatched(num_row, matrix_no));
                         matrix.nb_rows[num_row] = nb_var;
                         solver->add_watch_literal(nb_var);
@@ -782,7 +796,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                     case gret::nothing: // this row already tre
                         // printf("%d:This row is nothing( maybe already true) in eliminate col
                         // n",num_row);
-
+                        assert(unassigned == 0 && !conflict);
                         solver->gwatches[p].push(GaussWatched(num_row, matrix_no));
                         matrix.nb_rows[num_row] = p; // update in this row non_basic variable
                         solver->add_watch_literal(p);
