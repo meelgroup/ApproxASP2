@@ -253,7 +253,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 
 		if (display)
 		{	  	
-			printf("Adding XOR to the state");
+			printf("Adding XOR to the state ");
 			for(int i=0; i < lits.size(); ++i){
 				printf("%d ", lits[i]);
 			}
@@ -261,9 +261,9 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 		}
 
 		// Create XORs
-		xorClauses.push_back(Xor(lits, even));
+		//xorClauses.push_back(Xor(lits, even));
 		// Add XORs to state
-		data->xorState.push_back(xorClauses);
+		data->xorState.push_back(Xor(lits, even));
 
 		// Finish symbolic atoms iteration
 		if (!clingo_symbolic_atoms_end(atoms, &atoms_ie)) { return false; }
@@ -287,64 +287,64 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
 	clingo_truth_value_t value;
 
 	// For each XOR in the state
-	for (auto state : data->xorState) {
-		for (auto xorClauses : state){
-			int count = 0; // truth assignments counter
-			vector<uint32_t> clause; 
-			clause.clear();
-			for (auto lit : xorClauses){
-				if (display)
-					printf("%d ",lit);
-				// Get the current assignment
-				clingo_assignment_truth_value(assignment, lit, &value);		   
-				switch (value)
-				{
-				case clingo_truth_value_true: // If true
-					if (display)
-						printf("true \n");
-					count++; // Increase the counter
-					clause.push_back(lit);
-					break;
-				case clingo_truth_value_false: // If false
-					if (display)
-						printf("false \n");
-					clause.push_back(-lit);
-					break;
-				default:
-					break;
-				}
-			}			
-			if (!(count % 2 == 1)) // Check if the odd XOR is satisfied...
+	//for (auto state : data->xorState) {
+	//for (auto xorClauses : state){
+	for(auto xorClauses : data->xorState){
+		int count = 0; // truth assignments counter
+		vector<uint32_t> clause; 
+		clause.clear();
+		for (auto lit : xorClauses){
+			if (display)
+				printf("%d ",lit);
+			// Get the current assignment
+			clingo_assignment_truth_value(assignment, lit, &value);		   
+			switch (value)
 			{
-				if (display){				
-					printf("conflict... add nogood \n");
-					for (auto lit : clause)
-						printf("%d ",lit);
-					printf("\n");
-				}
-
-				// Definetely, there must be a more elegant and proper way to do this...
-				/*
-				  ASP has the concept of a nogood as an unvalid assignment or as a constraint. Something that is not allowed to happen.
-				  Formally, a nogood is equivalent to a clause with all literals negated.
-				  A nogood of is equivalent to clause([-lit for lit in clause])
-				 */
-				clingo_literal_t nogood[clause.size()];
-				bool result; // Condition to stop propagation
-				for (int i = 0; i < clause.size(); i++ ) {
-					nogood[i] = -clause[i];
-				}
-				// Add nogood
-				auto size = sizeof(nogood)/sizeof(*nogood);
-				if (!clingo_propagate_control_add_clause(control, nogood, size, clingo_clause_type_learnt , &result)) { return false; }
-				if (!result) { return true; }
-				// Propagate the consequences
-				if (!clingo_propagate_control_propagate(control, &result)) { return false; }
-				if (!result) { return true; }
+			case clingo_truth_value_true: // If true
+				if (display)
+					printf("true \n");
+				count++; // Increase the counter
+				clause.push_back(lit);
+				break;
+			case clingo_truth_value_false: // If false
+				if (display)
+					printf("false \n");
+				clause.push_back(-lit);
+				break;
+			default:
+				break;
 			}
+		}			
+		if (!(count % 2 == 1)) // Check if the odd XOR is satisfied...
+		{
+			if (display){				
+				printf("conflict... add nogood \n");
+				for (auto lit : clause)
+					printf("%d ",lit);
+				printf("\n");
+			}
+			
+			// Definetely, there must be a more elegant and proper way to do this...
+			/*
+			  ASP has the concept of a nogood as an unvalid assignment or as a constraint. Something that is not allowed to happen.
+			  Formally, a nogood is equivalent to a clause with all literals negated.
+			  A nogood of is equivalent to clause([-lit for lit in clause])
+			*/
+			clingo_literal_t nogood[clause.size()];
+			bool result; // Condition to stop propagation
+			for (int i = 0; i < clause.size(); i++ ) {
+				nogood[i] = -clause[i];
+			}
+			// Add nogood
+			auto size = sizeof(nogood)/sizeof(*nogood);
+			if (!clingo_propagate_control_add_clause(control, nogood, size, clingo_clause_type_learnt , &result)) { return false; }
+			if (!result) { return true; }
+			// Propagate the consequences
+			if (!clingo_propagate_control_propagate(control, &result)) { return false; }
+			if (!result) { return true; }
 		}
-		if (display)
-			printf("\n");
     }
+	if (display)
+		printf("\n");
     return true;
 }
