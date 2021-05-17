@@ -128,10 +128,6 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     clingo_signature_t signature; // For atom's arity
     clingo_symbolic_atom_iterator_t atoms_it, atoms_ie;
     string_buffer_t buffer= {NULL, 0};
-	// XORs' vector
-    vector<Xor> xorClauses;
-	// XORs' parities
-    //vector<bool> xorParity; // Not used in this propagator but useful in others.
 	// XORs' IDs
 	vector<int> xorIDs;
 
@@ -201,7 +197,6 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 			printf("xor ID: %d\n", xorIDs[i]);
 		vector<uint32_t> lits;
 		lits.clear();
-		xorClauses.clear();
 
 		// Break if there are no atoms with the given signature
 		if (!clingo_symbolic_atoms_begin(atoms, &signature, &atoms_it)) { return false; }
@@ -260,8 +255,6 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 			printf("\n");
 		}
 
-		// Create XORs
-		//xorClauses.push_back(Xor(lits, even));
 		// Add XORs to state
 		data->xorState.push_back(Xor(lits, even));
 
@@ -287,13 +280,11 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
 	clingo_truth_value_t value;
 
 	// For each XOR in the state
-	//for (auto state : data->xorState) {
-	//for (auto xorClauses : state){
-	for(auto xorClauses : data->xorState){
+	for(auto xorConstraint : data->xorState){
 		int count = 0; // truth assignments counter
 		vector<uint32_t> clause; 
 		clause.clear();
-		for (auto lit : xorClauses){
+		for (auto lit : xorConstraint){
 			if (display)
 				printf("%d ",lit);
 			// Get the current assignment

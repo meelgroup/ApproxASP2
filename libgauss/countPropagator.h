@@ -33,7 +33,7 @@ using std::vector;
 
 // state information for the propagator
 typedef struct {
-	vector<Xor> xorState; // Let the state be a vector of XORs
+	vector<Xor> xorState; // The state is a vector of XORs
 } propagator_t;
 
 bool get_arg(clingo_symbol_t sym, int offset, int *num);
