@@ -329,6 +329,25 @@ public:
         //     }
         // }
     }
+    bool add_initial_clause(vector<Lit> clause) {
+        assert(cpi);
+        assert(clause.size() == 1);
+        clingo_literal_t* new_clause = (clingo_literal_t *)malloc (sizeof(clingo_literal_t));
+        if (clause[0].sign()) {
+            new_clause[0] = -clause[0].var();
+        }
+        else {
+            new_clause[0] = clause[0].var();
+        }
+        bool result;
+        // add the clause
+        if (!clingo_propagate_init_add_clause(cpi, new_clause, 1, &result)) { return false; }
+        if (!result) { return false; }
+        // propagate it
+        if (!clingo_propagate_init_propagate(cpi, &result)) { return false; }
+        if (!result) { return false; }
+        return true;
+    }
 };
 
 // }

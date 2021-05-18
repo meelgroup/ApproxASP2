@@ -272,7 +272,7 @@ bool EGaussian::full_init(bool& created) {
         }
 
         eliminate(matrix); // gauss eliminate algorithm
-
+        tmp_clause.clear();
         // find some row already true false, and insert watch list
         gret ret = adjust_matrix(matrix);
 
@@ -288,7 +288,7 @@ bool EGaussian::full_init(bool& created) {
                 solver->sum_Enpropagate++;
 
                 assert(solver->decisionLevel() == 0);
-                // solver->ok = (solver->propagate<false>().isNULL());
+                solver->ok = solver->add_initial_clause(tmp_clause);
                 if (!solver->ok) {
                     return false;
                 }
