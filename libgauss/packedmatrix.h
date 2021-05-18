@@ -91,7 +91,7 @@ public:
         return *this;
     }
 
-    inline PackedRow getMatrixAt(const uint32_t i)
+    inline PackedRow operator[](const uint32_t i)
     {
         #ifdef DEBUG_MATRIX
         assert(i <= numRows);
@@ -101,7 +101,7 @@ public:
 
     }
 
-    inline PackedRow getMatrixAt(const uint32_t i) const
+    inline PackedRow operator[](const uint32_t i) const
     {
         #ifdef DEBUG_MATRIX
         assert(i <= numRows);

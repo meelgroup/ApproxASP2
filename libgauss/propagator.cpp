@@ -263,7 +263,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         sym = get_arg_str(sym, 2, &condition);
         assert(id < xor_count);
         assert(!strcmp(parity, "odd") || !strcmp(parity, "even"));
-        xorparity[id] = (!strcmp(parity, "odd")) ? 1 : 0;
+        xorparity[id] = (strcmp(parity, "odd") == 0) ? 1 : 0;
         symbol_to_literal[sym] = 0;
         xor_to_symbol[id].push_back(sym);
 

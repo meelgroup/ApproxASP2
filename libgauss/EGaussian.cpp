@@ -201,7 +201,7 @@ void EGaussian::fill_matrix(matrixset& origMat) {
     uint32_t matrix_row = 0;
     for (uint32_t i = 0; i != xorclauses.size(); i++) {
         const Xor& c = xorclauses[i];
-        origMat.matrix.getMatrixAt(matrix_row).set(c, var_to_col, origMat.num_cols);
+        origMat.matrix[matrix_row].set(c, var_to_col, origMat.num_cols);
         matrix_row++;
     }
     assert(origMat.num_rows == matrix_row);
@@ -382,7 +382,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 printf("%d:This row only one variable, need to propogation!!!! in adjust matrix \
                 n",row_id);
 
-                xorEqualFalse = !m.matrix.getMatrixAt(row_id).rhs();
+                xorEqualFalse = !m.matrix[row_id].rhs();
                 tmp_clause[0] = Lit(tmp_clause[0].var(), xorEqualFalse);
                 assert(solver->value(tmp_clause[0].var()) == l_Undef);
                 // solver->enqueue(tmp_clause[0]); // propagation
@@ -491,7 +491,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             assert(unassigned == 0 && conflict);
             gqd.conflict_clause_gauss = tmp_clause; // choose better conflice clause
             gqd.ret_gauss = 0;                      // gaussian matrix is conflict
-            gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(row_n).rhs();
+            gqd.xorEqualFalse_gauss = !matrix.matrix[row_n].rhs();
 
             if (orig_basic) { // recover
                 GasVar_state[matrix.nb_rows[row_n]] = non_basic_var;
@@ -658,7 +658,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
                 assert(unassigned == 0 && conflict);
                 gqd.conflict_clause_gauss = tmp_clause;
                 gqd.ret_gauss = 0;                      // gaussian matrix is   conflict
-                gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(num_row).rhs();
+                gqd.xorEqualFalse_gauss = !matrix.matrix[num_row].rhs();
                 early_stop = true;
                 return;
                 // If conflict is happened in eliminaiton conflict, then we only return
@@ -737,7 +737,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         // for tell outside solver
                         gqd.conflict_clause_gauss = tmp_clause;
                         gqd.ret_gauss = 0;                      // gaussian matrix is   conflict
-                        gqd.xorEqualFalse_gauss = !matrix.matrix.getMatrixAt(num_row).rhs();
+                        gqd.xorEqualFalse_gauss = !matrix.matrix[num_row].rhs();
                         early_stop = true;
                         // If conflict is happened in eliminaiton conflict, then we only return
                         // immediately
