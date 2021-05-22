@@ -224,13 +224,16 @@ void EGaussian::fill_matrix(matrixset& origMat) {
 void EGaussian::clear_gwatches(const uint32_t var) {
     GaussWatched* i = solver->gwatches[var].begin();
     GaussWatched* j = i;
-    for(GaussWatched* end = solver->gwatches[var].end(); i != end; i++) {
-        if (i->matrix_num != matrix_no) {
-            *j++ = *i;
-        }
-    }
-    solver->gwatches[var].shrink(i-j);
+    solver->gwatches[var].clear();
     solver->remove_watch_literal(var);
+    return;
+    // for(GaussWatched* end = solver->gwatches[var].end(); i != end; i++) {
+    //     if (i->matrix_num != matrix_no) {
+    //         *j++ = *i;
+    //     }
+    // }
+    // solver->gwatches[var].shrink(i-j);
+    
 }
 
 bool EGaussian::clean_xors()
@@ -826,6 +829,35 @@ void EGaussian::print_matrix(matrixset& m) const {
         }
         cout << endl;
     }
+}
+
+bool EGaussian::check_watch_var() {
+    vector<vector<uint32_t>> watch_to_xor_index;
+    watch_to_xor_index.resize(matrix.num_rows);
+    for (size_t ii = 0; ii < solver->gwatches.size(); ii++) {
+      for (auto jj = solver->gwatches[ii].begin(); jj < solver->gwatches[ii].end(); jj++) {
+        // cout << "Row: " << jj->row_id << " var index: " << ii << endl;  
+        watch_to_xor_index[jj->row_id].push_back(ii);    
+      }
+    }
+    for (size_t ii = 0; ii < watch_to_xor_index.size(); ii++) {
+        // cout << "Row: " << ii << " has " << watch_to_xor_index[ii].size() << " watches " << endl; 
+        assert(watch_to_xor_index[ii].size() == 2);  
+    }
+
+    for (size_t ii = 0; ii < watch_to_xor_index.size(); ii++) {
+        uint32_t first_var = watch_to_xor_index[ii][0];
+        uint32_t second_var = watch_to_xor_index[ii][1];
+        // check that one of them is non_basic
+        bool first_var_is_non_basic = (matrix.nb_rows[ii] == first_var);
+        bool second_var_is_non_basic = (matrix.nb_rows[ii] == second_var);
+        assert(first_var_is_non_basic | second_var_is_non_basic);
+        // check that one of them is non_basic
+        bool first_var_is_basic = GasVar_state[first_var];
+        bool second_var_is_basic = GasVar_state[second_var];
+        assert(first_var_is_basic | second_var_is_basic);
+    }
+    return true;
 }
 
 void EGaussian::Debug_funtion() {

@@ -137,7 +137,7 @@ class EGaussian {
         GaussQData& gqd,
         bool& early_stop
     );
-
+    bool check_watch_var(); // check each xor has 2 watches
     void Debug_funtion(); // used to debug
 };
 

@@ -330,6 +330,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                      size_t size, propagator_t *data)
 {
     bool immediate_break = false;
+    bool prop = false;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
     }
@@ -360,10 +361,9 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 //must propagate
                 data->solver->sum_Enpropagate++;
                 data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
-                return true; 
-                    return true;                            
-                return true; 
-                
+                i++;
+                prop = true; 
+                break;
                 // return true;
             }
         }
@@ -383,6 +383,8 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
         }
         ws.shrink_(i - j);
         data->solver->remove_watch_literal(p.var());
+        if (prop)
+            break;
         for (size_t g = 0; g < data->gqueuedata.size(); g++)
             if (data->gqueuedata[g].do_eliminate) {
                 data->gmatrixes[g]->eliminate_col2(p.var(), data->gqueuedata[g], immediate_break);
@@ -395,6 +397,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                     // }                        
                 }
             }
+        // data->gmatrixes[0]->check_watch_var();
         if (immediate_break)
             break;
     }
