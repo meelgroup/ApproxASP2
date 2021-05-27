@@ -479,7 +479,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     }
     std::cout << "\n";
     #endif
-    bool immediate_break = false;
+    bool immediate_break = false, final_check;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
     }
@@ -490,6 +490,10 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
 
         if (immediate_break)
         {
+            // final_check = data->gmatrixes[0]->check_each_xor_clause();
+            // if (final_check) {
+            //     cout << "It is wrong, all xor clauses are satisifed ..." << endl;
+            // }
             for (GaussQData &gqd: data->gqueuedata) {
                 data->solver->sum_Enconflict++;
                 data->solver->add_clause(gqd.conflict_clause_gauss, true);
@@ -498,5 +502,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
         }
     }
     // std::cout << "One model found ... " << std::endl;
+    // final_check = data->gmatrixes[0]->check_each_xor_clause();
+    // if (!final_check) {
+    //     cout << "There some xor clause is not satisfied ..." << endl;
+    // }
     return true;
 }

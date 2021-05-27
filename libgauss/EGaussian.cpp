@@ -33,6 +33,7 @@ THE SOFTWARE.
 #include <iomanip>
 #include <iostream>
 #include <set>
+#include <unordered_map>
 
 #include "EGaussian.h"
 // #include "clause.h"
@@ -857,6 +858,42 @@ bool EGaussian::check_watch_var() {
         bool second_var_is_basic = GasVar_state[second_var];
         assert(first_var_is_basic | second_var_is_basic);
     }
+    return true;
+}
+
+int intersection(std::vector<uint32_t> &v1,
+                                      std::vector<uint32_t> &v2){
+    std::vector<uint32_t> v3;
+
+    std::sort(v1.begin(), v1.end());
+    std::sort(v2.begin(), v2.end());
+
+    std::set_intersection(v1.begin(),v1.end(),
+                          v2.begin(),v2.end(),
+                          back_inserter(v3));
+    return v3.size();
+}
+
+bool EGaussian::check_each_xor_clause() {
+    std::vector<uint32_t> true_literals;
+    auto start_literal = solver->literal.begin(); 
+    for (auto end_literal = solver->literal.end(); start_literal != end_literal ; start_literal++)
+    {
+        if (solver->assigns[*start_literal] == l_True) {
+            true_literals.push_back(*start_literal);
+        }
+    }
+    int number_of_true=0;
+    for (Xor xor_clause: xorclauses) {
+        number_of_true = intersection(true_literals, xor_clause.get_vars());
+        if (xor_clause.rhs == false && number_of_true % 2 == 1) {
+            return false;
+        }
+        else if (xor_clause.rhs == true && number_of_true % 2 == 0) {
+            return false;
+        }
+    }
+    // cout << "The assignment is satisfied " << xorclauses.size() << " constraints" << endl;
     return true;
 }
 
