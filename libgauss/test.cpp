@@ -159,7 +159,7 @@ bool print_solution(clingo_model_t const *model, model_buffer_t *data)
         goto error;
     }
 
-    switch ((enum clingo_model_type)type) {
+    switch ((enum clingo_model_type_e)type) {
         case clingo_model_type_stable_model: {
             type_string = "Stable model";
             break;

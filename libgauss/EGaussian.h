@@ -138,7 +138,7 @@ class EGaussian {
         bool& early_stop
     );
     bool check_watch_var(); // check each xor has 2 watches
-    bool check_each_xor_clause(); // chcek each xor is satisfied or not
+    bool check_each_xor_clause(clingo_propagate_control_t *control); // chcek each xor is satisfied or not
     void Debug_funtion(); // used to debug
 };
 

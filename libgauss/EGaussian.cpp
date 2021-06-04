@@ -874,26 +874,88 @@ int intersection(std::vector<uint32_t> &v1,
     return v3.size();
 }
 
-bool EGaussian::check_each_xor_clause() {
-    std::vector<uint32_t> true_literals;
-    auto start_literal = solver->literal.begin(); 
-    for (auto end_literal = solver->literal.end(); start_literal != end_literal ; start_literal++)
-    {
-        if (solver->assigns[*start_literal] == l_True) {
-            true_literals.push_back(*start_literal);
-        }
+bool EGaussian::check_each_xor_clause(clingo_propagate_control_t *control) {   
+
+	bool display = false;
+	const clingo_assignment_t *assignment = clingo_propagate_control_assignment(control);
+	clingo_truth_value_t value;
+	
+    for (Xor xor_clause: xorclauses)
+	{
+		if (display){
+			cout << "[";
+			for (auto l = 0; l < xor_clause.size(); l++) {
+				cout << xor_clause[l] << " ";
+			}
+			cout << "] " << xor_clause.rhs << endl;
+		}
+
+		int count = 0; // truth assignments counter
+		vector<uint32_t> clause; 
+		clause.clear();
+		for (auto lit : xor_clause){
+			if (display)
+				printf("%d ",lit);
+			// Get the current assignment
+			clingo_assignment_truth_value(assignment, lit, &value);		   
+			switch (value)
+			{
+			case clingo_truth_value_true: // If true
+				if (display)
+					printf("true \n");
+				count++; // Increase the counter
+				clause.push_back(lit);
+				break;
+			case clingo_truth_value_false: // If false
+				if (display)
+					printf("false \n");
+				clause.push_back(-lit);
+				break;
+			case clingo_truth_value_free: // If undef
+				if (display){
+					printf("undef \n");
+					printf("cannot tell... return and keep guessing\n");
+				}
+				return true;
+				break;
+			default:
+				break;
+			}
+		}
+
+		if (!(count % 2 == xor_clause.rhs)){
+			if (display)
+				printf("conflict!!!!! \n");
+
+			if (display){				
+				printf("conflict... add nogood \n");
+				for (auto lit : clause)
+					printf("%d ",lit);
+				printf("\n");
+			}
+			
+			// Definetely, there must be a more elegant and proper way to do this...
+			/*
+			  ASP has the concept of a nogood as an unvalid assignment or as a constraint. Something that is not allowed to happen.
+			  Formally, a nogood is equivalent to a clause with all literals negated.
+			  A nogood of is equivalent to clause([-lit for lit in clause])
+			*/
+			clingo_literal_t nogood[clause.size()];
+			bool result; // Condition to stop propagation
+			for (int i = 0; i < clause.size(); i++ ) {
+				nogood[i] = -clause[i];
+			}
+			// Add nogood
+			auto size = sizeof(nogood)/sizeof(*nogood);
+			if (!clingo_propagate_control_add_clause(control, nogood, size, clingo_clause_type_learnt , &result)) { return false; }
+			if (!result) { return true; }
+			// Propagate the consequences
+			if (!clingo_propagate_control_propagate(control, &result)) { return false; }
+			if (!result) { return true; }
+		}
+				
     }
-    int number_of_true=0;
-    for (Xor xor_clause: xorclauses) {
-        number_of_true = intersection(true_literals, xor_clause.get_vars());
-        if (xor_clause.rhs == false && number_of_true % 2 == 1) {
-            return false;
-        }
-        else if (xor_clause.rhs == true && number_of_true % 2 == 0) {
-            return false;
-        }
-    }
-    // cout << "The assignment is satisfied " << xorclauses.size() << " constraints" << endl;
+
     return true;
 }
 
