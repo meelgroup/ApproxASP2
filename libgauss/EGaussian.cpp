@@ -879,6 +879,7 @@ bool EGaussian::check_each_xor_clause(clingo_propagate_control_t *control) {
 	bool display = false;
 	const clingo_assignment_t *assignment = clingo_propagate_control_assignment(control);
 	clingo_truth_value_t value;
+	uint32_t decision_level = clingo_assignment_decision_level(assignment);
 	
     for (Xor xor_clause: xorclauses)
 	{
@@ -890,6 +891,8 @@ bool EGaussian::check_each_xor_clause(clingo_propagate_control_t *control) {
 			cout << "] " << xor_clause.rhs << endl;
 		}
 
+		int unassigned_lits = 0;
+		uint32_t unassigned_literal;
 		int count = 0; // truth assignments counter
 		vector<uint32_t> clause; 
 		clause.clear();
@@ -912,23 +915,48 @@ bool EGaussian::check_each_xor_clause(clingo_propagate_control_t *control) {
 				clause.push_back(-lit);
 				break;
 			case clingo_truth_value_free: // If undef
-				if (display){
+				if (display)
 					printf("undef \n");
-					printf("cannot tell... return and keep guessing\n");
-				}
-				return true;
+				unassigned_literal = lit;
+				unassigned_lits++;
 				break;
 			default:
 				break;
 			}
 		}
 
+		if(display)
+			printf("Decision level: %d \n", decision_level);
+		
+		if(unassigned_lits > 1){
+			if (display){
+				printf("Number of unassigned literals: %d \n",unassigned_lits);
+				printf("cannot propagate or find conflict... return and keep guessing\n");
+			}
+			return true; // Cannot propagate so return and guess again
+		}
+		else{
+			if(unassigned_lits == 1){
+				if(display)
+					printf("Propagate!!!\n");
+				// Propagate
+				if (!(count % 2 == xor_clause.rhs)){
+					clause.push_back(-unassigned_literal);
+				}
+				else{
+					clause.push_back( unassigned_literal);
+				}
+			}
+		}
+
 		if (!(count % 2 == xor_clause.rhs)){
-			if (display)
-				printf("conflict!!!!! \n");
+			if (display){
+				if(unassigned_lits == 0)
+					printf("conflict!!!!! \n");
+			}
 
 			if (display){				
-				printf("conflict... add nogood \n");
+				printf("add nogood \n");
 				for (auto lit : clause)
 					printf("%d ",lit);
 				printf("\n");
@@ -953,6 +981,11 @@ bool EGaussian::check_each_xor_clause(clingo_propagate_control_t *control) {
 			if (!clingo_propagate_control_propagate(control, &result)) { return false; }
 			if (!result) { return true; }
 		}
+		else{
+			if(display)
+				printf("XOR satisfied \n");
+		}
+			
 				
     }
 

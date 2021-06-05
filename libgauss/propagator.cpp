@@ -129,7 +129,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 {
     // the total number of holes pigeons can be assigned too
     int holes = 0;
-    clingo_propagate_init_set_check_mode(init, clingo_propagator_check_mode_total);
+    clingo_propagate_init_set_check_mode(init, clingo_propagator_check_mode_fixpoint);
     size_t threads = clingo_propagate_init_number_of_threads(init);
     // stores the (numeric) maximum of the solver literals capturing pigeon placements
     // note that the code below assumes that this literal is not negative
@@ -427,7 +427,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 gqd.big_propagate++;
                 data->solver->sum_Enpropagate++;
 				// TODO: Adapt this add_clause function with the same ideas used in check_each_xor_clause to propagate literal of the current XOR
-                // data->solver->add_clause(gqd.prop_clause_gauss, false);
+                //data->solver->add_clause(gqd.prop_clause_gauss, false);
             case 4:
                 //nothing
                 break;
