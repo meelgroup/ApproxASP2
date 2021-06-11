@@ -884,7 +884,7 @@ extern "C" bool clingo_configuration_type(clingo_configuration_t const *conf, cl
         int map_size, array_size, value_size;
         conf->getKeyInfo(key, &map_size, &array_size, nullptr, &value_size);
         *ret = 0;
-        if (map_size >= 0)   { *ret |= clingo_configuration_type_map; }
+        if (map_size > 0) { *ret |= clingo_configuration_type_map; }
         if (array_size >= 0) { *ret |= clingo_configuration_type_array; }
         if (value_size >= 0) { *ret |= clingo_configuration_type_value; }
     }
@@ -1201,9 +1201,9 @@ C(interval) { A(location, location), A(left, ast), A(right, ast) };
 C(function) { A(location, location), A(name, string), A(arguments, ast_array), A(external, number) };
 C(pool) { A(location, location), A(arguments, ast_array) };
 // csp terms
-C(csp_product) { A(location, location), A(coefficient, ast), A(variable, ast) };
-C(csp_sum) { A(location, location), A(coefficient, ast), A(variable, ast) };
-C(csp_guard) { A(location, location), A(comparison, number), A(term, ast) };
+C(csp_product) { A(location, location), A(coefficient, ast), A(variable, optional_ast) };
+C(csp_sum) { A(location, location), A(terms, ast_array) };
+C(csp_guard) { A(comparison, number), A(term, ast) };
 // simple atoms
 C(boolean_constant) { A(value, number) };
 C(symbolic_atom) { A(symbol, ast) };

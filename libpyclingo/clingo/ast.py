@@ -1283,7 +1283,7 @@ def Pool(location: Location, arguments: Sequence[AST]) -> AST:
         _ffi.cast('size_t', len(arguments))))
     return AST(p_ast[0])
 
-def CspProduct(location: Location, coefficient: AST, variable: AST) -> AST:
+def CspProduct(location: Location, coefficient: AST, variable: Optional[AST]) -> AST:
     '''
     Construct an AST node of type `ASTType.CspProduct`.
     '''
@@ -1293,10 +1293,10 @@ def CspProduct(location: Location, coefficient: AST, variable: AST) -> AST:
         _lib.clingo_ast_type_csp_product, p_ast,
         c_location[0],
         coefficient._rep,
-        variable._rep))
+        _ffi.NULL if variable is None else variable._rep))
     return AST(p_ast[0])
 
-def CspSum(location: Location, coefficient: AST, variable: AST) -> AST:
+def CspSum(location: Location, terms: Sequence[AST]) -> AST:
     '''
     Construct an AST node of type `ASTType.CspSum`.
     '''
@@ -1305,19 +1305,17 @@ def CspSum(location: Location, coefficient: AST, variable: AST) -> AST:
     _handle_error(_lib.clingo_ast_build(
         _lib.clingo_ast_type_csp_sum, p_ast,
         c_location[0],
-        coefficient._rep,
-        variable._rep))
+        _ffi.new('clingo_ast_t*[]', [ x._rep for x in terms ]),
+        _ffi.cast('size_t', len(terms))))
     return AST(p_ast[0])
 
-def CspGuard(location: Location, comparison: int, term: AST) -> AST:
+def CspGuard(comparison: int, term: AST) -> AST:
     '''
     Construct an AST node of type `ASTType.CspGuard`.
     '''
     p_ast = _ffi.new('clingo_ast_t**')
-    c_location = _c_location(location)
     _handle_error(_lib.clingo_ast_build(
         _lib.clingo_ast_type_csp_guard, p_ast,
-        c_location[0],
         _ffi.cast('int', comparison),
         term._rep))
     return AST(p_ast[0])

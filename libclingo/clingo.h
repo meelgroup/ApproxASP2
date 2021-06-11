@@ -1651,7 +1651,7 @@ enum clingo_configuration_type_e {
     clingo_configuration_type_array = 2, //!< the entry is an array
     clingo_configuration_type_map   = 4  //!< the entry is a map
 };
-//! Bitset for values of type ::clingo_configuration_type.
+//! Bitset for values of type ::clingo_configuration_type_e.
 typedef unsigned clingo_configuration_type_bitset_t;
 
 //! Handle for to the solver configuration.
@@ -2618,14 +2618,14 @@ CLINGO_VISIBILITY_DEFAULT void clingo_ast_release(clingo_ast_t *ast);
 //! @name Functions to copy ASTs
 //! @{
 
-//! Deep copy an AST node.
+//! Create a shallow copy of an AST node.
 //!
 //! @param[in] ast the AST to copy
 //! @param[out] copy the resulting AST
 //! @return whether the call was successful; might set one of the following error codes:
 //! - ::clingo_error_bad_alloc
 CLINGO_VISIBILITY_DEFAULT bool clingo_ast_copy(clingo_ast_t *ast, clingo_ast_t **copy);
-//! Create a shallow copy of an AST node.
+//! Create a deep copy of an AST node.
 //!
 //! @param[in] ast the AST to copy
 //! @param[out] copy the resulting AST
