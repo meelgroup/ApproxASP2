@@ -122,16 +122,19 @@ namespace Gringo {
 
 struct SolveEventHandler {
     virtual bool on_model(Model &model);
+    virtual bool on_unsat(Potassco::Span<int64_t> optimization);
     virtual void on_finish(SolveResult ret, Potassco::AbstractStatistics *step, Potassco::AbstractStatistics *accu);
     virtual ~SolveEventHandler() = default;
 };
 using USolveEventHandler = std::unique_ptr<SolveEventHandler>;
 inline bool SolveEventHandler::on_model(Model &) { return true; }
+inline bool SolveEventHandler::on_unsat(Potassco::Span<int64_t> optimization) { return true; }
 inline void SolveEventHandler::on_finish(SolveResult, Potassco::AbstractStatistics *, Potassco::AbstractStatistics *) { }
 
 struct SolveFuture {
     virtual SolveResult get() = 0;
     virtual Model const *model() = 0;
+    virtual Potassco::LitSpan unsatCore() = 0;
     virtual bool wait(double timeout) = 0;
     virtual void cancel() = 0;
     virtual void resume() = 0;
@@ -143,6 +146,9 @@ struct DefaultSolveFuture : SolveFuture {
     DefaultSolveFuture(USolveEventHandler cb) : cb_(std::move(cb)) { }
     SolveResult get() override { resume(); return {SolveResult::Unknown, false, false}; }
     Model const *model() override { resume(); return nullptr; }
+    Potassco::LitSpan unsatCore() override {
+        throw std::runtime_error("no core available");
+    }
     bool wait(double) override { resume(); return true; }
     void cancel() override { resume(); }
     void resume() override {
@@ -180,7 +186,7 @@ using PropagateInit = clingo_propagate_init;
 } // namespace Gringo
 
 struct clingo_propagate_init {
-    virtual Potassco::Lit_t addLiteral() = 0;
+    virtual Potassco::Lit_t addLiteral(bool freeze) = 0;
     virtual bool addClause(Potassco::LitSpan lits) = 0;
     virtual bool addWeightConstraint(Potassco::Lit_t lit, Potassco::WeightLitSpan lits, Potassco::Weight_t bound, int type, bool eq) = 0;
     virtual void addMinimize(Potassco::Lit_t literal, Potassco::Weight_t weight, Potassco::Weight_t priority) = 0;
@@ -190,6 +196,9 @@ struct clingo_propagate_init {
     virtual Gringo::Lit_t mapLit(Gringo::Lit_t lit) const = 0;
     virtual void addWatch(Gringo::Lit_t lit) = 0;
     virtual void addWatch(uint32_t solverId, Gringo::Lit_t lit) = 0;
+    virtual void removeWatch(Gringo::Lit_t lit) = 0;
+    virtual void removeWatch(uint32_t solverId, Gringo::Lit_t lit) = 0;
+    virtual void freezeLiteral(Gringo::Lit_t lit) = 0;
     virtual void enableHistory(bool b) = 0;
     virtual Potassco::AbstractAssignment const &assignment() const = 0;
     virtual int threads() const = 0;
@@ -235,8 +244,10 @@ struct clingo_control {
     virtual bool isConflicting() const noexcept = 0;
     virtual Potassco::AbstractStatistics const *statistics() const = 0;
     virtual void useEnumAssumption(bool enable) = 0;
-    virtual bool useEnumAssumption() = 0;
-    virtual void cleanupDomains() = 0;
+    virtual bool useEnumAssumption() const = 0;
+    virtual void cleanup() = 0;
+    virtual void enableCleanup(bool enable) = 0;
+    virtual bool enableCleanup() const = 0;
     virtual Gringo::Output::DomainData const &theory() const = 0;
     virtual void registerPropagator(Gringo::UProp p, bool sequential) = 0;
     virtual void registerObserver(Gringo::UBackend program, bool replace) = 0;
@@ -248,7 +259,7 @@ struct clingo_control {
     virtual void endAddBackend() = 0;
     virtual Gringo::Logger &logger() = 0;
     virtual void beginAdd() = 0;
-    virtual void add(clingo_ast_statement_t const &stm) = 0;
+    virtual void add(clingo_ast_t const &ast) = 0;
     virtual void endAdd() = 0;
     virtual ~clingo_control() noexcept = default;
 };

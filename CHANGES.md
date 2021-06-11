@@ -1,21 +1,36 @@
 # Changes
 
+## clingo 5.5.1
+
 ## clingo 5.5.0
+  * allow for using `not` as a theory operator (#193)
+  * improve parsing of disjunctions (#171)
   * rename `max_size` to `size` in APIs and remove previous `size` method
     (breaks backward compatibility but makes things consistent)
-  * improve assignment providing trail and iteration methods (#187)
-  * improve string representation of AST (#171)
-  * improve parsing of disjunctions (#171)
-  * improve getting description of configuration entries (#174)
-  * improve propagate init interfaces with methods to add weight constraints,
-    minimize constraints, and perform propagation (#183)
+  * refine cmake configuration variables (#283)
+    (package maintainers might have to pay attention here)
+  * extend clingo API (#236, #231, #228, #227, #187, #171, #174, #183)
+  * add type annotations and add stub files for type checkers (#212)
+  * reimplement Python API using CFFI (#253)
+    (breaks backward compatibility regarding the AST and some details)
+  * add `remove_watch` and `freeze_literal` to `propagate_init` (#285)
+  * add support for Lua 5.4
   * add options to select specific Lua/Python versions
+  * add single-shot solving option (#269)
     (see installation instructions)
+  * rename `clingo.Tuple` to `clingo.Tuple_`
+    (to avoid name clashes with `typing.Tuple`)
   * fix propagator initialization (#166)
   * fix cleanup function and handling of theory (#169)
   * fix shifting of disjunctions (in clasp) (#173)
   * fix handling of pools in externals (#179)
   * fix logger in Python API (#175)
+  * fix memory bugs regarding strings (#196)
+  * fix undo function (#191)
+  * fix adding literals in propagate init (#192)
+  * fix handling of undefined arithmetics (#218)
+  * fix incremental grounding (#248)
+  * fix/improve handling of classical negation (#268)
   * update to clasp version 3.3.6 fixing various issues
 ## clingo 5.4.0
   * add extension to implement custom heuristics

@@ -30,8 +30,7 @@
 #include <clasp/clause.h>
 #include <clasp/weight_constraint.h>
 #include "clingo.h"
-#include <signal.h>
-#include <clingo/script.h>
+#include <csignal>
 #include <clingo/incmode.hh>
 
 namespace Gringo {
@@ -195,13 +194,15 @@ void ClingoControl::parse(const StringVec& files, const ClingoOptions& opts, Cla
 
 bool ClingoControl::update() {
     if (clingoMode_) {
+        if (enableCleanup_) { cleanup(); }
+        else                { canClean_ = false; }
         clasp_->update(configUpdate_);
         configUpdate_ = false;
         if (!clasp_->ok()) { return false; }
     }
     if (!grounded) {
         if (!initialized_) {
-            out_->init(incremental_);
+            out_->init(clasp_->incremental());
             initialized_ = true;
         }
         out_->beginStep();
@@ -239,24 +240,25 @@ void ClingoControl::ground(Control::GroundVec const &parts, Context *context) {
 }
 
 void ClingoControl::main(IClingoApp &app, StringVec const &files, const ClingoOptions& opts, Clasp::Asp::LogicProgram* out) {
-    incremental_ = true;
     if (app.has_main()) {
         parse({}, opts, out, false);
-        clasp_->enableProgramUpdates();
+        if (opts.singleShot) { clasp_->keepProgram(); }
+        else { clasp_->enableProgramUpdates(); }
         app.main(*this, files);
     }
     else {
         parse(files, opts, out);
         if (scripts_.callable("main")) {
-            clasp_->enableProgramUpdates();
+            if (opts.singleShot) { clasp_->keepProgram(); }
+            else { clasp_->enableProgramUpdates(); }
             scripts_.main(*this);
         }
         else if (incmode_) {
-            clasp_->enableProgramUpdates();
+            if (opts.singleShot) { clasp_->keepProgram(); }
+            else { clasp_->enableProgramUpdates(); }
             incmode(*this);
         }
         else {
-            incremental_ = false;
             claspConfig_.releaseOptions();
             Control::GroundVec parts;
             parts.emplace_back("base", SymVec{});
@@ -275,6 +277,15 @@ bool ClingoControl::onModel(Clasp::Model const &m) {
     }
     return ret;
 }
+
+bool ClingoControl::onUnsat(Potassco::Span<int64_t> optimization) {
+    if (eventHandler_) {
+        std::lock_guard<decltype(propLock_)> lock(propLock_);
+        return eventHandler_->on_unsat(optimization);
+    }
+    return true;
+}
+
 void ClingoControl::onFinish(Clasp::ClaspFacade::Result ret) {
     if (eventHandler_) {
         eventHandler_->on_finish(convert(ret), &step_stats_, &accu_stats_);
@@ -351,7 +362,9 @@ ConfigProxy &ClingoControl::getConf() {
     return *this;
 }
 USolveFuture ClingoControl::solve(Assumptions ass, clingo_solve_mode_bitset_t mode, USolveEventHandler cb) {
+    canClean_ = false;
     prepare(ass);
+    canClean_ = true;
     if (clingoMode_) {
         static_assert(clingo_solve_mode_yield == static_cast<clingo_solve_mode_bitset_t>(Clasp::SolveMode_t::Yield), "");
         static_assert(clingo_solve_mode_async == static_cast<clingo_solve_mode_bitset_t>(Clasp::SolveMode_t::Async), "");
@@ -379,7 +392,7 @@ class ClingoPropagateInit : public PropagateInit {
 public:
     using Lit_t = Potassco::Lit_t;
     ClingoPropagateInit(Control &c, Clasp::ClingoPropagatorInit &p)
-    : c_{c}, p_{p}, a_{*facade_().ctx.solver(0)} {
+    : c_{c}, p_{p}, a_{*facade_().ctx.master()}, cc_{facade_().ctx.master()} {
         p_.enableHistory(false);
     }
     Output::DomainData const &theory() const override { return c_.theory(); }
@@ -391,17 +404,24 @@ public:
     int threads() const override { return facade_().ctx.concurrency(); }
     void addWatch(Lit_t lit) override { p_.addWatch(Clasp::decodeLit(lit)); }
     void addWatch(uint32_t solverId, Lit_t lit) override { p_.addWatch(solverId, Clasp::decodeLit(lit)); }
+    void removeWatch(Lit_t lit) override { p_.removeWatch(Clasp::decodeLit(lit)); }
+    void removeWatch(uint32_t solverId, Lit_t lit) override { p_.removeWatch(solverId, Clasp::decodeLit(lit)); }
+    void freezeLiteral(Lit_t lit) override { p_.freezeLit(Clasp::decodeLit(lit)); }
     void enableHistory(bool b) override { p_.enableHistory(b); };
-    Potassco::Lit_t addLiteral() override {
-        return Clasp::encodeLit(Clasp::Literal(facade_().ctx.addVar(Clasp::Var_t::Atom), false));
+    Potassco::Lit_t addLiteral(bool freeze) override {
+        auto &ctx = facade_().ctx;
+        auto var = ctx.addVar(Clasp::Var_t::Atom);
+        if (freeze) {
+            ctx.setFrozen(var, true);
+        }
+        return Clasp::encodeLit(Clasp::Literal(var, false));
     }
     bool addClause(Potassco::LitSpan lits) override {
         auto &ctx = static_cast<Clasp::ClaspFacade*>(c_.claspFacade())->ctx;
         if (ctx.master()->hasConflict()) { return false; }
-        Clasp::ClauseCreator cc{ctx.master()};
-        cc.start();
-        for (auto &lit : lits) { cc.add(Clasp::decodeLit(lit)); }
-        return cc.end(Clasp::ClauseCreator::clause_force_simplify).ok();
+        cc_.start();
+        for (auto &lit : lits) { cc_.add(Clasp::decodeLit(lit)); }
+        return cc_.end(Clasp::ClauseCreator::clause_force_simplify).ok();
     }
     bool addWeightConstraint(Potassco::Lit_t lit, Potassco::WeightLitSpan lits, Potassco::Weight_t bound, int type, bool eq) override {
         auto &ctx = static_cast<Clasp::ClaspFacade*>(c_.claspFacade())->ctx;
@@ -445,6 +465,7 @@ private:
     Control &c_;
     Clasp::ClingoPropagatorInit &p_;
     Clasp::ClingoAssignment a_;
+    Clasp::ClauseCreator cc_;
 };
 
 } // namespace
@@ -513,25 +534,27 @@ void ClingoControl::registerPropagator(UProp p, bool sequential) {
     }
 }
 
-void ClingoControl::cleanupDomains() {
-    if (clingoMode_) {
-        Clasp::Asp::LogicProgram &prg = static_cast<Clasp::Asp::LogicProgram&>(*clasp_->program());
-        Clasp::Solver &solver = *clasp_->ctx.master();
-        auto assignment = [&prg, &solver](unsigned uid) {
-            Potassco::Value_t truth{Potassco::Value_t::Free};
-            bool external{false};
-            if (prg.validAtom(uid)) {
-                external = prg.isExternal(uid);
-                Clasp::Literal lit = prg.getLiteral(uid);
-                if (solver.isTrue(lit)) { truth = Potassco::Value_t::True; }
-                else if (solver.isFalse(lit)) { truth = Potassco::Value_t::False; }
-            }
-            return std::make_pair(external, truth);
-        };
-        auto stats = out_->simplify(assignment);
-        LOG << stats.first << " atom" << (stats.first == 1 ? "" : "s") << " became facts" << std::endl;
-        LOG << stats.second << " atom" << (stats.second == 1 ? "" : "s") << " deleted" << std::endl;
+void ClingoControl::cleanup() {
+    if (!clingoMode_ || !canClean_) {
+        return;
     }
+    canClean_ = false;
+    Clasp::Asp::LogicProgram &prg = static_cast<Clasp::Asp::LogicProgram&>(*clasp_->program());
+    Clasp::Solver &solver = *clasp_->ctx.master();
+    auto assignment = [&prg, &solver](unsigned uid) {
+        Potassco::Value_t truth{Potassco::Value_t::Free};
+        bool external{false};
+        if (prg.validAtom(uid)) {
+            external = prg.isExternal(uid);
+            Clasp::Literal lit = prg.getLiteral(uid);
+            if (solver.isTrue(lit)) { truth = Potassco::Value_t::True; }
+            else if (solver.isFalse(lit)) { truth = Potassco::Value_t::False; }
+        }
+        return std::make_pair(external, truth);
+    };
+    auto stats = out_->simplify(assignment);
+    LOG << stats.first << " atom" << (stats.first == 1 ? "" : "s") << " became facts" << std::endl;
+    LOG << stats.second << " atom" << (stats.second == 1 ? "" : "s") << " deleted" << std::endl;
 }
 
 std::string ClingoControl::str() {
@@ -558,8 +581,16 @@ void ClingoControl::useEnumAssumption(bool enable) {
     enableEnumAssupmption_ = enable;
 }
 
-bool ClingoControl::useEnumAssumption() {
+bool ClingoControl::useEnumAssumption() const {
     return enableEnumAssupmption_;
+}
+
+void ClingoControl::enableCleanup(bool enable) {
+    enableCleanup_ = enable;
+}
+
+bool ClingoControl::enableCleanup() const {
+    return enableCleanup_;
 }
 
 SymbolicAtoms const &ClingoControl::getDomain() const {
@@ -708,6 +739,7 @@ size_t ClingoControl::length() const {
 }
 
 bool ClingoControl::beginAddBackend() {
+    update();
     backend_ = out_->backend(logger());
     return backend_ != nullptr;
 }
@@ -774,6 +806,26 @@ Model const *ClingoSolveFuture::model() {
     }
     else { return nullptr; }
 }
+Potassco::LitSpan ClingoSolveFuture::unsatCore() {
+    auto &facade = *model_.context().clasp_;
+    auto &summary = facade.summary();
+    if (!summary.unsat()) {
+        return {nullptr, 0};
+    }
+    auto core = summary.unsatCore();
+    if (core == nullptr) {
+        return {nullptr, 0};
+    }
+    auto *prg = static_cast<Clasp::Asp::LogicProgram*>(facade.program());
+    prg->extractCore(*core, core_);
+    // Note: this is just to make writing library code easier, a user probably
+    // never has to worry about this.
+    if (core_.empty()) {
+        static Potassco::Lit_t sentinel{0};
+        return Potassco::toSpan(&sentinel, 0);
+    }
+    return Potassco::toSpan(core_);
+}
 bool ClingoSolveFuture::wait(double timeout) {
     if (timeout == 0)      { return handle_.ready(); }
     else if (timeout < 0)  { return handle_.wait(), true; }
@@ -799,7 +851,8 @@ ClingoLib::ClingoLib(Scripts &scripts, int argc, char const * const *argv, Logge
     allOpts.assignDefaults(parsed);
     claspConfig_.finalize(parsed, Clasp::Problem_t::Asp, true);
     clasp_.ctx.setEventHandler(this);
-    Clasp::Asp::LogicProgram* lp = &clasp_.startAsp(claspConfig_, true);
+    Clasp::Asp::LogicProgram* lp = &clasp_.startAsp(claspConfig_, !grOpts_.singleShot);
+    if (grOpts_.singleShot) { clasp_.keepProgram(); }
     parse({}, grOpts_, lp, false);
 }
 
@@ -837,21 +890,36 @@ void ClingoLib::initOptions(Potassco::ProgramOptions::OptionContext& root) {
          "      [no-]other:               clasp related and uncategorized warnings")
         ("rewrite-minimize"         , flag(grOpts_.rewriteMinimize = false), "Rewrite minimize constraints into rules")
         ("keep-facts"               , flag(grOpts_.keepFacts = false), "Do not remove facts from normal rules")
+        ("single-shot,@2"           , flag(grOpts_.singleShot = false), "Force single-shot solving mode")
         ;
     root.add(gringo);
     claspConfig_.addOptions(root);
 }
 
 bool ClingoLib::onModel(Clasp::Solver const&, Clasp::Model const& m) {
-    bool ret = ClingoControl::onModel(m);
-    return ret;
+    return ClingoControl::onModel(m);
 }
+
+bool ClingoLib::onUnsat(Clasp::Solver const &s, Clasp::Model const &m) {
+    if (m.ctx != nullptr && m.ctx->optimize() && s.lower.active()) {
+        std::vector<int64_t> optimization;
+        auto const *costs = m.num > 0 ? m.costs : nullptr;
+        if (costs != nullptr && costs->size() > s.lower.level) {
+            optimization.insert(optimization.end(), costs->begin(), costs->begin() + s.lower.level);
+        }
+        optimization.emplace_back(s.lower.bound);
+        return ClingoControl::onUnsat(Potassco::toSpan(optimization));
+    }
+    return true;
+}
+
 void ClingoLib::onEvent(Clasp::Event const& ev) {
     Clasp::ClaspFacade::StepReady const *r = Clasp::event_cast<Clasp::ClaspFacade::StepReady>(ev);
     if (r) { onFinish(r->summary->result); }
     const Clasp::LogEvent* log = Clasp::event_cast<Clasp::LogEvent>(ev);
     if (log && log->isWarning()) { logger_.print(Warnings::Other, log->msg); }
 }
+
 bool ClingoLib::parsePositional(const std::string& t, std::string& out) {
     int num;
     if (Potassco::string_cast(t, num)) {
@@ -860,6 +928,7 @@ bool ClingoLib::parsePositional(const std::string& t, std::string& out) {
     }
     return false;
 }
+
 ClingoLib::~ClingoLib() {
     clasp_.shutdown();
 }
