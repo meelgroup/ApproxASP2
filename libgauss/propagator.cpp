@@ -129,7 +129,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 {
     // the total number of holes pigeons can be assigned too
     int holes = 0;
-    clingo_propagate_init_set_check_mode(init, clingo_propagator_check_mode_fixpoint);
+    clingo_propagate_init_set_check_mode(init, clingo_propagator_check_mode_total);
     size_t threads = clingo_propagate_init_number_of_threads(init);
     // stores the (numeric) maximum of the solver literals capturing pigeon placements
     // note that the code below assumes that this literal is not negative
@@ -360,8 +360,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
                 data->solver->sum_Enpropagate++;
-				// TODO: Not sure if we need this. I need to double check
-                //data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
+                data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
                 i++;
                 prop = true; 
                 break;
@@ -417,8 +416,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 lbool ret;
                 gqd.big_conflict++;
                 data->solver->sum_Enconflict++;
-				// TODO: Adapt this add_clause function with the same ideas used in check_each_xor_clause to check conflicts for the current XOR
-                //data->solver->add_clause(gqd.conflict_clause_gauss, true);
+                data->solver->add_clause(gqd.conflict_clause_gauss, true);
                 return true;
             }
 
@@ -426,8 +424,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             case 3: // unit propagation
                 gqd.big_propagate++;
                 data->solver->sum_Enpropagate++;
-				// TODO: Adapt this add_clause function with the same ideas used in check_each_xor_clause to propagate literal of the current XOR
-                //data->solver->add_clause(gqd.prop_clause_gauss, false);
+                // data->solver->add_clause(gqd.prop_clause_gauss, false);
             case 4:
                 //nothing
                 break;
@@ -462,10 +459,52 @@ bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, 
 
 bool check(clingo_propagate_control_t *control, propagator_t *data)
 {
-    // Get clingo assignment and truth's value
-	
-	bool result;
-	result = data->gmatrixes[0]->check_each_xor_clause(control);
+    // static int c = 0;
+    // c++;
+    // get the thread specific state
+    data->solver->get_assignment(control);
+    #ifdef DEBUG_MODE
+    auto start_literal = data->solver->literal.begin(); 
+    for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
+    {
+        if (data->solver->assigns[*start_literal] == l_True) {
+             std::cout << "   " <<  *start_literal << " ";
+         }
+		 if (data->solver->assigns[*start_literal] == l_False) {
+             std::cout << "   -" <<  *start_literal << " ";
+         }
+		 if (data->solver->assigns[*start_literal] == l_Undef) {
+             std::cout << "   -" <<  *start_literal << " ";
+         }
+    }
+    std::cout << "\n";
+    #endif
+    bool immediate_break = false, final_check;
+    for (auto &gqd: data->gqueuedata) {
+        gqd.reset();
+    }
+    // std::cout << "It is called: " << c << std::endl;
+    for (size_t g = 0; g < data->gqueuedata.size(); g++)
+    {
+        data->gmatrixes[g]->check_xor(data->gqueuedata[g], immediate_break);
 
+        if (immediate_break)
+        {
+            // final_check = data->gmatrixes[0]->check_each_xor_clause();
+            // if (final_check) {
+            //     cout << "It is wrong, all xor clauses are satisifed ..." << endl;
+            // }
+            for (GaussQData &gqd: data->gqueuedata) {
+                data->solver->sum_Enconflict++;
+                data->solver->add_clause(gqd.conflict_clause_gauss, true);
+            }
+            return true;
+        }
+    }
+    // std::cout << "One model found ... " << std::endl;
+    // final_check = data->gmatrixes[0]->check_each_xor_clause();
+    // if (!final_check) {
+    //     cout << "There some xor clause is not satisfied ..." << endl;
+    // }
     return true;
 }
