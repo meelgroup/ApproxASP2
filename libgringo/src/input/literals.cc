@@ -74,8 +74,8 @@ CSPLiteral *CSPLiteral::clone() const {
 // {{{1 definition of Literal::simplify
 
 bool RelationLiteral::simplify(Logger &log, Projections &, SimplifyState &state, bool, bool) {
-    if (left->simplify(state, false, false, log).update(left).undefined()) { return false; }
-    if (right->simplify(state, false, false, log).update(right).undefined()) { return false; }
+    if (left->simplify(state, false, false, log).update(left, false).undefined()) { return false; }
+    if (right->simplify(state, false, false, log).update(right, false).undefined()) { return false; }
     return true;
 }
 bool RangeLiteral::simplify(Logger &, Projections &, SimplifyState &, bool, bool) {
@@ -364,9 +364,9 @@ bool PredicateLiteral::simplify(Logger &log, Projections &project, SimplifyState
         positional = false;
     }
     auto ret(repr->simplify(state, positional, false, log));
-    ret.update(repr);
+    ret.update(repr, false);
     if (ret.undefined()) { return false; }
-    if (repr->simplify(state, positional, false, log).update(repr).project) {
+    if (repr->simplify(state, positional, false, log).update(repr, false).project) {
         auto rep(project.add(*repr));
         Term::replace(repr, std::move(rep));
     }
@@ -429,11 +429,6 @@ ULit PredicateLiteral::shift(bool negate) {
 UTerm PredicateLiteral::headRepr() const {
     assert(naf == NAF::POS);
     return get_clone(repr);
-}
-
-void PredicateLiteral::getNeg(std::function<void (Sig)> f) const {
-    Sig sig(repr->getSig());
-    if (sig.sign()) { f(sig); }
 }
 
 // {{{1 definition of ProjectionLiteral

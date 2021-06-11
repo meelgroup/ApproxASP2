@@ -33,16 +33,11 @@ namespace Gringo {
 
 // {{{1 declaration of Context
 
-enum class ScriptType : int {
-    Lua    = 0,
-    Python = 1
-};
-
 class Context {
 public:
     virtual bool callable(String name) = 0;
     virtual SymVec call(Location const &loc, String name, SymSpan args, Logger &log) = 0;
-    virtual void exec(ScriptType type, Location loc, String code) = 0;
+    virtual void exec(String type, Location loc, String code) = 0;
     virtual ~Context() noexcept = default;
 };
 
@@ -249,7 +244,7 @@ inline BoundVec Bound::unpool() {
 }
 
 inline bool Bound::simplify(SimplifyState &state, Logger &log) {
-    return !bound->simplify(state, false, false, log).update(bound).undefined();
+    return !bound->simplify(state, false, false, log).update(bound, false).undefined();
 }
 
 inline void Bound::rewriteArithmetics(Term::ArithmeticsMap &arith, AuxGen &auxGen) {

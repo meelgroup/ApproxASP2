@@ -5,13 +5,14 @@ set(header-group
     "${CMAKE_CURRENT_SOURCE_DIR}/clingo.hh")
 source_group("${ide_header_group}" FILES ${header-group})
 set(header-group-clingo
-    "${CMAKE_CURRENT_SOURCE_DIR}/clingo/ast.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/clingo/astv2.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/clingo/clingo_app.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/clingo/clingocontrol.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/clingo/control.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/clingo/incmode.hh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/clingo/script.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/clingo/scripts.hh")
+    "${CMAKE_CURRENT_SOURCE_DIR}/clingo/optional.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/clingo/scripts.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/clingo/variant.hh")
 source_group("${ide_header_group}\\clingo" FILES ${header-group-clingo})
 set(header
     ${header-group}
@@ -20,7 +21,11 @@ set(header
 # [[[source: src
 set(ide_source_group "Source Files")
 set(source-group
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ast.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/astv2.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/astv2_build.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/astv2_parse.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/astv2_str.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/astv2_unpool.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/clingo_app.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/clingocontrol.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/control.cc"
@@ -35,26 +40,44 @@ set(source
 list(APPEND header "${CLASP_SOURCE_DIR}/app/clasp_app.h")
 list(APPEND source "${CLASP_SOURCE_DIR}/app/clasp_app.cpp")
 
+set(clingo_public_scope_ PUBLIC)
+set(clingo_private_scope_ PRIVATE)
 if (CLINGO_BUILD_SHARED)
-    set(clingo_lib_type SHARED)
+    if (CLINGO_BUILD_WITH_PYTHON STREQUAL "pip")
+        set(clingo_lib_type INTERFACE)
+        set(clingo_public_scope_ INTERFACE)
+        set(clingo_private_scope_ INTERFACE)
+    else()
+        set(clingo_lib_type SHARED)
+    endif()
 else()
     set(clingo_lib_type STATIC)
 endif()
 
-add_library(libclingo ${clingo_lib_type} ${header} ${source})
-target_link_libraries(libclingo PRIVATE libgringo libclasp)
+add_library(libclingo ${clingo_lib_type})
+target_sources(libclingo ${clingo_private_scope_} ${header} ${source})
+target_link_libraries(libclingo ${clingo_private_scope_} libgringo libclasp)
 target_include_directories(libclingo
-    PUBLIC
+    ${clingo_public_scope_}
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
-    PRIVATE
+    ${clingo_private_scope_}
     "$<BUILD_INTERFACE:${CLASP_SOURCE_DIR}/app>")
-target_compile_definitions(libclingo PRIVATE CLINGO_BUILD_LIBRARY)
+target_compile_definitions(libclingo ${clingo_private_scope_} CLINGO_BUILD_LIBRARY)
+
 if (NOT CLINGO_BUILD_SHARED)
     target_compile_definitions(libclingo PUBLIC CLINGO_NO_VISIBILITY)
-else()
-    set_target_properties(libclingo PROPERTIES SOVERSION 4 VERSION 4.0)
-    install(TARGETS libclingo
+endif()
+
+if ((CLINGO_BUILD_SHARED OR CLINGO_INSTALL_LIB) AND NOT CLINGO_BUILD_WITH_PYTHON STREQUAL "pip")
+    set(clingo_targets libclingo)
+    if (CLINGO_BUILD_SHARED)
+        set_target_properties(libclingo PROPERTIES SOVERSION 4 VERSION 4.0)
+    else()
+        list(APPEND clingo_targets libgringo libreify)
+    endif()
+
+    install(TARGETS ${clingo_targets}
         EXPORT ClingoTargets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -79,15 +102,18 @@ else()
         ${CMAKE_CURRENT_BINARY_DIR}/ClingoConfigVersion.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Clingo)
 endif()
+
 if (MSVC)
-    target_compile_definitions(libclingo PRIVATE _SCL_SECURE_NO_WARNINGS)
+    target_compile_definitions(libclingo ${clingo_private_scope_} _SCL_SECURE_NO_WARNINGS)
 endif()
 if (CLINGO_BUILD_REVISION)
     target_compile_definitions(libclingo PRIVATE CLINGO_BUILD_REVISION=${CLINGO_BUILD_REVISION})
 endif()
-set_target_properties(libclingo PROPERTIES
-    OUTPUT_NAME clingo
-    FOLDER lib)
+if (NOT CLINGO_BUILD_WITH_PYTHON STREQUAL "pip")
+    set_target_properties(libclingo PROPERTIES
+        OUTPUT_NAME clingo
+        FOLDER lib)
+endif()
 
 if (CLINGO_BUILD_TESTS)
     add_subdirectory(tests)

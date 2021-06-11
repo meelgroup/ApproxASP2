@@ -27,7 +27,7 @@
 
 #include <clingo/control.hh>
 #include <clingo/scripts.hh>
-#include <clingo/ast.hh>
+#include <clingo/astv2.hh>
 #include <gringo/output/output.hh>
 #include <gringo/input/program.hh>
 #include <gringo/input/programbuilder.hh>
@@ -96,6 +96,7 @@ struct ClingoOptions {
     bool                          wNoOther              = false;
     bool                          rewriteMinimize       = false;
     bool                          keepFacts             = false;
+    bool                          singleShot            = false;
     Foobar                        foobar;
 };
 
@@ -205,9 +206,11 @@ class TheoryOutput : public Clasp::OutputTable::Theory {
 public:
     char const * first(const Clasp::Model&) override;
     char const * next() override;
-
     void add(Potassco::Span<Symbol> symbols) {
         symbols_.insert(symbols_.end(), begin(symbols), end(symbols));
+    }
+    void copy_symbols(std::vector<Symbol> &symbols) {
+        symbols.insert(symbols.end(), symbols_.begin(), symbols_.end());
     }
     void reset() {
         symbols_.clear();
@@ -267,6 +270,7 @@ public:
     void parse(const StringVec& files, const ClingoOptions& opts, Clasp::Asp::LogicProgram* out, bool addStdIn = true);
     void main(IClingoApp &app, StringVec const &files, const ClingoOptions& opts, Clasp::Asp::LogicProgram* out);
     bool onModel(Clasp::Model const &m);
+    bool onUnsat(Potassco::Span<int64_t> optimization);
     void onFinish(Clasp::ClaspFacade::Result ret);
     bool update();
 
@@ -322,8 +326,10 @@ public:
     Potassco::AbstractStatistics const *statistics() const override;
     ConfigProxy &getConf() override;
     void useEnumAssumption(bool enable) override;
-    bool useEnumAssumption() override;
-    void cleanupDomains() override;
+    bool useEnumAssumption() const override;
+    void cleanup() override;
+    void enableCleanup(bool enable) override;
+    bool enableCleanup() const override;
     USolveFuture solve(Assumptions ass, clingo_solve_mode_bitset_t mode, USolveEventHandler cb) override;
     Output::DomainData const &theory() const override { return out_->data; }
     void registerPropagator(UProp p, bool sequential) override;
@@ -340,7 +346,7 @@ public:
     Potassco::Atom_t addProgramAtom() override;
     Logger &logger() override { return logger_; }
     void beginAdd() override { parse(); }
-    void add(clingo_ast_statement_t const &stm) override { Input::parseStatement(*pb_, logger_, stm); }
+    void add(clingo_ast_t const &ast) override { Input::parse(*pb_, logger_, ast.ast); }
     void endAdd() override { defs_.init(logger_); parsed = true; }
     void registerObserver(UBackend obs, bool replace) override {
         if (replace) { clingoMode_ = false; }
@@ -374,14 +380,15 @@ public:
     UserStatistics                                             step_stats_;
     UserStatistics                                             accu_stats_;
     bool                                                       enableEnumAssupmption_ = true;
+    bool                                                       enableCleanup_         = true;
     bool                                                       clingoMode_;
     bool                                                       verbose_               = false;
     bool                                                       parsed                 = false;
     bool                                                       grounded               = false;
-    bool                                                       incremental_           = true;
     bool                                                       configUpdate_          = false;
     bool                                                       initialized_           = false;
     bool                                                       incmode_               = false;
+    bool                                                       canClean_              = false;
 
 };
 
@@ -398,6 +405,9 @@ public:
     }
     SymSpan atoms(unsigned atomset) const override {
         atms_ = out().atoms(atomset, [this](unsigned uid) { return model_->isTrue(lp().getLiteral(uid)); });
+        if (atomset & clingo_show_type_theory) {
+            ctl_.theory_.copy_symbols(atms_);
+        }
         return Potassco::toSpan(atms_);
     }
     Int64Vec optimization() const override {
@@ -449,10 +459,12 @@ public:
 
     SolveResult  get()  override;
     Model const *model() override;
+    Potassco::LitSpan unsatCore() override;
     bool wait(double timeout) override;
     void resume() override;
     void cancel() override;
 private:
+    Potassco::LitVec                core_;
     ClingoModel                     model_;
     Clasp::ClaspFacade::SolveHandle handle_;
 };
@@ -470,6 +482,7 @@ protected:
     // Event handler
     void onEvent(const Clasp::Event& ev) override;
     bool onModel(const Clasp::Solver& s, const Clasp::Model& m) override;
+    bool onUnsat(const Clasp::Solver&, const Clasp::Model&) override;
 private:
     ClingoLib(const ClingoLib&);
     ClingoLib& operator=(const ClingoLib&);

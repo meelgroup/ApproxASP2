@@ -269,7 +269,7 @@ void TheoryAtom::check(Location const &loc, Printable const &p, ChkLvlVec &level
 }
 
 bool TheoryAtom::simplify(Projections &project, SimplifyState &state, Logger &log) {
-    if (name_->simplify(state, false, false, log).update(name_).undefined()) {
+    if (name_->simplify(state, false, false, log).update(name_, false).undefined()) {
         return false;
     }
     for (auto &elem : elems_) {
@@ -490,8 +490,6 @@ bool HeadTheoryLiteral::operator==(HeadAggregate const &other) const {
 void HeadTheoryLiteral::initTheory(TheoryDefs &defs, bool hasBody, Logger &log) {
     atom_.initTheory(loc(), defs, false, hasBody, log);
 }
-
-void HeadTheoryLiteral::getNeg(std::function<void (Sig)>) const { }
 
 // {{{1 definition of BodyTheoryLiteral
 

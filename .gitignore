@@ -1,5 +1,6 @@
 *.swp
 build
+install
 *.pyc
 doc/api/html
 doc/api/latex
@@ -18,3 +19,10 @@ examples/clingo/pydoc/clingo.html
 cmake/FindBISON.cmake
 doc/py/clingo
 doc/py/Gemfile.lock
+.mypy_cache/
+compile_commands.json
+_skbuild/
+dist
+*.egg-info/
+MANIFEST
+libgringo/gen/

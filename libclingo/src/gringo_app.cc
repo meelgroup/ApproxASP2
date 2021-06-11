@@ -22,10 +22,9 @@
 
 // }}}
 
-#include <clingo/script.h>
 #include <clingo/incmode.hh>
 #include <clingo/control.hh>
-#include <clingo/ast.hh>
+#include <clingo/astv2.hh>
 #include <gringo/input/nongroundparser.hh>
 #include <gringo/input/groundtermparser.hh>
 #include <gringo/input/programbuilder.hh>
@@ -59,6 +58,7 @@ struct GringoOptions {
     bool                          wNoOther              = false;
     bool                          rewriteMinimize       = false;
     bool                          keepFacts             = false;
+    bool                          singleShot            = false;
     Foobar                        foobar;
 };
 
@@ -198,8 +198,8 @@ struct IncrementalControl : Control {
     void beginAdd() override {
         parse();
     }
-    void add(clingo_ast_statement_t const &stm) override {
-        Input::parseStatement(pb, logger_, stm);
+    void add(clingo_ast_t const &ast) override {
+        Input::parse(pb, logger_, ast.ast);
     }
     void endAdd() override {
         defs.init(logger_);
@@ -216,10 +216,12 @@ struct IncrementalControl : Control {
     ConfigProxy &getConf() override { throw std::runtime_error("configuration not supported"); }
     void registerPropagator(UProp, bool) override { throw std::runtime_error("theory propagators not supported"); }
     void useEnumAssumption(bool) override { }
-    bool useEnumAssumption() override { return false; }
+    bool useEnumAssumption() const override { return false; }
+    void cleanup() override { }
+    void enableCleanup(bool) override { }
+    bool enableCleanup() const override { return false; }
     virtual ~IncrementalControl() { }
     Output::DomainData const &theory() const override { return out.data; }
-    void cleanupDomains() override { }
     bool beginAddBackend() override {
         backend_ = out.backend(logger());
         return backend_ != nullptr;
@@ -358,6 +360,7 @@ struct GringoApp : public Potassco::Application {
             ("keep-facts,@1", flag(grOpts_.keepFacts = false), "Do not remove facts from normal rules")
             ("reify-sccs,@1", flag(grOpts_.outputOptions.reifySCCs = false), "Calculate SCCs for reified output")
             ("reify-steps,@1", flag(grOpts_.outputOptions.reifySteps = false), "Add step numbers to reified output")
+            ("single-shot,@2", flag(grOpts_.singleShot = false), "Force single-shot grounding mode")
             ("foobar,@4", storeTo(grOpts_.foobar, parseFoobar), "Foobar")
             ;
         root.add(gringo);
@@ -386,8 +389,8 @@ struct GringoApp : public Potassco::Application {
     }
 
     virtual void printVersion() {
-        char const *py_version = clingo_script_version_(clingo_ast_script_type_python);
-        char const *lua_version = clingo_script_version_(clingo_ast_script_type_lua);
+        char const *py_version = clingo_script_version("python");
+        char const *lua_version = clingo_script_version("lua");
         Potassco::Application::printVersion();
         printf("\n");
         printf("libgringo version " CLINGO_VERSION "\n");
@@ -402,11 +405,11 @@ struct GringoApp : public Potassco::Application {
         using namespace Gringo;
         IncrementalControl inc(out, input_, grOpts_);
         if (inc.scripts.callable("main")) {
-            inc.incremental_ = true;
+            inc.incremental_ = !grOpts_.singleShot;
             inc.scripts.main(inc);
         }
         else if (inc.incmode) {
-            inc.incremental_ = true;
+            inc.incremental_ = !grOpts_.singleShot;
             incmode(inc);
         }
         else {
