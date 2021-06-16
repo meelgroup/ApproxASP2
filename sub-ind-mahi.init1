@@ -1,0 +1,26 @@
+{ in(X) } :- node(X).
+dominated(X) :- in(Y), link(Y,X).
+
+%not dominated
+:- node(X), not in(X), not dominated(X).
+
+%not independent
+:- link(X,Y), in(X), in(Y).
+
+%guess potential counter candidate
+cin(X) ; ncin(X) :- node(X).
+spoil :- cin(X), not in(X).
+
+cin(X) :- spoil, node(X).
+ncin(X) :- spoil, node(X).
+
+:- not spoil.
+
+%SUB
+%some X is not dominated, nor in
+spoil :- ncin(X), C1 #count { Y : ncin(Y), link(Y,X) }, C1 = #count { Y : link(Y,X) }.
+
+%not a strict subset
+spoil :- C1 = #count { X : in(X) }, C1 #count { X : cin(X) }.% 
+
+node(1). node(2). node(3). node(4). node(5). node(6). node(7). node(8). node(9). node(10). node(11). node(12). node(13). node(14). node(15). node(16). node(17). node(18). node(19). node(20). node(21). node(22). node(23). node(24). node(25). node(26). node(27). node(28). node(29). node(30). node(31). node(32). node(33). node(34). node(35). node(36). node(37). node(38). node(39). node(40). node(41). node(42). node(43). node(44). node(45). node(46). node(47). node(48). node(49). node(50). link(1,4). link(2,4). link(3,4). link(1,5). link(1,6). link(2,6). link(3,6). link(6,9). link(1,10). link(10,11). link(3,12). link(7,12). link(9,12). link(7,13). link(5,14). link(1,15). link(10,15). link(14,15). link(10,17). link(16,17). link(3,18). link(10,18). link(14,18). link(1,19). link(10,19). link(18,19). link(16,20). link(17,20). link(3,21). link(5,21). link(10,21). link(16,22). link(18,22). link(1,23). link(4,23). link(22,23). link(14,25). link(20,25). link(22,25). link(23,25). link(1,26). link(4,26). link(14,26). link(21,26). link(17,27). link(4,28). link(10,28). link(18,28). link(6,29). link(11,29). link(20,29). link(3,30). link(5,30). link(6,31). link(9,31). link(12,31). link(15,31). link(16,31). link(27,31). link(29,33). link(3,34). link(6,34). link(27,34). link(28,34). link(4,35). link(6,35). link(16,36). link(23,36). link(27,36). link(35,36). link(1,37). link(3,37). link(5,37). link(31,38). link(36,38). link(13,39). link(16,39). link(24,39). link(25,39). link(30,39). link(4,40). link(15,40). link(16,40). link(21,40). link(39,40). link(13,41). link(31,41). link(35,41). link(17,42). link(6,43). link(41,43). link(7,44). link(30,44). link(32,44). link(5,45). link(10,45). link(25,45). link(39,45). link(10,46). link(15,46). link(24,46). link(35,46). link(45,46). link(6,47). link(8,47). link(23,47). link(45,47). link(2,48). link(21,48). link(27,48). link(30,48). link(31,48). link(47,48). link(34,49). link(38,49). link(41,49). link(4,50). link(29,50). link(31,50). link(34,50). link(50,34). link(50,31). link(50,29). link(50,4). link(49,41). link(49,38). link(49,34). link(48,47). link(48,31). link(48,30). link(48,27). link(48,21). link(48,2). link(47,45). link(47,23). link(47,8). link(47,6). link(46,45). link(46,35). link(46,24). link(46,15). link(46,10). link(45,39). link(45,25). link(45,10). link(45,5). link(44,32). link(44,30). link(44,7). link(43,41). link(43,6). link(42,17). link(41,35). link(41,31). link(41,13). link(40,39). link(40,21). link(40,16). link(40,15). link(40,4). link(39,30). link(39,25). link(39,24). link(39,16). link(39,13). link(38,36). link(38,31). link(37,5). link(37,3). link(37,1). link(36,35). link(36,27). link(36,23). link(36,16). link(35,6). link(35,4). link(34,28). link(34,27). link(34,6). link(34,3). link(33,29). link(31,27). link(31,16). link(31,15). link(31,12). link(31,9). link(31,6). link(30,5). link(30,3). link(29,20). link(29,11). link(29,6). link(28,18). link(28,10). link(28,4). link(27,17). link(26,21). link(26,14). link(26,4). link(26,1). link(25,23). link(25,22). link(25,20). link(25,14). link(23,22). link(23,4). link(23,1). link(22,18). link(22,16). link(21,10). link(21,5). link(21,3). link(20,17). link(20,16). link(19,18). link(19,10). link(19,1). link(18,14). link(18,10). link(18,3). link(17,16). link(17,10). link(15,14). link(15,10). link(15,1). link(14,5). link(13,7). link(12,9). link(12,7). link(12,3). link(11,10). link(10,1). link(9,6). link(6,3). link(6,2). link(6,1). link(5,1). link(4,3). link(4,2). link(4,1).

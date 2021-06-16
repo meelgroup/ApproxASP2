@@ -32,7 +32,9 @@
 #include "solvertypesmini.h"
 #include "gausswatched.h"
 #include "Vec.h"
+#include "utility.h"
 
+extern Configuration problem;
 // namespace CMSat {
 class SolverState
 {
@@ -223,11 +225,13 @@ public:
         auto itr = clause.begin();
         u_int32_t index = 0;
         clingo_literal_t insert_lit, test_lit;
+        clingo_symbol_t symbol;
         #ifdef DEBUG_MODE
         if (is_conflict_clause) {
             cout << "Conflict clause added : [ "; 
         }
         #endif
+        // cout << " :- ";
         const clingo_assignment_t *values1 = clingo_propagate_control_assignment(cpc);
         for (auto itr_end = clause.end(); itr != itr_end; itr++) {
             test_lit = (*itr).var();
@@ -248,7 +252,21 @@ public:
             //     assert(assigns[test_lit] == l_False);
             //     assert(value == clingo_truth_value_false);
             // }
-            
+            // std::unordered_map<clingo_literal_t, clingo_symbol_t>::iterator symbol_itr = problem.literal_atom_map.find(test_lit);
+            // // cout << symbol_itr->second;
+            // std::unordered_map<clingo_symbol_t, string>::iterator atom_itr = problem.atom_symbol_map.find(symbol_itr->second);
+            // if ((*itr).sign()) {
+            //     cout << atom_itr->second;
+            // }
+            // else {
+            //     cout << " not "<< atom_itr->second;
+            // }
+            // if (itr != itr_end - 1) {
+            //     cout << ",";
+            // }
+            // else {
+            //     cout << ".";
+            // }
             insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
             #ifdef DEBUG_MODE
             if (is_conflict_clause) {

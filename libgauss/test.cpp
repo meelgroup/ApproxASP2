@@ -159,7 +159,7 @@ bool print_solution(clingo_model_t const *model, model_buffer_t *data)
         goto error;
     }
 
-    switch ((enum clingo_model_type)type) {
+    switch ((enum clingo_model_type_e) type) {
         case clingo_model_type_stable_model: {
             type_string = "Stable model";
             break;
@@ -179,11 +179,11 @@ bool print_solution(clingo_model_t const *model, model_buffer_t *data)
         goto error;
     }
 
-    printf("%s %" PRIu64 ":\n", type_string, number);
+    // printf("%s %" PRIu64 ":\n", type_string, number);
 
-    if (!print_model(model, data, "  shown", clingo_show_type_shown)) {
-        goto error;
-    }
+    // if (!print_model(model, data, "  shown", clingo_show_type_shown)) {
+    //     goto error;
+    // }
     // if (!print_model(model, data, "  atoms", clingo_show_type_atoms)) {
     //     goto error;
     // }
@@ -430,7 +430,7 @@ int main(int argc, char const **argv)
         goto error;
     }
     get_symbol_atoms(ctl, &problem);
-    generate_k_xors(10, &problem);
+    generate_k_xors(12, &problem);
     translation(&ctl, &problem, debug, debug_out, 1, -1);
     if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
         goto error;

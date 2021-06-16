@@ -283,6 +283,8 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         assert(!equal);
         clingo_symbolic_atoms_literal(atoms, finder, &lit2);
         clingo_propagate_init_solver_literal(init, lit2, &lit);
+        clingo_propagate_init_freeze_literal(init, lit);
+        problem.literal_atom_map[lit] = it->first;
         largest_var = (lit > largest_var) ? lit : largest_var;
         it->second = lit;
         solver_literal.insert(lit);
@@ -297,8 +299,18 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
             auto symbol_finder = symbol_to_literal.find(*symbol);
             assert(symbol_finder != symbol_to_literal.end());
             assert(symbol_finder->second > 0);
-            temp_xorclause.push_back(symbol_finder->second);
+            // temp_xorclause.push_back(symbol_finder->second);
+            auto it = find(temp_xorclause.begin(), temp_xorclause.end(), symbol_finder->second);
+            if (it != temp_xorclause.end()) {
+                temp_xorclause.erase(it);
+            }
+            else {
+                temp_xorclause.push_back(symbol_finder->second);
+            }
+            // cout << symbol_finder->second << " ";
         }
+        // cout << endl;
+        // cout << "temp_xorclause size: " << temp_xorclause.size() << endl;
         xorclauses.push_back(Xor(temp_xorclause, xorparity[each_xor->first]));
     }
     printf("largest_var %d.\n", largest_var);

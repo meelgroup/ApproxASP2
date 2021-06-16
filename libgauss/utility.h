@@ -38,7 +38,7 @@
 
 // char const *error_message;
 // int ret = 0;
-
+using std::string;
 struct SATCount
 {
 uint32_t hashCount;
@@ -69,7 +69,8 @@ int seed;
 
 std::vector<clingo_symbol_t> atoms;
 std::vector<clingo_symbol_t> active_atoms;
-std::unordered_map<clingo_symbol_t, char *> atom_symbol_map;
+std::unordered_map<clingo_symbol_t, string> atom_symbol_map;
+std::unordered_map<clingo_literal_t, clingo_symbol_t> literal_atom_map;
 unsigned number_of_active_atoms;
 
 std::vector<XOR> xor_cons;
@@ -95,13 +96,13 @@ float tolerance(char const *label, float value);
 unsigned iteration_count(char const *label, float value);
 void get_symbol_string(clingo_symbol_t symbol, string_buffer_t *buf);
 void reset_Configuration(Configuration *con);
-char *atom_to_symbol(clingo_symbol_t atom, Configuration *con);
+string atom_to_symbol(clingo_symbol_t atom, Configuration *con);
 std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream);
 void get_symbol_atoms(clingo_control_t *ctl, Configuration *con);
 void print_all(Configuration *con);
 void generate_k_xors(unsigned k, Configuration *con);
 void add_execution_time(clingo_control_t *ctl, Configuration *con);
-std::string get_parity_predicate(char *term, int xor_id, int parity);
+std::string get_parity_predicate(string term, int xor_id, int parity);
 void translation(
     clingo_control_t **ctl,
     Configuration *con,

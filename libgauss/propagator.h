@@ -44,6 +44,8 @@ SolverState* solver;
 
 } propagator_t;
 
+extern Configuration problem;
+
 bool init_all_matrixes(propagator_t *prop);
 bool get_arg(clingo_symbol_t sym, int offset, int *num);
 clingo_symbol_t get_arg_str(clingo_symbol_t sym, int offset, char **str_argu);
