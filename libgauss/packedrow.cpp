@@ -130,21 +130,34 @@ gret PackedRow::propGause(
     bool final = !rhs_internal;
     nb_var = std::numeric_limits<uint32_t>::max();
     tmp_clause.clear();
-
+    unsigned unassigned_literal = 0;
+    for (uint32_t i = 0; i != size; i++) if (mp[i]) {
+        uint64_t tmp = mp[i];
+        for (uint32_t i2 = 0 ; i2 < 64; i2++) {
+            if(tmp & 1){
+                const uint32_t var = col_to_var[i * 64  + i2];
+                const lbool val = assigns[var];
+                if (val == l_Undef) {  // find non basic value
+                    unassigned_literal++;
+                }
+            }
+            tmp >>= 1;
+        }
+    }
     for (uint32_t i = start/64; i != size; i++) if (mp[i]) {
         uint64_t tmp = mp[i];
         for (uint32_t i2 = 0 ; i2 < 64; i2++) {
             if(tmp & 1){
                 const uint32_t var = col_to_var[i * 64  + i2];
                 const lbool val = assigns[var];
-                if (val == l_Undef && !GasVar_state[var]) {  // find non basic value
+                if (unassigned_literal >= 2 && val == l_Undef && !GasVar_state[var]) {  // find non basic value
                     nb_var = var;
                     return gret::nothing_fnewwatch; // nothing
                 }
                 const bool val_bool = (val == l_True);
                 final ^= val_bool;
                 tmp_clause.push_back(Lit(var, val_bool));
-                if (likely(GasVar_state[var])) {
+                if (unassigned_literal == 1 && val == l_Undef) {
                     std::swap(tmp_clause[0], tmp_clause.back());
                 }
             }
@@ -158,21 +171,21 @@ gret PackedRow::propGause(
             if(tmp & 1){
                 const uint32_t var = col_to_var[i * 64  + i2];
                 const lbool val = assigns[var];
-                if (val == l_Undef &&  !GasVar_state[var] ){  // find non basic value
+                if (unassigned_literal >= 2 && val == l_Undef &&  !GasVar_state[var] ){  // find non basic value
                     nb_var = var;
                     return gret::nothing_fnewwatch;   // nothing
                 }
                 const bool val_bool = val == l_True;
                 final ^= val_bool;
                 tmp_clause.push_back(Lit(var, val_bool));
-                if ( GasVar_state[var] ) {
+                if (unassigned_literal == 1 && val == l_Undef) {
                     std::swap(tmp_clause[0], tmp_clause.back());
                 }
             }
             tmp >>= 1;
         }
     }
-
+    assert(unassigned_literal <= 1);
     if (assigns[tmp_clause[0].var()] == l_Undef) {    // propogate
         tmp_clause[0] = tmp_clause[0].unsign()^final;
         return gret::prop;  // propogate

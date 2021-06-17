@@ -107,11 +107,11 @@ void reset_Configuration(Configuration *con)
     con->time_in_clasp = 0.0;
 }
 
-char *atom_to_symbol(clingo_symbol_t atom, Configuration *con)
-{
-    auto it = con->atom_symbol_map.find(atom);
-    assert(it != con->atom_symbol_map.end());
-    return it->second;
+string atom_to_symbol(clingo_symbol_t atom, Configuration *con)	
+{	
+    auto it = con->atom_symbol_map.find(atom);	
+    assert(it != con->atom_symbol_map.end());	
+    return it->second;	
 }
 
 std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream)
@@ -170,7 +170,7 @@ void get_symbol_atoms(clingo_control_t *ctl, Configuration *con)
         assert(buf.string);
         predicate = (char *)malloc(sizeof(char) * buf.string_n);
         strcpy(predicate, buf.string);
-        con->atom_symbol_map[symbol] = predicate;
+        con->atom_symbol_map[symbol] = std::string(predicate);;
         // printf("Inside get_symbol_atoms %lu %s.\n", symbol, buf.string);
 
         if (!fact && !external) {
@@ -208,63 +208,58 @@ void generate_k_xors(unsigned k, Configuration *con)
     printf("\n");
     assert(k == con->xor_cons.size());
 }
-void add_execution_time(clingo_control_t *ctl, Configuration *con)
-{
-    assert(ctl);
-    const clingo_statistics_t *stats;
-    uint64_t stats_key, key, subkey;
-    clingo_statistics_type_t type;
-    char const *name;
-    double exec_time;
-
-    clingo_control_statistics(ctl, &stats);
-    clingo_statistics_root(stats, &stats_key);
-    clingo_statistics_type(stats, stats_key, &type);
-    assert((enum clingo_statistics_type)type == clingo_statistics_type_map);
-
-    // summary is at index 2
-    key = stats_key;
-    clingo_statistics_map_subkey_name(stats, key, 2, &name);
-    assert(string(name) == string("summary"));
-    clingo_statistics_map_at(stats, key, name, &subkey);
-    clingo_statistics_type(stats, subkey, &type);
-    assert((enum clingo_statistics_type)type == clingo_statistics_type_map);
-
-    // summary is at index 7
-    key = subkey;
-    clingo_statistics_map_subkey_name(stats, key, 7, &name);
-    assert(strcmp(name, "times") == 0);
-    clingo_statistics_map_at(stats, key, name, &subkey);
-    clingo_statistics_type(stats, subkey, &type);
-    assert((enum clingo_statistics_type)type == clingo_statistics_type_map);
-
-    // summary is at index 7
-    key = subkey;
-    clingo_statistics_map_subkey_name(stats, key, 1, &name);
-    assert(strcmp(name, "cpu") == 0);
-    clingo_statistics_map_at(stats, key, name, &subkey);
-    clingo_statistics_type(stats, subkey, &type);
-    assert((enum clingo_statistics_type)type == clingo_statistics_type_value);
-    clingo_statistics_value_get(stats, subkey, &exec_time);
-    // we get execution time and appended with clasp's time
-    con->time_in_clasp = con->time_in_clasp + exec_time;
+void add_execution_time(clingo_control_t *ctl, Configuration *con)	
+{	
+    assert(ctl);	
+    const clingo_statistics_t *stats;	
+    uint64_t stats_key, key, subkey;	
+    clingo_statistics_type_t type;	
+    char const *name;	
+    double exec_time;	
+    clingo_control_statistics(ctl, &stats);	
+    clingo_statistics_root(stats, &stats_key);	
+    clingo_statistics_type(stats, stats_key, &type);	
+    // assert((enum clingo_statistics_type)type == clingo_statistics_type_map);	
+    // summary is at index 2	
+    key = stats_key;	
+    clingo_statistics_map_subkey_name(stats, key, 2, &name);	
+    assert(string(name) == string("summary"));	
+    clingo_statistics_map_at(stats, key, name, &subkey);	
+    clingo_statistics_type(stats, subkey, &type);	
+    // assert((enum clingo_statistics_type)type == clingo_statistics_type_map);	
+    // summary is at index 7	
+    key = subkey;	
+    clingo_statistics_map_subkey_name(stats, key, 7, &name);	
+    // assert(strcmp(name, "times") == 0);	
+    clingo_statistics_map_at(stats, key, name, &subkey);	
+    clingo_statistics_type(stats, subkey, &type);	
+    // assert((enum clingo_statistics_type)type == clingo_statistics_type_map);	
+    // summary is at index 7	
+    key = subkey;	
+    clingo_statistics_map_subkey_name(stats, key, 1, &name);	
+    // assert(strcmp(name, "cpu") == 0);	
+    clingo_statistics_map_at(stats, key, name, &subkey);	
+    clingo_statistics_type(stats, subkey, &type);	
+    // assert((enum clingo_statistics_type)type == clingo_statistics_type_value);	
+    clingo_statistics_value_get(stats, subkey, &exec_time);	
+    // we get execution time and appended with clasp's time	
+    con->time_in_clasp = con->time_in_clasp + exec_time;	
 }
 
-std::string get_parity_predicate(char *term, int xor_id, int parity)
-{
-    assert(parity == 0 || parity == 1);
-    std::string pred = "__parity(" + std::to_string(xor_id) + ", ";
-    if (parity)
-        pred += "odd";
-    else
-        pred += "even";
-
-    if (term) {
-        pred += ", " + (std::string)term + ") :- " + (std::string)term + ". ";
-    } else {
-        pred += "). ";
-    }
-    return pred;
+std::string get_parity_predicate(string term, int xor_id, int parity)	
+{	
+    assert(parity == 0 || parity == 1);	
+    std::string pred = "__parity(" + std::to_string(xor_id) + ", ";	
+    if (parity)	
+        pred += "odd";	
+    else	
+        pred += "even";	
+    if (!term.empty()) {	
+        pred += ", " + (std::string)term + ") :- " + (std::string)term + ". ";	
+    } else {	
+        pred += "). ";	
+    }	
+    return pred;	
 }
 
 void translation(
@@ -289,9 +284,9 @@ void translation(
         bool parity = (*start_itr).rhs;
         auto terms = (*start_itr).literals;
         auto start_term = terms.begin();
-        string_added += get_parity_predicate(0, start - 1, (int)parity);
+        string_added += get_parity_predicate("", start - 1, (int)parity);
         while (start_term != terms.end()) {
-            char *term = atom_to_symbol(*start_term, con);
+            string term = atom_to_symbol(*start_term, con);
             std::string temp = get_parity_predicate(term, start - 1, (int)parity);
             string_added += temp;
             myfile << temp << std::endl;

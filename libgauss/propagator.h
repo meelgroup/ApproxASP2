@@ -31,9 +31,10 @@
 #include "gqueuedata.h"
 #include "EGaussian.h"
 #include "solverstate.h"
+#include "utility.h"
 
 using std::vector;
-
+extern Configuration problem;
 // state information for the propagator
 typedef struct {
 // mapping from solver literals capturing pigeon placements to hole numbers

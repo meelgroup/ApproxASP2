@@ -129,7 +129,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 {
     // the total number of holes pigeons can be assigned too
     int holes = 0;
-
+    clingo_propagate_init_set_check_mode(init, clingo_propagator_check_mode_total);
     size_t threads = clingo_propagate_init_number_of_threads(init);
     // stores the (numeric) maximum of the solver literals capturing pigeon placements
     // note that the code below assumes that this literal is not negative
@@ -269,7 +269,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         sym = get_arg_str(sym, 2, &condition);
         assert(id < xor_count);
         assert(!strcmp(parity, "odd") || !strcmp(parity, "even"));
-        xorparity[id] = (!strcmp(parity, "odd")) ? 1 : 0;
+        xorparity[id] = (strcmp(parity, "odd") == 0) ? 1 : 0;
         symbol_to_literal[sym] = 0;
         xor_to_symbol[id].push_back(sym);
 
@@ -289,6 +289,8 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         assert(!equal);
         clingo_symbolic_atoms_literal(atoms, finder, &lit2);
         clingo_propagate_init_solver_literal(init, lit2, &lit);
+        clingo_propagate_init_freeze_literal(init, lit);
+        problem.literal_atom_map[lit] = it->first;
         largest_var = (lit > largest_var) ? lit : largest_var;
         it->second = lit;
         solver_literal.insert(lit);
@@ -303,7 +305,13 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
             auto symbol_finder = symbol_to_literal.find(*symbol);
             assert(symbol_finder != symbol_to_literal.end());
             assert(symbol_finder->second > 0);
-            temp_xorclause.push_back(symbol_finder->second);
+            auto it = find(temp_xorclause.begin(), temp_xorclause.end(), symbol_finder->second);
+            if (it != temp_xorclause.end()) {
+                temp_xorclause.erase(it);
+            }
+            else {
+                temp_xorclause.push_back(symbol_finder->second);
+            }
         }
         xorclauses.push_back(Xor(temp_xorclause, xorparity[each_xor->first]));
     }
@@ -329,6 +337,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                      size_t size, propagator_t *data)
 {
     bool immediate_break = false;
+    bool prop = false;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
     }
@@ -346,38 +355,56 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
 
         for (; i != end; i++) {
             data->gqueuedata[i->matrix_num].enter_matrix = true;
+            data->gqueuedata[i->matrix_num].do_eliminate = false;
             if (!data->gmatrixes[i->matrix_num]->find_truths2(
                 i, j, p.var(), i->row_id,
                 data->gqueuedata[i->matrix_num])
             ) {
                 //conflict
                 immediate_break = true;
+                i++;
                 break;
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
                 data->solver->sum_Enpropagate++;
-                data->solver->add_clause(
-                    data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
-                return true;
+                data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
+                i++;
+                prop = true; 
+                break;
+                // return true;
             }
         }
 
-        if (i != end) {
-            i++;
-            //copy remaining watches
-            GaussWatched *j2 = j;
-            GaussWatched *i2 = i;
-            for (; i2 != end; i2++) {
-                *j2 = *i2;
-                j2++;
-            }
+        // if (i != end) {
+        //     i++;
+        //     //copy remaining watches
+        //     GaussWatched *j2 = j;
+        //     GaussWatched *i2 = i;
+        //     for (; i2 != end; i2++) {
+        //         *j2 = *i2;
+        //         j2++;
+        //     }
+        // }
+        for (; i != end; i++) {
+            *j++ = *i;
         }
         ws.shrink_(i - j);
         data->solver->remove_watch_literal(p.var());
+        if (prop)
+            break;
         for (size_t g = 0; g < data->gqueuedata.size(); g++)
-            if (data->gqueuedata[g].do_eliminate)
+            if (data->gqueuedata[g].do_eliminate) {
                 data->gmatrixes[g]->eliminate_col2(p.var(), data->gqueuedata[g], immediate_break);
-
+                data->solver->sum_Elimination_Col++;
+                if (immediate_break == false && !data->gqueuedata[g].prop_clause_gauss.empty()) {
+                    // cout << "Propagate clause of size: " << data->gqueuedata[g].prop_clause_gauss.size() << endl;
+                    // data->solver->sum_Enpropagate++;
+                    // if (!data->solver->add_clause(data->gqueuedata[g].prop_clause_gauss, false)) { 
+                    //     return true; 
+                    // }                        
+                }
+            }
+        // data->gmatrixes[0]->check_watch_var();
         if (immediate_break)
             break;
     }
@@ -404,7 +431,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             case 3: // unit propagation
                 gqd.big_propagate++;
                 data->solver->sum_Enpropagate++;
-                data->solver->add_clause(gqd.prop_clause_gauss, false);
+                // data->solver->add_clause(gqd.prop_clause_gauss, false);
             case 4:
                 //nothing
                 break;
@@ -417,6 +444,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
     // data->solver->printStatistics();
     return true;
 }
+
 bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
                propagator_t *data)
 {

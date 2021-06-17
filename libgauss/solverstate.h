@@ -53,6 +53,7 @@ public:
     uint32_t sum_initUnit;
     uint32_t sum_Enconflict;
     uint32_t sum_Enpropagate;
+    uint32_t sum_Elimination_Col;
     uint32_t sum_Enunit;
     uint32_t sum_EnGauss;
     clingo_propagate_control_t* cpc = NULL;
@@ -131,6 +132,7 @@ public:
         sum_gauss_prop = 0;
         sum_gauss_unit_truths = 0;
         sum_initEnGauss = 0;
+        sum_Elimination_Col = 0;
         sum_initUnit = 0;
         sum_Enpropagate = 0;
         sum_Enunit = 0;
@@ -164,7 +166,7 @@ public:
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         return clingo_assignment_has_conflict(values);
     }
-    void add_clause(vector<Lit> clause, bool xor_add = false) {
+    bool add_clause(vector<Lit> clause, bool is_conflict_clause = false) {
         auto last_literal = literal.end();
         assert(cpc);
         size_t length = clause.size();
@@ -177,7 +179,7 @@ public:
             test_lit = (*itr).var();
             assert(literal.find(test_lit) != last_literal);
             assert(literal.find(test_lit) != literal.end());
-            if (index == 0 && !xor_add) {
+            if (index == 0 && !is_conflict_clause) {
                 assert(assigns[test_lit] == l_Undef);
             }
             else if ((*itr).sign())
@@ -193,56 +195,76 @@ public:
             new_clause[index++] = insert_lit;
         }
         assert(index == length);
-        if (xor_add && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
-        {
-            (xor_add) ? printf("\nConflict\n") : printf("\nPropagation\n");
-            
-            
-            // itr = clause.begin();
-            // assert(assigns[(*itr).var()] == l_Undef);
-            // for (auto itr_end = clause.end(); itr != itr_end; itr++)
-            // {
-            //     test_lit = (*itr).var();
-            //     printf("%d\t", (*itr).var());
-            //     assert(literal.find(test_lit) != last_literal);
-            //     insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
-            //     new_clause[index++] = insert_lit;
-            //     printf("%d\t", insert_lit);
-            // }
-            cout << "\nCan't insert clause\n";
-            
-        }
-        if (!xor_add && !is_assignment_conflicting(cpc) && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
-        {
-            (xor_add) ? printf("\nConflict\n") : printf("\nPropagation\n");
-            
-            cout << "\nCan't insert clause\n";
-            
-        }
-        if (!result) {
-            return;
-        }
-        if (!clingo_propagate_control_propagate(cpc, &result))
-        {
-            cout << "Can't propagate clause";
-        }
-        if (!result) {
-            return;
+        bool is_conflict = is_assignment_conflicting(cpc); 	
+        // assert(is_conflicting(clause, !is_conflict_clause));	
+        if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))	
+        {	
+            (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");	
+            	
+            	
+            // itr = clause.begin();	
+            // assert(assigns[(*itr).var()] == l_Undef);	
+            // for (auto itr_end = clause.end(); itr != itr_end; itr++)	
+            // {	
+            //     test_lit = (*itr).var();	
+            //     printf("%d\t", (*itr).var());	
+            //     assert(literal.find(test_lit) != last_literal);	
+            //     insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());	
+            //     new_clause[index++] = insert_lit;	
+            //     printf("%d\t", insert_lit);	
+            // }	
+            cout << "\nCan't insert clause\n";	
+            	
+        }	
+        const clingo_assignment_t *values2 = clingo_propagate_control_assignment(cpc);	
+        // assert(is_assignments_equal(values1, values2));	
+        if (is_conflict_clause) {	
+            // if(!is_conflict && is_assignment_conflicting(cpc)) {	
+            //     cout << "yes";	
+            // }	
+            // else if (!is_assignment_conflicting(cpc)) {	
+            //     assert(false);	
+            // }	
+            assert(!result);  // this is conflicting	
+        }	
+        if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))	
+        {	
+            (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");	
+            	
+            cout << "\nCan't insert clause\n";	
+            	
+        }	
+        if (!result) {	
+            return false;	
+        }	
+        if (!clingo_propagate_control_propagate(cpc, &result))	
+        {	
+            cout << "Can't propagate clause";	
+        }	
+        if (!result) {	
+            return false;	
         }
         free(new_clause);
         assert(result);
-        xor_add = false;
-        // if it is a binary clause then add one more new clause
-        if (xor_add)
-        {
-            assert(length == 2);
-            new_clause[0] = -new_clause[0];
-            new_clause[1] = -new_clause[1];
-            if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
-            {
-                cout << "Can't insert clause";
-            }
+    }
+    bool add_initial_clause(vector<Lit> clause) {
+        assert(cpi);
+        assert(clause.size() == 1);
+        clingo_literal_t* new_clause = (clingo_literal_t *)malloc (sizeof(clingo_literal_t));
+        if (clause[0].sign()) {
+            new_clause[0] = -clause[0].var();
         }
+        else {
+            new_clause[0] = clause[0].var();
+        }
+        bool result;
+        // add the clause
+        if (!clingo_propagate_init_add_clause(cpi, new_clause, 1, &result)) { return false; }
+        if (!result) { return false; }
+        // propagate it
+        if (!clingo_propagate_init_propagate(cpi, &result)) { return false; }
+        if (!result) { return false; }
+        return true;
     }
 };
 
