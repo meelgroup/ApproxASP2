@@ -24,38 +24,87 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(CLINGO_BUILD_WEB         "enable web target"             OFF)
-option(CLINGO_BUILD_STATIC      "do not build shared libraries" OFF)
-option(CLINGO_BUILD_WITH_PYTHON "enable python support"          ON)
-option(CLINGO_BUILD_WITH_LUA    "enable lua support"             ON)
-option(CLINGO_BUILD_TESTS       "build tests"                   OFF)
-option(CLINGO_BUILD_EXAMPLES    "build examples"                OFF)
-option(CLINGO_BUILD_APPS        "build applications"             ON)
-option(CLINGO_MANAGE_RPATH      "set rpath if not installed into system directory" ON)
+# build targets
+option(CLINGO_BUILD_WEB 
+"Enable the web target. This option is meant to be used with emscripten to \
+compile a library exporting just one function to run clingo." 
+OFF)
+option(CLINGO_BUILD_TESTS
+"Enable unit and system tests."
+OFF)
+option(CLINGO_BUILD_EXAMPLES
+"Build clingo C and C++ examples."
+OFF)
+option(CLINGO_BUILD_APPS
+"Build applications including gringo, clingo, reify, clasp, and lpconvert."
+ON)
+set(CLINGO_CLINGOPATH "" CACHE STRING
+"Set inbuilt global search directories for clingo's include statement.")
+set(CLINGO_BUILD_REVISION "" CACHE STRING
+"revision string to add to version information")
 
-CMAKE_DEPENDENT_OPTION(CLINGO_REQUIRE_PYTHON   "fail if python support not found" OFF "CLINGO_BUILD_WITH_PYTHON" OFF)
-CMAKE_DEPENDENT_OPTION(CLINGO_REQUIRE_LUA      "fail if lua support not found"    OFF "CLINGO_BUILD_WITH_LUA"    OFF)
-CMAKE_DEPENDENT_OPTION(CLINGO_BUILD_SHARED     "build clingo library shared"      ON  "NOT CLINGO_BUILD_STATIC"  OFF)
-CMAKE_DEPENDENT_OPTION(CLINGO_BUILD_PY_SHARED  "build pyclingo library shared"    OFF "NOT CLINGO_BUILD_STATIC"  OFF)
-CMAKE_DEPENDENT_OPTION(CLINGO_BUILD_LUA_SHARED "build luaclingo library shared"   OFF "NOT CLINGO_BUILD_STATIC"  OFF)
+# build fine-tuning
+option(CLINGO_MANAGE_RPATH
+"Set RPATH if not installed into system directory on *NIX systems."
+ON)
+option(CLINGO_BUILD_STATIC
+"Do not build any shared libraries and do not compile position independent \
+code."
+OFF)
+CMAKE_DEPENDENT_OPTION(CLINGO_BUILD_SHARED
+"Build clingo library shared."
+ON "NOT CLINGO_BUILD_STATIC" OFF)
+set(CLINGO_USE_LIB OFF CACHE BOOL
+"Advanced option to build Python and Lua modules against an existing \
+libclingo.")
+option(CLINGO_INSTALL_LIB
+"Advanced option to force installation of static libraries."
+OFF)
 
-option(PYCLINGO_USER_INSTALL "install the python module in the user's site directory" ON)
-option(PYCLINGO_DYNAMIC_LOOKUP "do not link to python library and pass linker option `-undefined link_dynamic`" ${APPLE})
-CMAKE_DEPENDENT_OPTION(PYCLINGO_USE_INSTALL_PREFIX "install the python module under the install prefix" OFF "NOT PYCLINGO_USER_INSTALL" OFF)
+# Python configuration
+set(CLINGO_BUILD_WITH_PYTHON "auto" CACHE STRING
+"Whether to enable Python support. Can be set to \"ON\" (to enable Python \
+support), \"OFF\" (to disable Python support), \"auto\" (to enable Python \
+support if available), or \"pip\" (advanced configuration to build a Python \
+module exporting clingo symbols).")
+set(CLINGO_PYTHON_VERSION "3.6" CACHE STRING
+"Set this to find a specific Python version. This can for example be set with \
+`-DCLINGO_PYTHON_VERSION:LIST=\"3.6;EXACT\"` to require a specific version." )
+set(PYCLINGO_INSTALL "prefix" CACHE STRING
+"Configure where to install the Python module. Can be set to \"user\" (to \
+install in the user prefix), \"system\" (to install in the system \
+\"prefix\"), or \"prefix\" (to install into the installation prefix).")
+set(PYCLINGO_INSTALL_DIR "" CACHE STRING
+"Advanced variable to manually configure where to install the Python module.")
+set(PYCLINGO_SUFFIX CACHE STRING
+"Advanced variable to manually configure the suffix of the Python module.")
+option(PYCLINGO_DYNAMIC_LOOKUP
+"Pass linker option `-undefined link_dynamic`."
+${APPLE})
 
-set(CLINGO_CLINGOPATH "" CACHE STRING "global search directories for clingo's include statement")
-set(CLINGO_USE_LIB OFF CACHE BOOL "advanced option to build python and lua modules against an existing libclingo")
-set(CLINGO_BUILD_REVISION "" CACHE STRING "revision string to add to version information")
-set(CLINGO_PYTHON_VERSION "" CACHE STRING "set this to find a specific python version")
-set(CLINGO_LUA_VERSION "" CACHE STRING "set this to find a specific lua version")
+# Lua configuration
+set(CLINGO_BUILD_WITH_LUA "auto" CACHE STRING
+"Whether to enable Lua support. Can be set to 'ON' (to enable Lua support), \
+'OFF' (to disable Lua support), or 'auto' (to enable Python support if \
+available).")
+set(CLINGO_LUA_VERSION "5.0" CACHE STRING
+"Set this to find a specific Lua version. This can for example be set with \
+`-DCLINGO_LUA_VERSION:LIST=\"5.3;EXACT\"` to require a specific version." )
+set(LUACLINGO_INSTALL_DIR "" CACHE STRING
+"Advanced variable to manually configure where to install the Lua module.")
+set(LUACLINGO_SUFFIX CACHE STRING
+"Advanced variable to manually configure the suffix of the Lua module.")
 
 mark_as_advanced(CLINGO_BUILD_WEB)
 mark_as_advanced(CLINGO_BUILD_STATIC)
 mark_as_advanced(CLINGO_BUILD_SHARED)
-mark_as_advanced(CLINGO_BUILD_PY_SHARED)
-mark_as_advanced(CLINGO_BUILD_LUA_SHARED)
 mark_as_advanced(CLINGO_USE_LIB)
-mark_as_advanced(CLINGO_BUILD_REVISION)
+mark_as_advanced(CLINGO_INSTALL_LIB)
+mark_as_advanced(PYCLINGO_INSTALL_DIR)
+mark_as_advanced(PYCLINGO_SUFFIX)
+mark_as_advanced(PYCLINGO_DYNAMIC_LOOKUP)
+mark_as_advanced(LUACLINGO_INSTALL_DIR)
+mark_as_advanced(LUACLINGO_SUFFIX)
 
 # workaround to set custom ar and ranlib
 if (CLINGO_CMAKE_AR)
@@ -105,14 +154,23 @@ endif()
 #       that searching for the python libraries finds the matching libraries for the default python interpreter
 #       python is also used to run the tests
 
-if(CMAKE_VERSION VERSION_GREATER "3.15.0" OR CMAKE_VERSION VERSION_EQUAL "3.15.0")
+if(NOT CLINGO_BUILD_WITH_PYTHON STREQUAL "pip" AND (CMAKE_VERSION VERSION_GREATER "3.15.0" OR CMAKE_VERSION VERSION_EQUAL "3.15.0"))
+    if(DEFINED PYTHON_EXECUTABLE AND NOT DEFINED Python_EXECUTABLE)
+        set(Python_EXECUTABLE "${PYTHON_EXECUTABLE}")
+    endif()
+    if(DEFINED PYTHON_INCLUDE_DIR AND NOT DEFINED Python_INCLUDE_DIR)
+        set(Python_INCLUDE_DIR "${PYTHON_INCLUDE_DIR}")
+    endif()
+    if(DEFINED PYTHON_LIBRARY AND NOT DEFINED Python_LIBRARY)
+        set(Python_LIBRARY "${PYTHON_LIBRARY}")
+    endif()
     if (POLICY CMP0094)
         cmake_policy(SET CMP0094 NEW)
     endif()
     set(_args Interpreter)
     if (CLINGO_BUILD_WITH_PYTHON)
         set(_args ${_args} Development)
-        if (CLINGO_REQUIRE_PYTHON)
+        if (NOT CLINGO_BUILD_WITH_PYTHON STREQUAL "auto")
             set(_args ${_args} REQUIRED)
         endif()
     endif()
@@ -120,8 +178,9 @@ if(CMAKE_VERSION VERSION_GREATER "3.15.0" OR CMAKE_VERSION VERSION_EQUAL "3.15.0
 else()
     find_package(PythonInterp)
     set(Python_EXECUTABLE "${PYTHON_EXECUTABLE}")
+    set(Python_VERSION_MAJOR "${PYTHON_VERSION_MAJOR}")
     if (CLINGO_BUILD_WITH_PYTHON)
-        if (CLINGO_REQUIRE_PYTHON)
+        if (NOT CLINGO_BUILD_WITH_PYTHON STREQUAL "auto")
             find_package(PythonLibs ${CLINGO_PYTHON_VERSION} REQUIRED)
         else()
             find_package(PythonLibs ${CLINGO_PYTHON_VERSION})
@@ -131,17 +190,21 @@ else()
             add_library(Python::Module INTERFACE IMPORTED)
             set(Python_Development_FOUND ON)
             set(Python_INCLUDE_DIRS "${PYTHON_INCLUDE_DIRS}")
+            set(Python_VERSION "${PYTHONLIBS_VERSION_STRING}")
             set_property(TARGET Python::Python PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${PYTHON_INCLUDE_DIRS}")
             set_property(TARGET Python::Module PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${PYTHON_INCLUDE_DIRS}")
             set_property(TARGET Python::Python PROPERTY INTERFACE_LINK_LIBRARIES "${PYTHON_LIBRARIES}")
-            if (NOT PYCLINGO_DYNAMIC_LOOKUP)
+            if (MSVC) 
                 set_property(TARGET Python::Module PROPERTY INTERFACE_LINK_LIBRARIES "${PYTHON_LIBRARIES}")
             endif()
         endif()
     endif()
 endif()
+if (Python_Development_FOUND AND Python_VERSION_MAJOR LESS 3)
+    message(FATAL_ERROR "Clingo does not support Python 2.")
+endif()
 if (CLINGO_BUILD_WITH_LUA)
-    if (CLINGO_REQUIRE_LUA)
+    if (NOT CLINGO_BUILD_WITH_LUA STREQUAL "auto")
         find_package(Lua ${CLINGO_LUA_VERSION} REQUIRED)
     else()
         find_package(Lua ${CLINGO_LUA_VERSION})
@@ -154,6 +217,13 @@ if (CLINGO_BUILD_WITH_LUA)
 endif()
 find_package(BISON "2.5")
 find_package(RE2C "0.13")
+if (Python_Development_FOUND)
+    # When using CFFI the clingo module has to be compiled with -pthread to
+    # avoid linker errors
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+endif()
+
 
 if (POLICY CMP0063 AND (CLINGO_BUILD_SHARED OR Python_Development_FOUND OR LUA_FOUND))
     set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -170,7 +240,11 @@ if (CLINGO_USE_LIB)
     set_property(TARGET libclingo PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${CLINGO_SOURCE_DIR}/libclingo")
     set_property(TARGET libclingo PROPERTY INTERFACE_LINK_LIBRARIES "clingo")
 else()
-    set(clingo_library_targets libclingo libgringo libpotassco libclasp libreify)
+    set(clingo_library_targets libgringo libpotassco libclasp libreify)
+    set(CLASP_USE_LOCAL_LIB_POTASSCO ON CACHE BOOL "" FORCE)
+    if (NOT CLINGO_BUILD_SHARED AND CLINGO_INSTALL_LIB)
+        set(CLASP_INSTALL_LIB ${CLINGO_INSTALL_LIB} CACHE BOOL "" FORCE)
+    endif()
     add_subdirectory(clasp)
     add_subdirectory(libreify)
     add_subdirectory(libgringo)
@@ -179,7 +253,6 @@ endif()
 if (Python_Development_FOUND)
     add_subdirectory(libpyclingo)
     list(APPEND clingo_library_targets libpyclingo)
-    list(APPEND clingo_library_targets libpyclingom)
 else()
     add_library(libpyclingo INTERFACE IMPORTED)
     add_library(libpyclingom INTERFACE IMPORTED)

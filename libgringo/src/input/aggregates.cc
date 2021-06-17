@@ -221,6 +221,12 @@ bool TupleBodyAggregate::rewriteAggregates(UBodyAggrVec &aggr) {
         aggr.emplace_back(make_locatable<TupleBodyAggregate>(loc(), naf, removedAssignment, translated, fun, std::move(bound), get_clone(elems)));
     }
     if (skip) { bounds.emplace_back(std::move(assign.back())); }
+    if (bounds.empty() && naf == NAF::NOT) {
+        aggr.emplace_back(gringo_make_unique<SimpleBodyLiteral>(make_locatable<RelationLiteral>(
+            loc(), Relation::NEQ,
+            make_locatable<ValTerm>(loc(), Symbol::createNum(0)),
+            make_locatable<ValTerm>(loc(), Symbol::createNum(0)))));
+    }
     return !bounds.empty();
 }
 
@@ -231,7 +237,7 @@ bool TupleBodyAggregate::simplify(Projections &project, SimplifyState &state, bo
     elems.erase(std::remove_if(elems.begin(), elems.end(), [&](BodyAggrElemVec::value_type &elem) {
         SimplifyState elemState(state);
         for (auto &term : std::get<0>(elem)) {
-            if (term->simplify(elemState, false, false, log).update(term).undefined()) { return true; }
+            if (term->simplify(elemState, false, false, log).update(term, false).undefined()) { return true; }
         }
         for (auto &lit : std::get<1>(elem)) {
             // NOTE: projection disabled with singelton=true
@@ -974,7 +980,7 @@ bool TupleHeadAggregate::simplify(Projections &project, SimplifyState &state, Lo
     elems.erase(std::remove_if(elems.begin(), elems.end(), [&](HeadAggrElemVec::value_type &elem) {
         SimplifyState elemState(state);
         for (auto &term : std::get<0>(elem)) {
-            if (term->simplify(elemState, false, false, log).update(term).undefined()) { return true; }
+            if (term->simplify(elemState, false, false, log).update(term, false).undefined()) { return true; }
         }
         if (!std::get<1>(elem)->simplify(log, project, elemState, false)) {
             return true;
@@ -1086,10 +1092,6 @@ CreateHead TupleHeadAggregate::toGround(ToGroundArg &x, Ground::UStmVec &stms) c
         }
         return CreateHead([&completeRef](Ground::ULitVec &&lits) { return gringo_make_unique<Ground::HeadAggregateRule>(completeRef, std::move(lits)); });
     }
-}
-
-void TupleHeadAggregate::getNeg(std::function<void (Sig)> f) const {
-    for (auto &x : elems) { std::get<1>(x)->getNeg(f); }
 }
 
 // {{{1 definition of LitHeadAggregate
@@ -1231,10 +1233,6 @@ void LitHeadAggregate::replace(Defines &x) {
         elem.first->replace(x);
         for (auto &y : elem.second) { y->replace(x); }
     }
-}
-
-void LitHeadAggregate::getNeg(std::function<void (Sig)> f) const {
-    for (auto &x : elems) { x.first->getNeg(f); }
 }
 
 CreateHead LitHeadAggregate::toGround(ToGroundArg &, Ground::UStmVec &) const {
@@ -1462,12 +1460,6 @@ void Disjunction::replace(Defines &x) {
     }
 }
 
-void Disjunction::getNeg(std::function<void (Sig)> f) const {
-    for (auto &x : elems) {
-        for (auto &y : x.first) { y.first->getNeg(f); }
-    }
-}
-
 CreateHead Disjunction::toGround(ToGroundArg &x, Ground::UStmVec &stms) const {
     bool isSimple = true;
     for (auto &y : elems) {
@@ -1603,10 +1595,6 @@ void SimpleHeadLiteral::replace(Defines &x) {
     lit->replace(x);
 }
 
-void SimpleHeadLiteral::getNeg(std::function<void (Sig)> f) const {
-    lit->getNeg(f);
-}
-
 CreateHead SimpleHeadLiteral::toGround(ToGroundArg &x, Ground::UStmVec &) const {
     return
         {[this, &x](Ground::ULitVec &&lits) -> Ground::UStm {
@@ -1714,7 +1702,7 @@ bool DisjointAggregate::simplify(Projections &project, SimplifyState &state, boo
     elems.erase(std::remove_if(elems.begin(), elems.end(), [&](CSPElemVec::value_type &elem) {
         SimplifyState elemState(state);
         for (auto &term : elem.tuple) {
-            if (term->simplify(elemState, false, false, log).update(term).undefined()) { return true; }
+            if (term->simplify(elemState, false, false, log).update(term, false).undefined()) { return true; }
         }
         if (!elem.value.simplify(elemState, log)) { return true; }
         for (auto &lit : elem.cond) {
@@ -1871,7 +1859,7 @@ UHeadAggr MinimizeHeadLiteral::rewriteAggregates(UBodyAggrVec &) {
 
 bool MinimizeHeadLiteral::simplify(Projections &, SimplifyState &state, Logger &log) {
     for (auto &term : tuple_) {
-        if (term->simplify(state, false, false, log).update(term).undefined()) {
+        if (term->simplify(state, false, false, log).update(term, false).undefined()) {
             return false;
         }
     }
@@ -1928,8 +1916,6 @@ Term &MinimizeHeadLiteral::priority() const {
     return *tuple_[1];
 }
 
-void MinimizeHeadLiteral::getNeg(std::function<void (Sig)>) const { }
-
 // {{{1 definition of EdgeHeadAtom
 
 EdgeHeadAtom::EdgeHeadAtom(UTerm &&u, UTerm &&v)
@@ -1979,8 +1965,8 @@ UHeadAggr EdgeHeadAtom::rewriteAggregates(UBodyAggrVec &) {
 }
 
 bool EdgeHeadAtom::simplify(Projections &, SimplifyState &state, Logger &log) {
-    return !u_->simplify(state, false, false, log).update(u_).undefined() &&
-           !v_->simplify(state, false, false, log).update(v_).undefined();
+    return !u_->simplify(state, false, false, log).update(u_, false).undefined() &&
+           !v_->simplify(state, false, false, log).update(v_, false).undefined();
 }
 
 void EdgeHeadAtom::rewriteArithmetics(Term::ArithmeticsMap &, AuxGen &) {
@@ -2014,8 +2000,6 @@ CreateHead EdgeHeadAtom::toGround(ToGroundArg &, Ground::UStmVec &) const {
         return gringo_make_unique<Ground::EdgeStatement>(get_clone(u_), get_clone(v_), std::move(lits));
     });
 }
-
-void EdgeHeadAtom::getNeg(std::function<void (Sig)>) const { }
 
 // {{{1 definition of ProjectHeadAtom
 
@@ -2063,7 +2047,7 @@ UHeadAggr ProjectHeadAtom::rewriteAggregates(UBodyAggrVec &body) {
 }
 
 bool ProjectHeadAtom::simplify(Projections &, SimplifyState &state, Logger &log) {
-    return !atom_->simplify(state, false, false, log).update(atom_).undefined();
+    return !atom_->simplify(state, false, false, log).update(atom_, false).undefined();
 }
 
 void ProjectHeadAtom::rewriteArithmetics(Term::ArithmeticsMap &arith, AuxGen &auxgen) {
@@ -2096,8 +2080,6 @@ CreateHead ProjectHeadAtom::toGround(ToGroundArg &, Ground::UStmVec &) const {
         return gringo_make_unique<Ground::ProjectStatement>(get_clone(atom_), std::move(lits));
     });
 }
-
-void ProjectHeadAtom::getNeg(std::function<void (Sig)>) const { }
 
 // {{{1 definition of ExternalHeadAtom
 
@@ -2158,7 +2140,7 @@ UHeadAggr ExternalHeadAtom::rewriteAggregates(UBodyAggrVec &) {
 }
 
 bool ExternalHeadAtom::simplify(Projections &, SimplifyState &state, Logger &log) {
-    return !atom_->simplify(state, false, false, log).update(atom_).undefined() && !type_->simplify(state, false, false, log).update(type_).undefined();
+    return !atom_->simplify(state, false, false, log).update(atom_, false).undefined() && !type_->simplify(state, false, false, log).update(type_, false).undefined();
 }
 
 void ExternalHeadAtom::rewriteArithmetics(Term::ArithmeticsMap &arith, AuxGen &auxgen) {
@@ -2196,11 +2178,6 @@ CreateHead ExternalHeadAtom::toGround(ToGroundArg &x, Ground::UStmVec &) const {
             heads.emplace_back(get_clone(atom_), &x.domains.add(sig));
             return gringo_make_unique<Ground::ExternalStatement>(std::move(heads), std::move(lits), get_clone(type_));
         }};
-}
-
-void ExternalHeadAtom::getNeg(std::function<void (Sig)> f) const {
-    Sig sig(atom_->getSig());
-    if (sig.sign()) { f(sig); }
 }
 
 // {{{1 definition of HeuristicHeadAtom
@@ -2266,10 +2243,10 @@ UHeadAggr HeuristicHeadAtom::rewriteAggregates(UBodyAggrVec &body) {
 
 bool HeuristicHeadAtom::simplify(Projections &, SimplifyState &state, Logger &log) {
     return
-        !atom_->simplify(state, false, false, log).update(atom_).undefined() &&
-        !value_->simplify(state, false, false, log).update(value_).undefined() &&
-        !priority_->simplify(state, false, false, log).update(priority_).undefined() &&
-        !mod_->simplify(state, false, false, log).update(mod_).undefined();
+        !atom_->simplify(state, false, false, log).update(atom_, false).undefined() &&
+        !value_->simplify(state, false, false, log).update(value_, false).undefined() &&
+        !priority_->simplify(state, false, false, log).update(priority_, false).undefined() &&
+        !mod_->simplify(state, false, false, log).update(mod_, false).undefined();
 }
 
 void HeuristicHeadAtom::rewriteArithmetics(Term::ArithmeticsMap &arith, AuxGen &auxgen) {
@@ -2305,8 +2282,6 @@ CreateHead HeuristicHeadAtom::toGround(ToGroundArg &, Ground::UStmVec &) const {
         return gringo_make_unique<Ground::HeuristicStatement>(get_clone(atom_), get_clone(value_), get_clone(priority_), get_clone(mod_), std::move(lits));
     });
 }
-
-void HeuristicHeadAtom::getNeg(std::function<void (Sig)>) const { }
 
 // {{{1 definition of ShowHeadLiteral
 
@@ -2351,7 +2326,7 @@ UHeadAggr ShowHeadLiteral::rewriteAggregates(UBodyAggrVec &) {
 }
 
 bool ShowHeadLiteral::simplify(Projections &, SimplifyState &state, Logger &log) {
-    return !term_->simplify(state, false, false, log).update(term_).undefined();
+    return !term_->simplify(state, false, false, log).update(term_, false).undefined();
 }
 
 void ShowHeadLiteral::rewriteArithmetics(Term::ArithmeticsMap &, AuxGen &) {
@@ -2385,9 +2360,6 @@ CreateHead ShowHeadLiteral::toGround(ToGroundArg &, Ground::UStmVec &) const {
     });
 }
 
-void ShowHeadLiteral::getNeg(std::function<void (Sig)>) const { }
-
 // }}}1
 
 } } // namespace Input Gringo
-

@@ -23,7 +23,6 @@
 // }}}
 
 #include <clingo/clingo_app.hh>
-#include <clingo/script.h>
 #include <clasp/parser.h>
 #include <climits>
 
@@ -85,6 +84,7 @@ void ClingoApp::initOptions(Potassco::ProgramOptions::OptionContext& root) {
         ("keep-facts,@1"            , flag(grOpts_.keepFacts = false), "Do not remove facts from normal rules")
         ("reify-sccs,@1"            , flag(grOpts_.outputOptions.reifySCCs = false), "Calculate SCCs for reified output")
         ("reify-steps,@1"           , flag(grOpts_.outputOptions.reifySteps = false), "Add step numbers to reified output")
+        ("single-shot,@2"           , flag(grOpts_.singleShot = false), "Force single-shot solving mode")
         ("foobar,@4"                , storeTo(grOpts_.foobar, parseFoobar) , "Foobar")
         ;
     root.add(gringo);
@@ -245,8 +245,8 @@ void ClingoApp::printHelp(const Potassco::ProgramOptions::OptionContext& root) {
 }
 
 void ClingoApp::printVersion() {
-    char const *py_version = clingo_script_version_(clingo_ast_script_type_python);
-    char const *lua_version = clingo_script_version_(clingo_ast_script_type_lua);
+    char const *py_version = clingo_script_version("python");
+    char const *lua_version = clingo_script_version("lua");
     Potassco::Application::printVersion();
     printf("\n");
     printf("libclingo version " CLINGO_VERSION "\n");

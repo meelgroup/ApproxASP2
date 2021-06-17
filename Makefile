@@ -19,7 +19,15 @@ build/$(BUILD_TYPE):
 		-DCLASP_BUILD_TESTS=On \
 		-DLIB_POTASSCO_BUILD_TESTS=On \
 		-DCLINGO_BUILD_EXAMPLES=On \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=On \
 		"$${current}"
+
+# compdb can be installed with pip
+compdb: build/$(BUILD_TYPE)
+	compdb -p "build/$(BUILD_TYPE)" list -1 > compile_commands.json
+
+stubs: all
+	PYTHONPATH=build/$(BUILD_TYPE)/bin/python python scratch/mypy.py
 
 %:: build/$(BUILD_TYPE) FORCE
 	cd build/$(BUILD_TYPE) && cd $$(pwd -P) && cmake .
@@ -32,7 +40,7 @@ test: build/$(BUILD_TYPE)
 
 web:
 	mkdir -p build/web
-	current="$$(pwd -P)" && cd build/web && cd "$$(pwd -P)" && source $$(which emsdk_env.sh) && emcmake cmake \
+	current="$$(pwd -P)" && cd build/web && cd "$$(pwd -P)" && source $$(which emsdk)_env.sh && emcmake cmake \
 		-DCLINGO_BUILD_WEB=On \
 		-DCLINGO_BUILD_WITH_PYTHON=Off \
 		-DCLINGO_BUILD_WITH_LUA=On \
