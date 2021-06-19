@@ -22,6 +22,7 @@
 
 // }}}
 
+#include <cmath>
 #define __STDC_FORMAT_MACROS
 #include <clingo.h>
 #include <inttypes.h>
@@ -30,7 +31,7 @@
 #include <iostream>
 #include <string.h>
 #include <fstream>
-
+#include <chrono>
 #include "utility.h"
 #include "propagator.h"
 #include "model_counting.h"
@@ -38,6 +39,7 @@
 using std::cout;
 using std::endl;
 using std::string;
+using namespace std::chrono;
 
 Configuration problem;
 
@@ -257,7 +259,7 @@ int main(int argc, char const **argv)
     char const *error_message;
     problem.conf = 0.8;
     problem.tol = 0.8;
-    problem.interval = 10;
+    problem.interval = 25;
     int ret = 0;
     unsigned thresh, t;
     struct stat buffer;
@@ -393,9 +395,9 @@ int main(int argc, char const **argv)
     // while (scan < problem.argu_count)
     //   printf("%s ", problem.asp_argument[scan++]);
     // printf("\n");
-
+    auto start = high_resolution_clock::now();
     ApproxSMC(ctl, &problem);
-
+    auto stop = high_resolution_clock::now();
     // create a control object and pass command line arguments
     if (!clingo_control_new(problem.asp_argument, problem.argu_count, NULL, NULL, 20, &ctl) != 0) {
         goto error;
@@ -446,7 +448,8 @@ int main(int argc, char const **argv)
     // }
     // add_execution_time(ctl, &problem);
     // prop_data.solver->printStatistics();
-    // printf("%g", problem.time_in_clasp);
+    cout << "ApproxSMC execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " s" << endl;
+    printf("Time spend in Clasp: %g s\n", problem.time_in_clasp);
     goto out;
 
 error:

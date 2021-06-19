@@ -38,7 +38,7 @@
 
 using std::cout;
 using std::endl;
-
+std::list<int> numHashList, numCountList, medianComputeList;
 //TODO fix!!!
 #define TIMEOUT 1000
 
@@ -74,13 +74,13 @@ void print_count(SATCount ret)
 }
 void print_stat(Configuration* con)
 {
-    printf("#Clasp_calls: %d & #Calls_timeouted: %d", con->clasp_call, con->clasp_call_timeout);
+    printf("\nClasp is called: %d times & Clasp is timeouted: %d times.\n", con->clasp_call, con->clasp_call_timeout);
 }
 void do_initial_setup(clingo_control_t** ctl, Configuration* con)
 {
     clingo_part_t parts[] = {{"base", NULL, 0}};
     if (*ctl) {
-        printf("Here...");
+        // printf("Here...");
         // clingo_control_free(*ctl);
         *ctl = NULL;
     }
@@ -236,34 +236,34 @@ SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
     return ret;
 }
 
-SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con)
+SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con, int counter)
 {
-    int counter = 0, prev_cells = 1, minHash = 0,
+    int prev_cells = 1, minHash = 0,
         medSolCount = 0; // in previous version prev_cells = 2 ^ 1 = 2
     unsigned count, n_cell;
     SATCount solCount;
-    std::list<int> numHashList, numCountList, medianComputeList;
-    while (counter < con->t) {
-        counter++;
-        solCount = LogSATSearch(control, con, prev_cells);
-        if (solCount.cellSolCount != -1) {
-            prev_cells = n_cell;
-            numCountList.push_back(solCount.cellSolCount);
-            numHashList.push_back(solCount.hashCount);
-            minHash = findMin(numHashList);
-            medianComputeList.clear();
-            assert(numHashList.size() == numCountList.size());
-            for (std::list<int>::iterator it1 = numHashList.begin(), it2 = numCountList.begin();
-                 it1 != numHashList.end() && it2 != numCountList.end(); it1++, it2++) {
-                medianComputeList.push_back((*it2) * std::pow(2, (*it1) - minHash));
-            }
-            assert(numHashList.size() == medianComputeList.size());
-            medSolCount = findMedian(medianComputeList);
-            cout << "Iteration: " << counter << " completed!!!" << endl;
-            solCount.cellSolCount = medSolCount;
-            solCount.hashCount = minHash;
+
+    cout << "ApproxSMCCore iteration: " << counter << " started ..." << endl;
+    solCount = LogSATSearch(control, con, prev_cells);
+    if (solCount.cellSolCount != -1) {
+        prev_cells = n_cell;
+        numCountList.push_back(solCount.cellSolCount);
+        numHashList.push_back(solCount.hashCount);
+        minHash = findMin(numHashList);
+        medianComputeList.clear();
+        assert(numHashList.size() == numCountList.size());
+        for (std::list<int>::iterator it1 = numHashList.begin(), it2 = numCountList.begin();
+                it1 != numHashList.end() && it2 != numCountList.end(); it1++, it2++) {
+            medianComputeList.push_back((*it2) * std::pow(2, (*it1) - minHash));
         }
+        assert(numHashList.size() == medianComputeList.size());
+        medSolCount = findMedian(medianComputeList);
+        cout << "ApproxSMCCore iteration: " << counter << " completed !!!" << endl;
+        solCount.cellSolCount = medSolCount;
+        solCount.hashCount = minHash;
+        cout << "After the iteration, the (median) number of solution: " << solCount.cellSolCount << " * 2 ^ " << solCount.hashCount << endl; 
     }
+    
     return solCount;
 }
 
@@ -275,11 +275,23 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
     do_initial_setup(&control, con);
     get_symbol_atoms(control, con);
     con->number_of_active_atoms = con->active_atoms.size();
-
-    generate_k_xors(con->number_of_active_atoms - 1, con);
-    translation(&control, con, false, std::cout, 1, -1);
-
+    // first of all checking whether the problem is trivial or not
+    unsigned result = Bounded_counter(control, con, 0);
+    if (result <= con->thresh) {
+        cout << "We calculated the exact number of solutions." << endl;
+        cout << "The exact number of solution: " << result << " * 2 ^ " << 0 << endl;
+        return;
+    }
+    cout << "The problem has more than thresh number of solutions" << endl;
     
-
-    solCount = ApproxSMCCore(control, con);
+    // the problem is not trivial, so we are running approxmc
+    int counter = 0;
+    while (counter < con->t) {
+        counter++;
+        generate_k_xors(con->number_of_active_atoms - 1, con);
+        translation(&control, con, false, std::cout, 1, -1);
+        solCount = ApproxSMCCore(control, con, counter);
+        con->xor_cons.clear();
+        con->seed = counter + 1;
+    }
 }

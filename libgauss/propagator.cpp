@@ -215,7 +215,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     //         }
     //     }
     // }
-    printf("Total XOR constraints: %d.\n", xor_count);
+    printf("The number of XOR constraints: %d.\n", xor_count);
     xorparity.resize(xor_count);
     if (!clingo_signature_create("__parity", 3, true, &sig)) {
         return false;
@@ -315,7 +315,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         }
         xorclauses.push_back(Xor(temp_xorclause, xorparity[each_xor->first]));
     }
-    printf("largest_var %d.\n", largest_var);
+    // printf("largest_var %d.\n", largest_var);
     assert(xorclauses.size() == xor_count);
     if (xor_count > 0) {
         data->gqueuedata.clear();

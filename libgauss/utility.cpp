@@ -219,21 +219,21 @@ void add_execution_time(clingo_control_t *ctl, Configuration *con)
     clingo_control_statistics(ctl, &stats);	
     clingo_statistics_root(stats, &stats_key);	
     clingo_statistics_type(stats, stats_key, &type);	
-    // assert((enum clingo_statistics_type)type == clingo_statistics_type_map);	
+    assert(type == clingo_statistics_type_map);	
     // summary is at index 2	
     key = stats_key;	
     clingo_statistics_map_subkey_name(stats, key, 2, &name);	
     assert(string(name) == string("summary"));	
     clingo_statistics_map_at(stats, key, name, &subkey);	
     clingo_statistics_type(stats, subkey, &type);	
-    // assert((enum clingo_statistics_type)type == clingo_statistics_type_map);	
+    assert(type == clingo_statistics_type_map);	
     // summary is at index 7	
     key = subkey;	
-    clingo_statistics_map_subkey_name(stats, key, 7, &name);	
-    // assert(strcmp(name, "times") == 0);	
+    clingo_statistics_map_subkey_name(stats, key, 8, &name);	
+    assert(strcmp(name, "times") == 0);	
     clingo_statistics_map_at(stats, key, name, &subkey);	
     clingo_statistics_type(stats, subkey, &type);	
-    // assert((enum clingo_statistics_type)type == clingo_statistics_type_map);	
+    assert(type == clingo_statistics_type_map);	
     // summary is at index 7	
     key = subkey;	
     clingo_statistics_map_subkey_name(stats, key, 1, &name);	
