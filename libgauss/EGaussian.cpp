@@ -306,8 +306,52 @@ bool EGaussian::full_init(bool& created) {
     //     cout << "c [gauss] initialised matrix " << matrix_no << endl;
     // }
 
+    delete cols_unset;
+    delete cols_vals;
+    delete tmp_col;
+    delete tmp_col2;
+    uint32_t num_64b = matrix.num_cols/64+(bool)(matrix.num_cols%64);
+    uint64_t* x = new uint64_t[num_64b+1];
+    // tofree.push_back(x);
+    cols_unset = new PackedRow(num_64b, x);
+
+    x = new uint64_t[num_64b+1];
+    // tofree.push_back(x);
+    cols_vals = new PackedRow(num_64b, x);
+
+    x = new uint64_t[num_64b+1];
+    // tofree.push_back(x);
+    tmp_col = new PackedRow(num_64b, x);
+
+    x = new uint64_t[num_64b+1];
+    // tofree.push_back(x);
+    tmp_col2 = new PackedRow(num_64b, x);
+
+    cols_vals->rhs() = 0;
+    cols_unset->rhs() = 0;
+    tmp_col->rhs() = 0;
+    tmp_col2->rhs() = 0;
+
+    cols_vals->setZero();
+    cols_unset->setOne();
+
     // std::cout << cpuTime() - GaussConstructTime << "    t";
     return true;
+}
+
+void EGaussian::set_up_A_and_V() {
+    cols_vals->setZero();
+    cols_unset->setOne();
+
+    for(uint32_t col = 0; col < matrix.col_to_var.size(); col++) {
+        uint32_t var = matrix.col_to_var[col];
+        if (solver->value(var) != l_Undef) {
+            cols_unset->clearBit(col);
+            if (solver->value(var) == l_True) {
+                cols_vals->setBit(col);
+            }
+        }
+    }
 }
 
 void EGaussian::eliminate(matrixset& m) {
@@ -483,7 +527,8 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
         GasVar_state[p] = non_basic_var;
     }
 
-    const gret ret = (*rowIt).propGause(tmp_clause, solver->assigns, matrix.col_to_var, GasVar_state, nb_var, var_to_col[p]);
+    const gret ret = (*rowIt).propGause(tmp_clause, solver->assigns, matrix.col_to_var, GasVar_state, nb_var, var_to_col[p], 
+         *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
     int unassigned = 0;
     bool conflict = false;
     (*rowIt).degug_propGause(solver->assigns, matrix.col_to_var, unassigned, conflict);
@@ -637,7 +682,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         // }
         const gret ret = (*rowI).propGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
-                                                   GasVar_state, nb_var, 0);
+                                                   GasVar_state, nb_var, 0, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
         int unassigned = 0;
         bool conflict = false;
         (*rowI).degug_propGause(solver->assigns, matrix.col_to_var, unassigned, conflict);                                           
@@ -717,7 +762,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
 
                 const gret ret = (*rowI).propGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
-                                                   GasVar_state, nb_var, ori_nb_col);
+                                                   GasVar_state, nb_var, ori_nb_col, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
                 int unassigned = 0;
                 bool conflict = false;
                 (*rowI).degug_propGause(solver->assigns, matrix.col_to_var, unassigned, conflict);

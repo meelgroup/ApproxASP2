@@ -49,7 +49,12 @@ class PackedRow
 public:
     bool operator ==(const PackedRow& b) const;
     bool operator !=(const PackedRow& b) const;
-
+    PackedRow() = delete;
+    PackedRow(const uint32_t _size, uint64_t*  const _mp) :
+        mp(_mp+1)
+        , rhs_internal(*_mp)
+        , size(_size)
+    {}
     PackedRow& operator=(const PackedRow& b)
     {
         #ifdef DEBUG_ROW
@@ -124,6 +129,11 @@ public:
         return rhs_internal;
     }
 
+    inline uint64_t& rhs()
+    {
+        return rhs_internal;
+    }
+
     inline bool isZero() const
     {
         for (uint32_t i = 0; i != size; i++) {
@@ -135,6 +145,11 @@ public:
     inline void setZero()
     {
         memset(mp, 0, sizeof(uint64_t)*size);
+    }
+
+    inline void setOne()
+    {
+        memset(mp, 0xff, sizeof(int64_t)*size);
     }
 
     inline void clearBit(const uint32_t i)
@@ -198,13 +213,32 @@ public:
         rhs_internal = v.rhs;
     }
 
+    uint32_t set_and_until_popcnt_atleast2(const PackedRow& a, const PackedRow& b)
+    {
+        #ifdef DEBUG_ROW
+        assert(size > 0);
+        assert(b.size > 0);
+        assert(b.size == size);
+        #endif
+
+        uint32_t pop = 0;
+        for (int i = 0; i < size && pop < 2; i++) {
+            *(mp + i) = *(a.mp + i) & *(b.mp + i);
+            pop += __builtin_popcountll((uint64_t)*(mp + i));
+        }
+
+        return pop;
+    }
+
+
     bool fill(vec<Lit>& tmp_clause, const vec<lbool>& assigns, const vector<uint32_t>& col_to_var_original) const;
 
     // using find nonbasic and basic value
     uint32_t find_watchVar(vector<Lit>& tmp_clause, const vector<uint32_t>& col_to_var,vec<bool> &GasVar_state , uint32_t& nb_var );
 
     // using find nonbasic value after watch list is enter
-    gret propGause(vector<Lit>& tmp_clause,const vector<lbool>& assigns, const vector<uint32_t>& col_to_var, vec<bool> &GasVar_state ,uint32_t& nb_var , uint32_t start);
+    gret propGause(vector<Lit>& tmp_clause,const vector<lbool>& assigns, const vector<uint32_t>& col_to_var, vec<bool> &GasVar_state ,uint32_t& nb_var , uint32_t start,
+        PackedRow& tmp_col, PackedRow& tmp_col2, PackedRow& cols_vals, PackedRow& cols_unset);
 
     // using find nonbasic value after watch list is enter
     void degug_propGause(const vector<lbool>& assigns, const vector<uint32_t>& col_to_var, int& unassigned, bool& conflict);
@@ -229,11 +263,11 @@ private:
     friend class PackedMatrix;
     friend std::ostream& operator << (std::ostream& os, const PackedRow& m);
 
-    PackedRow(const uint32_t _size, uint64_t*  const _mp) :
-        mp(_mp+1)
-        , rhs_internal(*_mp)
-        , size(_size)
-    {}
+    // PackedRow(const uint32_t _size, uint64_t*  const _mp) :
+    //     mp(_mp+1)
+    //     , rhs_internal(*_mp)
+    //     , size(_size)
+    // {}
 
     uint64_t* __restrict const mp;
     uint64_t& rhs_internal;

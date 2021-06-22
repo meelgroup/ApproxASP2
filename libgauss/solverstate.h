@@ -100,30 +100,36 @@ public:
     {
         return decision_level;
     }
-    void get_assignment(clingo_propagate_control_t *control)
+    void get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
     {
         cpc = control;
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
-        assert(!clingo_assignment_has_conflict(values));
+        // assert(!clingo_assignment_has_conflict(values));
         decision_level = clingo_assignment_decision_level(values);
         clingo_truth_value_t value;
         bool true_value, false_value;
         assigns.assign(nVars(), l_Undef);
         auto start_literal = literal.begin(); 
+        cols_vals->setZero();
+        cols_unset->setOne();
         for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
         {
             assert(clingo_assignment_has_literal(values, *start_literal));
             clingo_assignment_truth_value(values, *start_literal, &value);
             clingo_assignment_is_true(values, *start_literal, &true_value);
             clingo_assignment_is_false(values, *start_literal, &false_value);
+            uint32_t col = var_to_col[*start_literal];
             switch (value)
             {
                 case clingo_truth_value_true:
                     assigns[*start_literal] = l_True;
+                    cols_unset->clearBit(col);
+                    cols_vals->setBit(col);
                     assert(true_value);
                     break;
                 case clingo_truth_value_false:
                     assigns[*start_literal] = l_False;
+                    cols_unset->clearBit(col);
                     assert(false_value);
                     break;
                 default:
@@ -330,7 +336,7 @@ public:
         if (!result) {
             return false;
         }
-        get_assignment(cpc);
+        // get_assignment(cpc);
         free(new_clause);
         assert(result);  // this is propagating
         return true;

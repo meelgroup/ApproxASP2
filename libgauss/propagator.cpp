@@ -453,7 +453,9 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
                propagator_t *data)
 {
     // get the thread specific state
-    data->solver->get_assignment(control);
+    data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+        data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
+        
     gauss_elimation(control, changes, size, data);
     return true;
 }
@@ -465,7 +467,8 @@ bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, 
     for (EGaussian *gauss: data->gmatrixes) {
         gauss->canceling();
     }
-    data->solver->get_assignment(control);
+    data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+        data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
     return true;
 }
 
@@ -474,7 +477,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // static int c = 0;
     // c++;
     // get the thread specific state
-    data->solver->get_assignment(control);
+    data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+        data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
+    
     #ifdef DEBUG_MODE
     auto start_literal = data->solver->literal.begin(); 
     for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)

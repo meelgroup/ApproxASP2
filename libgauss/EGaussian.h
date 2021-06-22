@@ -72,7 +72,6 @@ class EGaussian {
     // we watch ONE basic(=unassigned) + ONE non-basic(=assigned) var
     vec<bool>         GasVar_state ;
 
-    vector<uint32_t>  var_to_col;             // variable to column
     class matrixset { // matrix information
       public:
         // added by hankf4
@@ -111,7 +110,13 @@ class EGaussian {
     );
     ~EGaussian();
 
+    PackedRow *cols_vals = NULL;
+    PackedRow *cols_unset = NULL;
+    PackedRow *tmp_col = NULL;
+    PackedRow *tmp_col2 = NULL;
     // functiion
+    vector<uint32_t>  var_to_col;             // variable to column
+    void set_up_A_and_V();
     void canceling(); //functions used throughout the Solver
     bool full_init(bool& created);  // initial arrary. return true is fine , return false means solver already false;
     void fill_matrix(matrixset& origMat); // Fills the origMat matrix
