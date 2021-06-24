@@ -242,7 +242,9 @@ SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con, int counte
         medSolCount = 0; // in previous version prev_cells = 2 ^ 1 = 2
     unsigned count, n_cell;
     SATCount solCount;
-
+    if (numHashList.size() > 0) {
+        prev_cells = numHashList.back();
+    }
     cout << "ApproxSMCCore iteration: " << counter << " started ..." << endl;
     solCount = LogSATSearch(control, con, prev_cells);
     if (solCount.cellSolCount != -1) {

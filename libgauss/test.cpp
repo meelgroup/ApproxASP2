@@ -257,7 +257,7 @@ out:
 int main(int argc, char const **argv)
 {
     char const *error_message;
-    problem.conf = 0.8;
+    problem.conf = 0.2;
     problem.tol = 0.8;
     problem.interval = 25;
     int ret = 0;
