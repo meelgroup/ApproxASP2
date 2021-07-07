@@ -453,9 +453,11 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
                propagator_t *data)
 {
     // get the thread specific state
-    data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+    bool is_backtracked = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
-        
+    if (is_backtracked) {
+        data->gmatrixes[0]->canceling();
+    }    
     gauss_elimation(control, changes, size, data);
     return true;
 }

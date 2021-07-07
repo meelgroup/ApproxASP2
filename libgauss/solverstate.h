@@ -58,6 +58,7 @@ public:
     uint32_t sum_Enpropagate;
     uint32_t sum_Enunit;
     uint32_t sum_EnGauss;
+    uint32_t find_truth_ret_satisfied_precheck;
     clingo_propagate_control_t* cpc = NULL;
     clingo_propagate_init_t* cpi = NULL;
     SolverState(uint32_t _vars, clingo_propagate_init_t* _cpi, std::unordered_set<clingo_literal_t> sol_literals)
@@ -100,14 +101,17 @@ public:
     {
         return decision_level;
     }
-    void get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
+    bool get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
     {
         cpc = control;
+        bool is_backtracked = false;
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         // assert(!clingo_assignment_has_conflict(values));
         decision_level = clingo_assignment_decision_level(values);
         clingo_truth_value_t value;
         bool true_value, false_value;
+        vector<lbool> prev_assigns;
+        prev_assigns = assigns;
         assigns.assign(nVars(), l_Undef);
         auto start_literal = literal.begin(); 
         cols_vals->setZero();
@@ -125,17 +129,27 @@ public:
                     assigns[*start_literal] = l_True;
                     cols_unset->clearBit(col);
                     cols_vals->setBit(col);
+                    if (prev_assigns[*start_literal] == l_False) {
+                        is_backtracked = true;
+                    }
                     assert(true_value);
                     break;
                 case clingo_truth_value_false:
                     assigns[*start_literal] = l_False;
                     cols_unset->clearBit(col);
+                    if (prev_assigns[*start_literal] == l_True) {
+                        is_backtracked = true;
+                    }
                     assert(false_value);
                     break;
                 default:
+                    if (prev_assigns[*start_literal] != l_Undef) {
+                        is_backtracked = true;
+                    }
                     break;
             }
         }
+        return is_backtracked;
     }
     void clearGaussStatistics()
     {
@@ -150,6 +164,7 @@ public:
         sum_Enpropagate = 0;
         sum_Enunit = 0;
         sum_Elimination_Col = 0;
+        find_truth_ret_satisfied_precheck = 0;
     }
     void printStatistics() {
         cout << "sum_Enconflict:\t" <<  sum_Enconflict << endl;
@@ -159,6 +174,7 @@ public:
         cout << "sum_Enpropagate:\t" << sum_Enpropagate << endl;
         cout << "sum_Enunit:\t" << sum_Enunit << endl;
         cout << "sum_Elimination_Col:\t" << sum_Elimination_Col << endl;
+        cout << "find_truth_ret_satisfied_precheck:\t" << find_truth_ret_satisfied_precheck << endl;
     }
     void add_watch_literal(uint32_t lit) {
         if (gwatches[lit].size() > 1) {

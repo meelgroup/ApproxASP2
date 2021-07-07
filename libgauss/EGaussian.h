@@ -114,6 +114,9 @@ class EGaussian {
     PackedRow *cols_unset = NULL;
     PackedRow *tmp_col = NULL;
     PackedRow *tmp_col2 = NULL;
+    //Is the clause at this ROW satisfied already?
+    //satisfied_xors[decision_level][row] tells me that
+    vector<char> satisfied_xors;
     // functiion
     vector<uint32_t>  var_to_col;             // variable to column
     void set_up_A_and_V();

@@ -118,9 +118,9 @@ void EGaussian::canceling() {
     //     a++;
     // }
     // clauses_toclear.resize(clauses_toclear.size() - a);
-
-    PackedMatrix::iterator rowIt = clause_state.beginMatrix();
-    (*rowIt).setZero(); //forget state
+    memset(satisfied_xors.data(), 0, satisfied_xors.size());
+    // PackedMatrix::iterator rowIt = clause_state.beginMatrix();
+    // (*rowIt).setZero(); //forget state
 }
 
 uint32_t EGaussian::select_columnorder(matrixset& origMat) {
@@ -220,6 +220,8 @@ void EGaussian::fill_matrix(matrixset& origMat) {
     PackedMatrix::iterator rowIt = clause_state.beginMatrix();
     (*rowIt).setZero(); // reset this row all zero
     // print_matrix(origMat);
+    satisfied_xors.clear();
+    satisfied_xors.resize(origMat.num_rows, 0);
 }
 
 void EGaussian::clear_gwatches(const uint32_t var) {
@@ -402,7 +404,7 @@ void EGaussian::eliminate(matrixset& m) {
 
 gret EGaussian::adjust_matrix(matrixset& m) {
     assert(solver->decisionLevel() == 0);
-
+    assert(satisfied_xors.size() >= m.num_rows);
     PackedMatrix::iterator end = m.matrix.beginMatrix() + m.num_rows;
     PackedMatrix::iterator rowIt = m.matrix.beginMatrix();
     uint32_t row_id = 0;      // row index
@@ -422,6 +424,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                     // printf("%d:Warring: this row is conflic in adjust matrix!!!",row_id);
                     return gret::confl;
                 }
+                satisfied_xors[row_id] = 1;
                 break;
 
             //Normal propagation
@@ -439,7 +442,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 (*rowIt).setZero(); // reset this row all zero
                 m.nb_rows.push(std::numeric_limits<uint32_t>::max()); // delete non basic value in this row
                 GasVar_state[tmp_clause[0].var()] = non_basic_var; // delete basic value in this row
-
+                satisfied_xors[row_id] = 1;
                 solver->sum_initUnit++;
                 return gret::unit_prop;
             }
@@ -519,6 +522,18 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
     //     *j++ = *i; // store watch list
     //     return true;
     // }
+
+    if (satisfied_xors[row_n]) {
+        // #ifdef VERBOSE_DEBUG
+        // cout << "-> xor satisfied as per satisfied_xors[row_n]" << endl;
+        // #endif
+        // #ifdef SLOW_DEBUG
+        // assert(check_row_satisfied(row_n));
+        // #endif
+        solver->find_truth_ret_satisfied_precheck++;
+        *j++ = *i;
+        return true;
+    }
 
     //swap basic and non_basic variable
     if (GasVar_state[p] == basic_var) {
@@ -601,7 +616,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                 GasVar_state[matrix.nb_rows[row_n]] = non_basic_var;
                 GasVar_state[p] = basic_var;
             }
-
+            satisfied_xors[row_n] = 1;
             (*clauseIt).setBit(row_n); // this clause arleady sat
             return true;
         }
@@ -652,6 +667,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                 GasVar_state[matrix.nb_rows[row_n]] = non_basic_var;
                 GasVar_state[p] = basic_var;
             }
+            satisfied_xors[row_n] = 1;
             (*clauseIt).setBit(row_n); // this clause arleady sat
             return true;
         default:
@@ -849,6 +865,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         solver->gwatches[p].push(GaussWatched(num_row, matrix_no));
                         matrix.nb_rows[num_row] = p; // update in this row non_basic variable
                         solver->add_watch_literal(p);
+                        satisfied_xors[num_row] = 1;
                         (*clauseIt).setBit(num_row);        // this clause arleady sat
                         break;
                     default:
