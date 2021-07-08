@@ -30,6 +30,7 @@
 #include <list>
 #include <cmath>
 #include <iostream>
+#include <chrono>
 
 
 #include "utility.h"
@@ -38,6 +39,7 @@
 
 using std::cout;
 using std::endl;
+using namespace std::chrono;
 std::list<int> numHashList, numCountList, medianComputeList;
 //TODO fix!!!
 #define TIMEOUT 1000
@@ -177,7 +179,11 @@ SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
     ret.cellSolCount = -1;
     while (num_explored < con->number_of_active_atoms) {
         swap_var = m_value;
+        auto start = high_resolution_clock::now();
         unsigned result = Bounded_counter(control, con, m_value);
+        auto stop = high_resolution_clock::now();
+        cout << "c execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " seconds." << endl;
+        
         generate_xor = false;
         if (result == -1) {
             if (repeat_try < 2) {

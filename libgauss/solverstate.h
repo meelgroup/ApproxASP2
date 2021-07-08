@@ -197,7 +197,7 @@ public:
         assert(index == length);
         bool is_conflict = is_assignment_conflicting(cpc); 	
         // assert(is_conflicting(clause, !is_conflict_clause));	
-        if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))	
+        if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
         {	
             (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");	
             	
@@ -227,7 +227,7 @@ public:
             // }	
             assert(!result);  // this is conflicting	
         }	
-        if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))	
+        if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
         {	
             (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");	
             	
