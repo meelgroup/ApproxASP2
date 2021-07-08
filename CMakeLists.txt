@@ -287,3 +287,4 @@ if (NOT CLINGO_BUILD_STATIC AND (CLINGO_BUILD_SHARED OR Python_Development_FOUND
     endforeach()
 endif()
 
+add_subdirectory(libgauss)
