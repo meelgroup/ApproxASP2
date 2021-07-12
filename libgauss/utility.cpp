@@ -280,16 +280,21 @@ void translation(
     auto start_itr = con->xor_cons.begin() + start - 1;
     auto end_itr = con->xor_cons.begin() + end;
     std::string string_added;
+    std::string temp_string;
+    con->xor_parity_string.clear();
     while (start_itr != end_itr) {
         bool parity = (*start_itr).rhs;
         auto terms = (*start_itr).literals;
         auto start_term = terms.begin();
-        string_added += get_parity_predicate("", start - 1, (int)parity);
+        temp_string = get_parity_predicate("", start - 1, (int)parity);
+        string_added += temp_string;
+        con->xor_parity_string.push_back(temp_string);
         while (start_term != terms.end()) {
             string term = atom_to_symbol(*start_term, con);
-            std::string temp = get_parity_predicate(term, start - 1, (int)parity);
-            string_added += temp;
-            myfile << temp << std::endl;
+            temp_string = get_parity_predicate(term, start - 1, (int)parity);
+            string_added += temp_string;
+            con->xor_parity_string.back() += temp_string;
+            myfile << temp_string << std::endl;
             start_term++;
         }
         start++;
@@ -309,4 +314,13 @@ void translation(
     }
     con->parity_string = string_added;
     // 
+}
+
+std::string get_parity_string(Configuration *con, int m_value) {
+    std::string parity_string;
+    parity_string.clear();
+    for (auto parity_itr = con->xor_parity_string.begin(); parity_itr != con->xor_parity_string.begin() + m_value; parity_itr++) {
+        parity_string += (*parity_itr);
+    }
+    return parity_string;
 }

@@ -78,7 +78,7 @@ void print_stat(Configuration* con)
 {
     printf("\nClasp is called: %d times & Clasp is timeouted: %d times.\n", con->clasp_call, con->clasp_call_timeout);
 }
-void do_initial_setup(clingo_control_t** ctl, Configuration* con)
+void do_initial_setup(clingo_control_t** ctl, Configuration* con, int m_value)
 {
     clingo_part_t parts[] = {{"base", NULL, 0}};
     if (*ctl) {
@@ -95,13 +95,17 @@ void do_initial_setup(clingo_control_t** ctl, Configuration* con)
     }
 
     con->xor_last_added = 1;
-    clingo_control_ground(*ctl, parts, 1, NULL, NULL);
-    if (!con->parity_string.empty()) {
-        clingo_control_add(*ctl, "base", NULL, 0, con->parity_string.c_str());
-        clingo_part_t parts[] = {{"base", NULL, 0}};
-        clingo_control_ground(*ctl, parts, 1, NULL, NULL);
-    }
+    // clingo_control_ground(*ctl, parts, 1, NULL, NULL);
     
+    std::string parity_string;
+    parity_string.clear();
+    if (m_value > 0) {
+        parity_string = get_parity_string(con, m_value);
+        clingo_control_add(*ctl, "base", NULL, 0, parity_string.c_str());
+        clingo_part_t parts[] = {{"base", NULL, 0}};
+        // clingo_control_ground(*ctl, parts, 1, NULL, NULL);
+    }
+    clingo_control_ground(*ctl, parts, 1, NULL, NULL);
 }
 
 unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
@@ -118,7 +122,7 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
     //         generate_k_xors(m_value, con);
     //     }
     // }
-    do_initial_setup(&ctl, con);
+    do_initial_setup(&ctl, con, m_value);
     clingo_propagator_t prop = {
         (bool (*)(clingo_propagate_init_t *, void *))init,
         (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
@@ -280,7 +284,7 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
     // clingo_part_t parts[] = {{"base", NULL, 0}};
     // clingo_control_new(con->asp_argument, con->argu_count, NULL, NULL, 20, &control);
     SATCount solCount;
-    do_initial_setup(&control, con);
+    do_initial_setup(&control, con, 0);
     get_symbol_atoms(control, con);
     con->number_of_active_atoms = con->active_atoms.size();
     // first of all checking whether the problem is trivial or not

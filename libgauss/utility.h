@@ -62,6 +62,7 @@ std::vector<float> confidences;
 std::string asp_file;
 std::string independent_set;
 std::string parity_string;
+std::vector<std::string> xor_parity_string;
 char* input_file;
 
 const char** asp_argument;
@@ -104,6 +105,7 @@ void print_all(Configuration *con);
 void generate_k_xors(unsigned k, Configuration *con);
 void add_execution_time(clingo_control_t *ctl, Configuration *con);
 std::string get_parity_predicate(string term, int xor_id, int parity);
+std::string get_parity_string(Configuration *con, int m_value);
 void translation(
     clingo_control_t **ctl,
     Configuration *con,
