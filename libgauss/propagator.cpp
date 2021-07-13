@@ -427,7 +427,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             case 0: {
                 lbool ret;
                 gqd.big_conflict++;
-                data->solver->sum_Enconflict++;
+                data->solver->sum_Enconflict_propagate++;
                 data->solver->add_clause(gqd.conflict_clause_gauss, true);
                 return true;
             }
@@ -514,7 +514,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
             //     cout << "It is wrong, all xor clauses are satisifed ..." << endl;
             // }
             for (GaussQData &gqd: data->gqueuedata) {
-                data->solver->sum_Enconflict++;
+                data->solver->sum_Enconflict_check++;
                 data->solver->add_clause(gqd.conflict_clause_gauss, true);
             }
             return true;

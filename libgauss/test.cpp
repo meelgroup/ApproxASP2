@@ -30,6 +30,7 @@
 #include <iostream>
 #include <string.h>
 #include <fstream>
+#include <chrono>
 
 #include "utility.h"
 #include "propagator.h"
@@ -37,7 +38,7 @@
 using std::cout;
 using std::endl;
 using std::string;
-
+using namespace std::chrono;
 Configuration problem;
 
 typedef struct model_buffer {
@@ -372,6 +373,7 @@ int main(int argc, char const **argv)
             (const char **)realloc(problem.asp_argument, (problem.argu_count + 1) * sizeof(char *));
     }
     char pivot_str[10];
+    auto start = high_resolution_clock::now();
     sprintf(pivot_str, "-n %d", problem.thresh);
     problem.asp_argument[problem.argu_count++] = pivot_str;
     reset_Configuration(&problem);
@@ -430,7 +432,8 @@ int main(int argc, char const **argv)
         goto error;
     }
     get_symbol_atoms(ctl, &problem);
-    generate_k_xors(12, &problem);
+    
+    generate_k_xors(18, &problem);
     translation(&ctl, &problem, debug, debug_out, 1, -1);
     if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
         goto error;
@@ -441,6 +444,10 @@ int main(int argc, char const **argv)
 
     if (!solve(ctl, &buf, &solve_ret)) {
         goto error;
+    }
+    else {
+        auto stop = high_resolution_clock::now();
+        cout << "c execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " seconds." << endl;
     }
     add_execution_time(ctl, &problem);
     prop_data.solver->printStatistics();

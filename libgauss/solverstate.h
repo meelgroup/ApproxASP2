@@ -53,7 +53,8 @@ public:
     uint32_t sum_gauss_unit_truths;
     uint32_t sum_initEnGauss;
     uint32_t sum_initUnit;
-    uint32_t sum_Enconflict;
+    uint32_t sum_Enconflict_propagate;
+    uint32_t sum_Enconflict_check;
     uint32_t sum_Elimination_Col;
     uint32_t sum_Enpropagate;
     uint32_t sum_Enunit;
@@ -153,7 +154,8 @@ public:
     }
     void clearGaussStatistics()
     {
-        sum_Enconflict = 0;
+        sum_Enconflict_propagate = 0;
+        sum_Enconflict_check = 0;
         sum_EnGauss = 0;
         sum_gauss_called = 0;
         sum_gauss_confl = 0;
@@ -167,7 +169,8 @@ public:
         find_truth_ret_satisfied_precheck = 0;
     }
     void printStatistics() {
-        cout << "sum_Enconflict:\t" <<  sum_Enconflict << endl;
+        cout << "sum_Enconflict_Propagate:\t" <<  sum_Enconflict_propagate << endl;
+        cout << "sum_Enconflict_Check:\t" <<  sum_Enconflict_check << endl;
         cout << "sum_EnGauss:\t" << sum_EnGauss << endl;
         cout << "sum_initEnGauss:\t" << sum_initEnGauss << endl;
         cout << "sum_initUnit:\t" << sum_initUnit << endl;
@@ -305,7 +308,7 @@ public:
         assert(index == length);
         bool is_conflict = is_assignment_conflicting(cpc); 
         // assert(is_conflicting(clause, !is_conflict_clause));
-        if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
+        if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
         {
             (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");
             
@@ -335,7 +338,7 @@ public:
             // }
             assert(!result);  // this is conflicting
         }
-        if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_learnt, &result))
+        if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
         {
             (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");
             

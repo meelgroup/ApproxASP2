@@ -285,7 +285,7 @@ bool EGaussian::full_init(bool& created) {
         switch (ret) {
             case gret::confl:
                 solver->ok = false;
-                solver->sum_Enconflict++;
+                solver->sum_Enconflict_propagate++;
                 return false;
                 break;
             case gret::prop:
