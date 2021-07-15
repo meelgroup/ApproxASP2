@@ -449,6 +449,11 @@ int main(int argc, char const **argv)
         auto stop = high_resolution_clock::now();
         cout << "c execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " seconds." << endl;
     }
+    cout << "c time spent in clingo assignemnt: " << problem.time_in_assignment << endl;
+    cout << "c clingo assignemnt is called: " << problem.assignment_called << endl;
+    cout << "c time spent in clingo add clause: " << problem.time_in_add_clause << endl;
+    cout << "c clingo add clause is called: " << problem.add_clause_called << endl;
+    cout << "c time spent in GJE: " << problem.time_in_gje << endl;
     add_execution_time(ctl, &problem);
     prop_data.solver->printStatistics();
     // printf("%g", problem.time_in_clasp);

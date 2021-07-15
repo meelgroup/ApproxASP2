@@ -79,6 +79,14 @@ std::vector<int> independent_support;
 unsigned xor_last_added;
 
 double time_in_clasp;
+int assignment_called;
+int add_clause_called;
+double time_in_assignment;
+double time_in_add_clause;
+double time_in_gje;
+double gje_called;
+double time_in_watch;
+double watch_called;
 unsigned clasp_call;
 unsigned clasp_call_timeout;
 } Configuration;

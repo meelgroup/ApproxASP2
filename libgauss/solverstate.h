@@ -26,6 +26,7 @@
 #ifndef SOLVERSTATE_H_
 #define SOLVERSTATE_H_
 #include <vector>
+#include <chrono>
 #include <unordered_set>
 #include <clingo.h>
 #include <cstdlib>
@@ -33,7 +34,7 @@
 #include "gausswatched.h"
 #include "Vec.h"
 #include "utility.h"
-
+using namespace std::chrono;
 extern Configuration problem;
 // namespace CMSat {
 class SolverState
@@ -104,11 +105,14 @@ public:
     }
     bool get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
     {
+        auto start = high_resolution_clock::now();
         cpc = control;
         bool is_backtracked = false;
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         // assert(!clingo_assignment_has_conflict(values));
+        #ifdef DEBUG
         decision_level = clingo_assignment_decision_level(values);
+        #endif
         clingo_truth_value_t value;
         bool true_value, false_value;
         vector<lbool> prev_assigns;
@@ -119,10 +123,14 @@ public:
         cols_unset->setOne();
         for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
         {
+            #ifdef DEBUG
             assert(clingo_assignment_has_literal(values, *start_literal));
+            #endif
             clingo_assignment_truth_value(values, *start_literal, &value);
+            #ifdef DEBUG
             clingo_assignment_is_true(values, *start_literal, &true_value);
             clingo_assignment_is_false(values, *start_literal, &false_value);
+            #endif
             uint32_t col = var_to_col[*start_literal];
             switch (value)
             {
@@ -133,7 +141,9 @@ public:
                     if (prev_assigns[*start_literal] == l_False) {
                         is_backtracked = true;
                     }
+                    #ifdef DEBUG
                     assert(true_value);
+                    #endif
                     break;
                 case clingo_truth_value_false:
                     assigns[*start_literal] = l_False;
@@ -141,7 +151,9 @@ public:
                     if (prev_assigns[*start_literal] == l_True) {
                         is_backtracked = true;
                     }
+                    #ifdef DEBUG
                     assert(false_value);
+                    #endif
                     break;
                 default:
                     if (prev_assigns[*start_literal] != l_Undef) {
@@ -150,6 +162,9 @@ public:
                     break;
             }
         }
+        auto stop = high_resolution_clock::now();
+        problem.time_in_assignment += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
+        problem.assignment_called++;
         return is_backtracked;
     }
     void clearGaussStatistics()
@@ -186,6 +201,7 @@ public:
         };
         // cout << lit << endl;
         assert(gwatches[lit].size() == 1);
+        auto start = high_resolution_clock::now();
         if (cpc) {
             clingo_propagate_control_add_watch(cpc, (clingo_literal_t) lit);
         }
@@ -193,6 +209,9 @@ public:
             assert(cpi);
             clingo_propagate_init_add_watch(cpi, (clingo_literal_t) lit);
         }
+        problem.watch_called++;
+        auto stop = high_resolution_clock::now();
+        problem.time_in_watch += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
     }
     void remove_watch_literal(uint32_t lit) {
         if (!cpc)
@@ -200,7 +219,11 @@ public:
         // cout << lit << endl;
         // assert(clingo_propagate_control_has_watch(cpc, (clingo_literal_t) lit));
         if (gwatches[lit].size() >= 1) return;
+        auto start = high_resolution_clock::now();
         clingo_propagate_control_remove_watch(cpc, (clingo_literal_t) lit);
+        problem.watch_called++;
+        auto stop = high_resolution_clock::now();
+        problem.time_in_watch += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
     }
     bool is_assignment_conflicting(clingo_propagate_control_t *control) {
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
@@ -241,6 +264,8 @@ public:
         return true;
     }
     bool add_clause(vector<Lit> clause, bool is_conflict_clause = false) {
+        auto start = high_resolution_clock::now();
+        problem.add_clause_called += 1;
         auto last_literal = literal.end();
         assert(cpc);
         size_t length = clause.size();
@@ -260,8 +285,10 @@ public:
         const clingo_assignment_t *values1 = clingo_propagate_control_assignment(cpc);
         for (auto itr_end = clause.end(); itr != itr_end; itr++) {
             test_lit = (*itr).var();
+            #ifdef DEBUG
             assert(literal.find(test_lit) != last_literal);
             assert(literal.find(test_lit) != literal.end());
+            #endif
             // clingo_assignment_truth_value(values, test_lit, &value);
             // if (index == 0 && !is_conflict_clause) {
             //     assert(assigns[test_lit] == l_Undef);
@@ -306,7 +333,9 @@ public:
         }
         #endif
         assert(index == length);
+        #ifdef DEBUG
         bool is_conflict = is_assignment_conflicting(cpc); 
+        #endif
         // assert(is_conflicting(clause, !is_conflict_clause));
         if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))
         {
@@ -327,7 +356,7 @@ public:
             cout << "\nCan't insert clause\n";
             
         }
-        const clingo_assignment_t *values2 = clingo_propagate_control_assignment(cpc);
+        // const clingo_assignment_t *values2 = clingo_propagate_control_assignment(cpc);
         // assert(is_assignments_equal(values1, values2));
         if (is_conflict_clause) {
             // if(!is_conflict && is_assignment_conflicting(cpc)) {
@@ -346,6 +375,8 @@ public:
             
         }
         if (!result) {
+            auto stop = high_resolution_clock::now();
+            problem.time_in_add_clause += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
             return false;
         }
         if (!clingo_propagate_control_propagate(cpc, &result))
@@ -353,11 +384,15 @@ public:
             cout << "Can't propagate clause";
         }
         if (!result) {
+            auto stop = high_resolution_clock::now();
+            problem.time_in_add_clause += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
             return false;
         }
         // get_assignment(cpc);
         free(new_clause);
         assert(result);  // this is propagating
+        auto stop = high_resolution_clock::now();
+        problem.time_in_add_clause += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
         return true;
         // is_conflict_clause = false;
         // if it is a binary clause then add one more new clause

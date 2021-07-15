@@ -30,8 +30,10 @@
 #include "xor.h"
 #include "utility.h"
 #include "propagator.h"
+#include "chrono"
 
 using std::vector;
+using namespace std::chrono;
 typedef struct {
     // assignment of pigeons to holes
     // (hole number -> pigeon placement literal or zero)
@@ -453,12 +455,15 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
                propagator_t *data)
 {
     // get the thread specific state
+    auto start = high_resolution_clock::now();
     bool is_backtracked = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
     if (is_backtracked) {
         data->gmatrixes[0]->canceling();
     }    
     gauss_elimation(control, changes, size, data);
+    auto stop = high_resolution_clock::now();
+    problem.time_in_gje += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
     return true;
 }
 
@@ -479,6 +484,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // static int c = 0;
     // c++;
     // get the thread specific state
+    auto start = high_resolution_clock::now();
     data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
     
@@ -517,6 +523,8 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
                 data->solver->sum_Enconflict_check++;
                 data->solver->add_clause(gqd.conflict_clause_gauss, true);
             }
+            auto stop = high_resolution_clock::now();
+            problem.time_in_gje += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
             return true;
         }
     }
@@ -525,5 +533,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // if (!final_check) {
     //     cout << "There some xor clause is not satisfied ..." << endl;
     // }
+    auto stop = high_resolution_clock::now();
+    problem.time_in_gje += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
     return true;
 }
