@@ -23,6 +23,7 @@
 // }}}
 
 #include <clingo.h>
+#include <chrono>
 #include <unordered_map>
 #include "EGaussian.h"
 #include "gqueuedata.h"
@@ -32,6 +33,7 @@
 #include "propagator.h"
 
 using std::vector;
+using namespace std::chrono;
 typedef struct {
     // assignment of pigeons to holes
     // (hole number -> pigeon placement literal or zero)
@@ -448,12 +450,15 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
 bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
                propagator_t *data)
 {
+    auto start = high_resolution_clock::now();
     // get the thread specific state
     if (data->max_assumption_var == 0) {
         return true;
     } 
     data->solver->get_assignment(control);
     gauss_elimation(control, changes, size, data);
+    auto stop = high_resolution_clock::now();
+    problem.gauss_propagate_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
     return true;
 }
 
@@ -473,6 +478,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // static int c = 0;
     // c++;
     // get the thread specific state
+    auto start = high_resolution_clock::now();
     if (data->max_assumption_var == 0) {
         return true;
     }
@@ -500,9 +506,13 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
                 data->solver->sum_Enconflict++;
                 data->solver->add_clause(gqd.conflict_clause_gauss, true);
             }
+            auto stop = high_resolution_clock::now();
+            problem.gauss_propagate_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
             return true;
         }
     }
     // std::cout << "One model found ... " << std::endl;
+    auto stop = high_resolution_clock::now();
+    problem.gauss_propagate_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
     return true;
 }

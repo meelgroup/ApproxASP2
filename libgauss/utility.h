@@ -83,6 +83,12 @@ unsigned xor_last_added;
 double time_in_clasp;
 unsigned clasp_call;
 unsigned clasp_call_timeout;
+double gauss_propagate_time = 0;
+double gauss_check_time = 0;
+double clingo_assignment_time = 0;
+int clingo_assignment_called = 0;
+double clingo_add_clause_time = 0;
+int clingo_add_clause_called = 0;
 } Configuration;
 
 typedef struct string_buffer {
