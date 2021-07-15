@@ -101,7 +101,7 @@ public:
     {
         return decision_level;
     }
-    void get_assignment(clingo_propagate_control_t *control)
+    void get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
     {
         auto start = high_resolution_clock::now();
         cpc = control;
@@ -110,18 +110,28 @@ public:
         clingo_truth_value_t value;
         assigns.assign(nVars(), l_Undef);
         auto start_literal = literal.begin(); 
+        cols_vals->setZero();
+        cols_unset->setOne();
         for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
         {
             #ifdef DEBUG
             assert(clingo_assignment_has_literal(values, *start_literal));
             #endif
             clingo_assignment_truth_value(values, *start_literal, &value);
+            uint32_t col = var_to_col[*start_literal];
             switch (value)
             {
                 case clingo_truth_value_true:
+                    if (col < std::numeric_limits<uint32_t>::max()) {
+                        cols_unset->clearBit(col);
+                        cols_vals->setBit(col);
+                    }
                     assigns[*start_literal] = l_True;
                     break;
                 case clingo_truth_value_false:
+                    if (col < std::numeric_limits<uint32_t>::max()) {
+                        cols_unset->clearBit(col);
+                    }
                     assigns[*start_literal] = l_False;
                     break;
                 default:

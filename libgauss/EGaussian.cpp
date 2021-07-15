@@ -301,6 +301,34 @@ bool EGaussian::full_init(bool& created) {
     // }
 
     // std::cout << cpuTime() - GaussConstructTime << "    t";
+    delete cols_unset;
+    delete cols_vals;
+    delete tmp_col;
+    delete tmp_col2;
+    uint32_t num_64b = matrix.num_cols/64+(bool)(matrix.num_cols%64);
+    uint64_t* x = new uint64_t[num_64b+1];
+    // tofree.push_back(x);
+    cols_unset = new PackedRow(num_64b, x);
+
+    x = new uint64_t[num_64b+1];
+    // tofree.push_back(x);
+    cols_vals = new PackedRow(num_64b, x);
+
+    x = new uint64_t[num_64b+1];
+    // tofree.push_back(x);
+    tmp_col = new PackedRow(num_64b, x);
+
+    x = new uint64_t[num_64b+1];
+    // tofree.push_back(x);
+    tmp_col2 = new PackedRow(num_64b, x);
+
+    cols_vals->rhs() = 0;
+    cols_unset->rhs() = 0;
+    tmp_col->rhs() = 0;
+    tmp_col2->rhs() = 0;
+
+    cols_vals->setZero();
+    cols_unset->setOne();
     return true;
 }
 
@@ -477,7 +505,8 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
         GasVar_state[p] = non_basic_var;
     }
 
-    const gret ret = (*rowIt).propGause(tmp_clause, solver->assigns, matrix.col_to_var, GasVar_state, nb_var, var_to_col[p]);
+    const gret ret = (*rowIt).propGause(tmp_clause, solver->assigns, matrix.col_to_var, GasVar_state, nb_var, var_to_col[p], 
+         *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
     
     switch (ret) {
         case gret::confl: {
@@ -548,7 +577,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                 GasVar_state[p] = basic_var;
             }
 
-            (*clauseIt).setBit(row_n); // this clause arleady sat
+            // (*clauseIt).setBit(row_n); // this clause arleady sat
             return true;
         }
 
@@ -596,7 +625,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                 GasVar_state[matrix.nb_rows[row_n]] = non_basic_var;
                 GasVar_state[p] = basic_var;
             }
-            (*clauseIt).setBit(row_n); // this clause arleady sat
+            // (*clauseIt).setBit(row_n); // this clause arleady sat
             return true;
         default:
             assert(false); // can not here
@@ -626,7 +655,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         // }
         const gret ret = (*rowI).propGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
-                                                   GasVar_state, nb_var, 0);
+                                                   GasVar_state, nb_var, 0, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
 
         switch (ret) {
             case gret::confl: {
@@ -688,7 +717,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
 
                 const gret ret = (*rowI).propGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
-                                                   GasVar_state, nb_var, ori_nb_col);
+                                                   GasVar_state, nb_var, ori_nb_col, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
 
                 switch (ret) {
                     case gret::confl: {
@@ -752,7 +781,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                             // assert(solver->value((*cla)[0].var()) == l_Undef);
                             // solver->enqueue((*cla)[0], PropBy(offs));
                             gqd.ret_gauss = 2;
-                            (*clauseIt).setBit(num_row); // this clause arleady sat
+                            // (*clauseIt).setBit(num_row); // this clause arleady sat
                         }
                         break;
                     }
@@ -771,7 +800,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         solver->gwatches[p].push(GaussWatched(num_row, matrix_no));
                         matrix.nb_rows[num_row] = p; // update in this row non_basic variable
                         solver->add_watch_literal(p);
-                        (*clauseIt).setBit(num_row);        // this clause arleady sat
+                        // (*clauseIt).setBit(num_row);        // this clause arleady sat
                         break;
                     default:
                         // can not here

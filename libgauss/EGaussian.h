@@ -72,7 +72,7 @@ class EGaussian {
     // we watch ONE basic(=unassigned) + ONE non-basic(=assigned) var
     vec<bool>         GasVar_state ;
 
-    vector<uint32_t>  var_to_col;             // variable to column
+    // vector<uint32_t>  var_to_col;             // variable to column
     class matrixset { // matrix information
       public:
         // added by hankf4
@@ -110,6 +110,13 @@ class EGaussian {
         const vector<Xor>& xorclauses
     );
     ~EGaussian();
+
+    PackedRow *cols_vals = NULL;
+    PackedRow *cols_unset = NULL;
+    PackedRow *tmp_col = NULL;
+    PackedRow *tmp_col2 = NULL;
+    // functiion
+    vector<uint32_t>  var_to_col;             // variable to column
 
     // functiion
     void canceling(); //functions used throughout the Solver
