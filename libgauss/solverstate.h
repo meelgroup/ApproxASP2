@@ -115,9 +115,9 @@ public:
         #endif
         clingo_truth_value_t value;
         bool true_value, false_value;
-        vector<lbool> prev_assigns;
-        prev_assigns = assigns;
-        assigns.assign(nVars(), l_Undef);
+        // vector<lbool> prev_assigns;
+        // prev_assigns = assigns;
+        // assigns.assign(nVars(), l_Undef);
         auto start_literal = literal.begin(); 
         cols_vals->setZero();
         cols_unset->setOne();
@@ -135,30 +135,37 @@ public:
             switch (value)
             {
                 case clingo_truth_value_true:
+                    #ifdef PREVIOUS_ASSIGN
                     assigns[*start_literal] = l_True;
+                    #endif
                     cols_unset->clearBit(col);
                     cols_vals->setBit(col);
-                    if (prev_assigns[*start_literal] == l_False) {
-                        is_backtracked = true;
-                    }
+                    // if (prev_assigns[*start_literal] == l_False) {
+                    //     is_backtracked = true;
+                    // }
                     #ifdef DEBUG
                     assert(true_value);
                     #endif
                     break;
                 case clingo_truth_value_false:
+                    #ifdef PREVIOUS_ASSIGN
                     assigns[*start_literal] = l_False;
+                    #endif
                     cols_unset->clearBit(col);
-                    if (prev_assigns[*start_literal] == l_True) {
-                        is_backtracked = true;
-                    }
+                    // if (prev_assigns[*start_literal] == l_True) {
+                    //     is_backtracked = true;
+                    // }
                     #ifdef DEBUG
                     assert(false_value);
                     #endif
                     break;
                 default:
-                    if (prev_assigns[*start_literal] != l_Undef) {
-                        is_backtracked = true;
-                    }
+                    #ifdef PREVIOUS_ASSIGN
+                    assigns[*start_literal] = l_Undef;
+                    #endif
+                    // if (prev_assigns[*start_literal] != l_Undef) {
+                    //     is_backtracked = true;
+                    // }
                     break;
             }
         }

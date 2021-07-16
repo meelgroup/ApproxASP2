@@ -523,17 +523,17 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
     //     return true;
     // }
 
-    if (satisfied_xors[row_n]) {
-        // #ifdef VERBOSE_DEBUG
-        // cout << "-> xor satisfied as per satisfied_xors[row_n]" << endl;
-        // #endif
-        // #ifdef SLOW_DEBUG
-        // assert(check_row_satisfied(row_n));
-        // #endif
-        solver->find_truth_ret_satisfied_precheck++;
-        *j++ = *i;
-        return true;
-    }
+    // if (satisfied_xors[row_n]) {
+    //     // #ifdef VERBOSE_DEBUG
+    //     // cout << "-> xor satisfied as per satisfied_xors[row_n]" << endl;
+    //     // #endif
+    //     // #ifdef SLOW_DEBUG
+    //     // assert(check_row_satisfied(row_n));
+    //     // #endif
+    //     solver->find_truth_ret_satisfied_precheck++;
+    //     *j++ = *i;
+    //     return true;
+    // }
 
     //swap basic and non_basic variable
     if (GasVar_state[p] == basic_var) {
@@ -967,9 +967,11 @@ bool EGaussian::check_each_xor_clause() {
     auto start_literal = solver->literal.begin(); 
     for (auto end_literal = solver->literal.end(); start_literal != end_literal ; start_literal++)
     {
+        #ifdef PREVIOUS_ASSIGN
         if (solver->assigns[*start_literal] == l_True) {
             true_literals.push_back(*start_literal);
         }
+        #endif
     }
     int number_of_true=0;
     for (Xor xor_clause: xorclauses) {

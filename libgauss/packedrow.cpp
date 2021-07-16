@@ -182,7 +182,16 @@ gret PackedRow::propGause(
         for (uint32_t i2 = 0 ; i2 < 64; i2++) {
             if(tmp & 1){
                 const uint32_t var = col_to_var[i * 64  + i2];
-                const lbool val = assigns[var];
+                lbool val = l_Undef;
+                if (!cols_unset[i * 64  + i2]) {
+                    if (cols_vals[i * 64  + i2]) {
+                        val = l_True;
+                    }
+                    else {
+                        val = l_False;
+                    }
+                }
+                // const lbool val = assigns[var];
                 // if (unassigned_literal >= 2 && val == l_Undef && !GasVar_state[var]) {  // find non basic value
                 //     nb_var = var;
                 //     return gret::nothing_fnewwatch; // nothing
@@ -222,7 +231,7 @@ gret PackedRow::propGause(
     //     }
     // }
     assert(pop <= 1);
-    if (assigns[tmp_clause[0].var()] == l_Undef) {    // propogate
+    if (pop == 1) {    // propogate
         tmp_clause[0] = tmp_clause[0].unsign()^final;
         return gret::prop;  // propogate
     } else if (!final) {
@@ -244,6 +253,7 @@ void PackedRow::degug_propGause(const vector<lbool>& assigns, const vector<uint3
         for (uint32_t i2 = 0 ; i2 < 64; i2++) {
             if(tmp & 1){
                 const uint32_t var = col_to_var[i * 64  + i2];
+                #ifdef PREVIOUS_ASSIGN
                 const lbool val = assigns[var];
                 if (val == l_Undef) {  // find non basic value
                     unassigned++;
@@ -251,6 +261,7 @@ void PackedRow::degug_propGause(const vector<lbool>& assigns, const vector<uint3
                 else if (val == l_True) {
                     true_assigned++; 
                 }
+                #endif
             }
             tmp >>= 1;
         }
