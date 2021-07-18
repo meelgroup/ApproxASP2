@@ -108,7 +108,9 @@ public:
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         // decision_level = clingo_assignment_decision_level(values);
         clingo_truth_value_t value;
+        #ifdef ASSIGNS_ENABLE
         assigns.assign(nVars(), l_Undef);
+        #endif
         auto start_literal = literal.begin(); 
         cols_vals->setZero();
         cols_unset->setOne();
@@ -126,13 +128,17 @@ public:
                         cols_unset->clearBit(col);
                         cols_vals->setBit(col);
                     }
+                    #ifdef ASSIGNS_ENABLE
                     assigns[*start_literal] = l_True;
+                    #endif
                     break;
                 case clingo_truth_value_false:
                     if (col < std::numeric_limits<uint32_t>::max()) {
                         cols_unset->clearBit(col);
                     }
+                    #ifdef ASSIGNS_ENABLE
                     assigns[*start_literal] = l_False;
+                    #endif
                     break;
                 default:
                     break;
