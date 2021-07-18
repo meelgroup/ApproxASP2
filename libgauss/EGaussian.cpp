@@ -757,7 +757,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
             
             default:
                 // can not here
-                assert(false);
+                // assert(false);
                 break;
         }
         ++rowI;
