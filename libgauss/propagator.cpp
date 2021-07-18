@@ -131,7 +131,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
 {
     // the total number of holes pigeons can be assigned too
     int holes = 0;
-    clingo_propagate_init_set_check_mode(init, clingo_propagator_check_mode_total);
+    clingo_propagate_init_set_check_mode(init, clingo_propagator_check_mode_both);
     size_t threads = clingo_propagate_init_number_of_threads(init);
     // stores the (numeric) maximum of the solver literals capturing pigeon placements
     // note that the code below assumes that this literal is not negative
