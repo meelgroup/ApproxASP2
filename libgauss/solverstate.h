@@ -48,6 +48,7 @@ public:
     vector<lbool> assigns;
     std::unordered_set<clingo_literal_t> literal;
     vec<vec<GaussWatched>> gwatches;
+    vec<clingo_literal_t> decision_level_literal;
     uint32_t sum_gauss_called;
     uint32_t sum_gauss_confl;
     uint32_t sum_gauss_prop;
@@ -73,6 +74,7 @@ public:
         gwatches.resize(2 * num_of_vars + 1);
         literal = sol_literals;
         clearGaussStatistics();
+        decision_level_literal.clear();
         cpi = _cpi;
     }
 
@@ -103,11 +105,39 @@ public:
     {
         return decision_level;
     }
+    bool has_backtracked() {
+        auto start = high_resolution_clock::now();
+        bool backtracked = false;
+        clingo_literal_t decision_literal;
+        const clingo_assignment_t *values = clingo_propagate_control_assignment(cpc);
+        decision_level = clingo_assignment_decision_level(values);
+        uint32_t max_level = decision_level;
+        if (decision_level < decision_level_literal.size()) {
+            backtracked = true;
+            // max_level = decision_level_literal.size();
+        }
+        for (uint32_t level = 0; level <= max_level; level++) {
+            clingo_assignment_decision(values, level, &decision_literal);
+            if (decision_level_literal.size() > level) {
+                if (decision_level_literal[level] != decision_literal) {
+                    backtracked = true;
+                } 
+                decision_level_literal[level] = decision_literal;
+            }
+            else {
+                decision_level_literal.push(decision_literal);
+            }
+        }
+        decision_level_literal.resize(decision_level);
+        auto stop = high_resolution_clock::now();
+        problem.time_in_back += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
+        return backtracked;
+    }
     bool get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
     {
         auto start = high_resolution_clock::now();
         cpc = control;
-        bool is_backtracked = false;
+        bool is_backtracked = has_backtracked();
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         // assert(!clingo_assignment_has_conflict(values));
         #ifdef DEBUG

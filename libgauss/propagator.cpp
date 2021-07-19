@@ -464,6 +464,7 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
     gauss_elimation(control, changes, size, data);
     auto stop = high_resolution_clock::now();
     problem.time_in_gje += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
+    problem.time_in_gje_propagate += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
     return true;
 }
 
@@ -525,6 +526,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
             }
             auto stop = high_resolution_clock::now();
             problem.time_in_gje += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
+            problem.time_in_gje_check += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
             return true;
         }
     }
@@ -535,5 +537,6 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // }
     auto stop = high_resolution_clock::now();
     problem.time_in_gje += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
+    problem.time_in_gje_check += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
     return true;
 }
