@@ -523,17 +523,17 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
     //     return true;
     // }
 
-    // if (satisfied_xors[row_n]) {
-    //     // #ifdef VERBOSE_DEBUG
-    //     // cout << "-> xor satisfied as per satisfied_xors[row_n]" << endl;
-    //     // #endif
-    //     // #ifdef SLOW_DEBUG
-    //     // assert(check_row_satisfied(row_n));
-    //     // #endif
-    //     solver->find_truth_ret_satisfied_precheck++;
-    //     *j++ = *i;
-    //     return true;
-    // }
+    if (satisfied_xors[row_n]) {
+        // #ifdef VERBOSE_DEBUG
+        // cout << "-> xor satisfied as per satisfied_xors[row_n]" << endl;
+        // #endif
+        // #ifdef SLOW_DEBUG
+        // assert(check_row_satisfied(row_n));
+        // #endif
+        solver->find_truth_ret_satisfied_precheck++;
+        *j++ = *i;
+        return true;
+    }
 
     //swap basic and non_basic variable
     if (GasVar_state[p] == basic_var) {
@@ -622,7 +622,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                 GasVar_state[matrix.nb_rows[row_n]] = non_basic_var;
                 GasVar_state[p] = basic_var;
             }
-            satisfied_xors[row_n] = 1;
+            // satisfied_xors[row_n] = 1;
             // (*clauseIt).setBit(row_n); // this clause arleady sat
             return true;
         }
@@ -728,6 +728,12 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
             cout << "]" << endl;
         }
         #endif
+        if (satisfied_xors[num_row]) {
+            solver->find_truth_ret_satisfied_precheck++;
+            ++rowI;
+            num_row++;
+            continue;
+        }
         switch (ret) {
             case gret::confl: {
                 // printf("%d:This row is conflict in eliminate col    n",num_row);

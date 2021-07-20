@@ -458,9 +458,9 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
     auto start = high_resolution_clock::now();
     bool is_backtracked = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
-    // if (is_backtracked) {
-    //     data->gmatrixes[0]->canceling();
-    // }    
+    if (is_backtracked) {
+        data->gmatrixes[0]->canceling();
+    }    
     gauss_elimation(control, changes, size, data);
     auto stop = high_resolution_clock::now();
     problem.time_in_gje += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
@@ -486,8 +486,12 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // c++;
     // get the thread specific state
     auto start = high_resolution_clock::now();
-    data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+    bool is_backtracked = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
+
+    if (is_backtracked) {
+        data->gmatrixes[0]->canceling();
+    }
     
     #ifdef DEBUG_MODE
     auto start_literal = data->solver->literal.begin(); 
