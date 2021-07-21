@@ -62,6 +62,7 @@ public:
     uint32_t sum_Enunit;
     uint32_t sum_EnGauss;
     uint32_t find_truth_ret_satisfied_precheck;
+    uint32_t find_truth_ret_unresolved_precheck;
     clingo_propagate_control_t* cpc = NULL;
     clingo_propagate_init_t* cpi = NULL;
     SolverState(uint32_t _vars, clingo_propagate_init_t* _cpi, std::unordered_set<clingo_literal_t> sol_literals)
@@ -105,22 +106,25 @@ public:
     {
         return decision_level;
     }
-    bool has_backtracked() {
+    dret has_backtracked() {
         auto start = high_resolution_clock::now();
-        bool backtracked = false;
+        dret state = dret::UNCHANGED;
         clingo_literal_t decision_literal;
         const clingo_assignment_t *values = clingo_propagate_control_assignment(cpc);
         decision_level = clingo_assignment_decision_level(values);
         uint32_t max_level = decision_level;
         if (decision_level < decision_level_literal.size()) {
-            backtracked = true;
+            state = dret::BACKTRACK;
             // max_level = decision_level_literal.size();
+        }
+        else if (decision_level > decision_level_literal.size()) {
+            state = dret::FORWARD;
         }
         for (uint32_t level = 0; level <= max_level; level++) {
             clingo_assignment_decision(values, level, &decision_literal);
             if (decision_level_literal.size() > level) {
                 if (decision_level_literal[level] != decision_literal) {
-                    backtracked = true;
+                    state = dret::BACKTRACK;
                 } 
                 decision_level_literal[level] = decision_literal;
             }
@@ -131,13 +135,14 @@ public:
         decision_level_literal.resize(decision_level);
         auto stop = high_resolution_clock::now();
         problem.time_in_back += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
-        return backtracked;
+
+        return state;
     }
-    bool get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
+    dret get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
     {
         auto start = high_resolution_clock::now();
         cpc = control;
-        bool is_backtracked = has_backtracked();
+        dret is_backtracked = has_backtracked();
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         // assert(!clingo_assignment_has_conflict(values));
         #ifdef DEBUG
@@ -219,6 +224,7 @@ public:
         sum_Enunit = 0;
         sum_Elimination_Col = 0;
         find_truth_ret_satisfied_precheck = 0;
+        find_truth_ret_unresolved_precheck = 0;
     }
     void printStatistics() {
         cout << "sum_Enconflict_Propagate:\t" <<  sum_Enconflict_propagate << endl;
@@ -230,6 +236,7 @@ public:
         cout << "sum_Enunit:\t" << sum_Enunit << endl;
         cout << "sum_Elimination_Col:\t" << sum_Elimination_Col << endl;
         cout << "find_truth_ret_satisfied_precheck:\t" << find_truth_ret_satisfied_precheck << endl;
+        cout << "find_truth_ret_unresolved_precheck:\t" << find_truth_ret_unresolved_precheck << endl;
     }
     void add_watch_literal(uint32_t lit) {
         if (gwatches[lit].size() > 1) {

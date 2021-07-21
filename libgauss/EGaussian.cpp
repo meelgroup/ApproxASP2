@@ -123,6 +123,18 @@ void EGaussian::canceling() {
     // (*rowIt).setZero(); //forget state
 }
 
+void EGaussian::forwarding() {
+    // uint32_t a = 0; // by mahi
+    // for (int i = clauses_toclear.size() - 1; i >= 0 && clauses_toclear[i].second > sublevel; i--) {
+    //     solver->cl_alloc.clauseFree(clauses_toclear[i].first);
+    //     a++;
+    // }
+    // clauses_toclear.resize(clauses_toclear.size() - a);
+    memset(unresolved_xors.data(), 0, unresolved_xors.size());
+    // PackedMatrix::iterator rowIt = clause_state.beginMatrix();
+    // (*rowIt).setZero(); //forget state
+}
+
 uint32_t EGaussian::select_columnorder(matrixset& origMat) {
     var_to_col.clear();
     var_to_col.resize(solver->nVars(), unassigned_col);
@@ -222,6 +234,8 @@ void EGaussian::fill_matrix(matrixset& origMat) {
     // print_matrix(origMat);
     satisfied_xors.clear();
     satisfied_xors.resize(origMat.num_rows, 0);
+    unresolved_xors.clear();
+    unresolved_xors.resize(origMat.num_rows, 0);
 }
 
 void EGaussian::clear_gwatches(const uint32_t var) {
@@ -405,6 +419,7 @@ void EGaussian::eliminate(matrixset& m) {
 gret EGaussian::adjust_matrix(matrixset& m) {
     assert(solver->decisionLevel() == 0);
     assert(satisfied_xors.size() >= m.num_rows);
+    assert(unresolved_xors.size() >= m.num_rows);
     PackedMatrix::iterator end = m.matrix.beginMatrix() + m.num_rows;
     PackedMatrix::iterator rowIt = m.matrix.beginMatrix();
     uint32_t row_id = 0;      // row index
@@ -665,6 +680,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             }
             gqd.e_row_n = row_n;
             gqd.do_eliminate = true;
+            unresolved_xors[row_n] = 1;
             return true;
 
         case gret::nothing: // this row already treu
@@ -730,6 +746,12 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         #endif
         if (satisfied_xors[num_row]) {
             solver->find_truth_ret_satisfied_precheck++;
+            ++rowI;
+            num_row++;
+            continue;
+        }
+        if (unresolved_xors[num_row]) {
+            solver->find_truth_ret_unresolved_precheck++;
             ++rowI;
             num_row++;
             continue;
@@ -887,6 +909,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         solver->gwatches[nb_var].push(GaussWatched(num_row, matrix_no));
                         matrix.nb_rows[num_row] = nb_var;
                         solver->add_watch_literal(nb_var);
+                        unresolved_xors[num_row] = 1;
                         break;
                     case gret::nothing: // this row already tre
                         // printf("%d:This row is nothing( maybe already true) in eliminate col

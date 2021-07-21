@@ -117,10 +117,14 @@ class EGaussian {
     //Is the clause at this ROW satisfied already?
     //satisfied_xors[decision_level][row] tells me that
     vector<char> satisfied_xors;
+    //Is the clause at this ROW checked already?
+    //unresolved_xors[decision_level][row] tells me that
+    vector<char> unresolved_xors;
     // functiion
     vector<uint32_t>  var_to_col;             // variable to column
     void set_up_A_and_V();
     void canceling(); //functions used throughout the Solver
+    void forwarding(); //functions used throughout the Solver
     bool full_init(bool& created);  // initial arrary. return true is fine , return false means solver already false;
     void fill_matrix(matrixset& origMat); // Fills the origMat matrix
     uint32_t select_columnorder(matrixset& origMat); // Fills var_to_col and col_to_var of the origMat matrix.
