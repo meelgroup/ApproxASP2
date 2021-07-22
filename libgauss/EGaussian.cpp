@@ -135,6 +135,10 @@ void EGaussian::forwarding() {
     // (*rowIt).setZero(); //forget state
 }
 
+void EGaussian::mark_sat(uint32_t num_row) {
+    satisfied_xors[num_row] = 1;
+}
+
 uint32_t EGaussian::select_columnorder(matrixset& origMat) {
     var_to_col.clear();
     var_to_col.resize(solver->nVars(), unassigned_col);
