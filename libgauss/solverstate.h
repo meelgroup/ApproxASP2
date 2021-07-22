@@ -63,6 +63,7 @@ public:
     uint32_t sum_EnGauss;
     uint32_t find_truth_ret_satisfied_precheck;
     uint32_t find_truth_ret_unresolved_precheck;
+    uint32_t find_truth_ret_unnecessary_precheck;
     clingo_propagate_control_t* cpc = NULL;
     clingo_propagate_init_t* cpi = NULL;
     SolverState(uint32_t _vars, clingo_propagate_init_t* _cpi, std::unordered_set<clingo_literal_t> sol_literals)
@@ -225,6 +226,7 @@ public:
         sum_Elimination_Col = 0;
         find_truth_ret_satisfied_precheck = 0;
         find_truth_ret_unresolved_precheck = 0;
+        find_truth_ret_unnecessary_precheck = 0;
     }
     void printStatistics() {
         cout << "sum_Enconflict_Propagate:\t" <<  sum_Enconflict_propagate << endl;
@@ -237,6 +239,7 @@ public:
         cout << "sum_Elimination_Col:\t" << sum_Elimination_Col << endl;
         cout << "find_truth_ret_satisfied_precheck:\t" << find_truth_ret_satisfied_precheck << endl;
         cout << "find_truth_ret_unresolved_precheck:\t" << find_truth_ret_unresolved_precheck << endl;
+        cout << "find_truth_ret_unnecessary_precheck:\t" << find_truth_ret_unnecessary_precheck << endl;
     }
     void add_watch_literal(uint32_t lit) {
         if (gwatches[lit].size() > 1) {

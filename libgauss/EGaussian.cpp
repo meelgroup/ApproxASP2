@@ -722,9 +722,18 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         //     num_row++;
         //     continue;
         // }
-        const gret ret = (*rowI).propGause(tmp_clause,
-                                                   solver->assigns, matrix.col_to_var,
-                                                   GasVar_state, nb_var, 0, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
+        if (satisfied_xors[num_row] || unresolved_xors[num_row]) {
+            if (satisfied_xors[num_row])
+                solver->find_truth_ret_satisfied_precheck++;
+            else if (unresolved_xors[num_row])
+                solver->find_truth_ret_unresolved_precheck++;
+            ++rowI;
+            num_row++;
+            continue;
+        }
+        const gret ret = (*rowI).checkGause(tmp_clause,
+                                                   solver->assigns, matrix.col_to_var, GasVar_state,
+                                                   *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
         #ifdef DEBUG
         int unassigned = 0;
         bool conflict = false;
@@ -744,18 +753,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
             cout << "]" << endl;
         }
         #endif
-        if (satisfied_xors[num_row]) {
-            solver->find_truth_ret_satisfied_precheck++;
-            ++rowI;
-            num_row++;
-            continue;
-        }
-        if (unresolved_xors[num_row]) {
-            solver->find_truth_ret_unresolved_precheck++;
-            ++rowI;
-            num_row++;
-            continue;
-        }
+
         switch (ret) {
             case gret::confl: {
                 // printf("%d:This row is conflict in eliminate col    n",num_row);
@@ -786,6 +784,8 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
             default:
                 // can not here
                 // assert(false);
+                if (ret == gret::nothing_fnewwatch)
+                    solver->find_truth_ret_unnecessary_precheck++;
                 break;
         }
         ++rowI;

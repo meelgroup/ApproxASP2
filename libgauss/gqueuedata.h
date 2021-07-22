@@ -49,6 +49,7 @@ struct GaussQData {
         enter_matrix = false;
         do_eliminate = false;
         conflict_clause_gauss.clear();
+        prop_clause_gauss.clear();
         xorEqualFalse_gauss = false;
         ret_gauss = 4;
     }
