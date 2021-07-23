@@ -345,6 +345,8 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
 {
     bool immediate_break = false;
     bool prop = false, res = false;
+    clingo_literal_t lit;
+    Lit l;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
     }
@@ -375,8 +377,11 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 //must propagate
                 data->solver->sum_Enpropagate++;
                 res = data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
-                if (res) 
-                    data->gmatrixes[0]->mark_sat(i->row_id);
+                if (res) {
+                    l = data->gqueuedata[i->matrix_num].prop_clause_gauss[0];
+                    lit = (clingo_literal_t) (l.sign()) ? (-l.var()) : (l.var());
+                    data->gmatrixes[0]->mark_sat(i->row_id, lit);
+                }
                 i++;
                 prop = true; 
                 break;

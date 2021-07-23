@@ -119,6 +119,34 @@ void EGaussian::canceling() {
     // }
     // clauses_toclear.resize(clauses_toclear.size() - a);
     memset(satisfied_xors.data(), 0, satisfied_xors.size());
+    // THIS HEURISTICS IS UNIMPLEMENTED
+    // uint32_t num_row = 0, col = 0;
+    // for (auto itr = satisfied_xors_until.begin(); itr != satisfied_xors_until.end(); itr++, num_row++) {
+    //     if (*itr == 0) {
+    //         continue;
+    //     }
+    //     else {
+    //         if (*itr > 0) {
+    //             col = var_to_col[*itr];
+    //             if ((*cols_unset)[col] == 0 && (*cols_vals)[col] == 1) {
+    //                 satisfied_xors[num_row] = 1;
+    //             }
+    //             else {
+    //                 satisfied_xors_until[num_row] = 0;
+    //             }
+    //         }
+    //         else if (*itr < 0) {
+    //             col = var_to_col[abs(*itr)];
+    //             if ((*cols_unset)[col] == 0 && (*cols_vals)[col] == 0) {
+    //                 satisfied_xors[num_row] = 1;
+    //             }
+    //             else {
+    //                 satisfied_xors_until[num_row] = 0;
+    //             }
+    //         }
+    //     }
+    // }
+    // THIS HEURISTICS IS UNIMPLEMENTED
     // PackedMatrix::iterator rowIt = clause_state.beginMatrix();
     // (*rowIt).setZero(); //forget state
 }
@@ -135,8 +163,9 @@ void EGaussian::forwarding() {
     // (*rowIt).setZero(); //forget state
 }
 
-void EGaussian::mark_sat(uint32_t num_row) {
+void EGaussian::mark_sat(uint32_t num_row, clingo_literal_t lit) {
     satisfied_xors[num_row] = 1;
+    satisfied_xors_until[num_row] = lit;
 }
 
 uint32_t EGaussian::select_columnorder(matrixset& origMat) {
@@ -239,6 +268,8 @@ void EGaussian::fill_matrix(matrixset& origMat) {
     // print_matrix(origMat);
     satisfied_xors.clear();
     satisfied_xors.resize(origMat.num_rows, 0);
+    satisfied_xors_until.clear();
+    satisfied_xors_until.resize(origMat.num_rows, 0);
     unresolved_xors.clear();
     unresolved_xors.resize(origMat.num_rows, 0);
 }
