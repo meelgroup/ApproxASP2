@@ -227,6 +227,7 @@ void EGaussian::fill_matrix(matrixset& origMat) {
     GasVar_state.clear();                                // reset variable state
     GasVar_state.growTo(solver->nVars(), non_basic_var); // init varaible state
     origMat.nb_rows.clear();                             // clear non-basic
+    origMat.b_rows.clear();                             // clear basic
 
     // delete gauss watch list for this matrix
     for (size_t ii = 0; ii < solver->gwatches.size(); ii++) {
@@ -460,6 +461,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 //adjusting
                 (*rowIt).setZero(); // reset this row all zero
                 m.nb_rows.push(std::numeric_limits<uint32_t>::max()); // delete non basic value in this row
+                m.b_rows.push(std::numeric_limits<uint32_t>::max()); // delete non basic value in this row
                 GasVar_state[tmp_clause[0].var()] = non_basic_var; // delete basic value in this row
                 satisfied_xors[row_id] = 1;
                 solver->sum_initUnit++;
@@ -476,6 +478,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 solver->gwatches[nb_var].push(
                     GaussWatched(row_id, matrix_no)); // insert non-basic variable
                 m.nb_rows.push(nb_var);               // record in this row non_basic variable
+                m.b_rows.push(tmp_clause[0].var());               // record in this row basic variable
                 solver->add_watch_literal(tmp_clause[0].var());
                 solver->add_watch_literal(nb_var);
                 break;
@@ -485,6 +488,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
     }
     // printf("DD:nb_rows:%d %d %d    n",m.nb_rows.size() ,   row_id - adjust_zero  ,  adjust_zero);
     assert(m.nb_rows.size() == row_id - adjust_zero);
+    assert(m.b_rows.size() == row_id - adjust_zero);
 
     m.matrix.resizeNumRows(row_id - adjust_zero);
     m.num_rows = row_id - adjust_zero;
@@ -678,6 +682,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             GasVar_state[matrix.nb_rows[row_n]] =
                 non_basic_var;                // recover non_basic variable
             GasVar_state[nb_var] = basic_var; // set basic variable
+            matrix.b_rows[row_n] = nb_var;
             gqd.e_var = nb_var;                   // store the eliminate valuable
             if (nb_var == 0) {
                 cout << "nb_var == 0";
@@ -737,6 +742,13 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
             continue;
         }
         col = var_to_col[matrix.nb_rows[num_row]];
+        if ((*rowI)[col] == 1 && (*cols_unset)[col] == 1) {
+            ++rowI;
+            num_row++;
+            solver->find_truth_ret_unresolved_precheck++;
+            continue;
+        }
+        col = var_to_col[matrix.b_rows[num_row]];
         if ((*rowI)[col] == 1 && (*cols_unset)[col] == 1) {
             ++rowI;
             num_row++;

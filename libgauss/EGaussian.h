@@ -76,7 +76,7 @@ class EGaussian {
       public:
         // added by hankf4
         vec<uint32_t> nb_rows; // the non_basic value in each row
-
+        vec<uint32_t> b_rows; // the basic value in each row
         // used in orignal matrix
         PackedMatrix matrix; // The matrix, updated to reflect variable assignements
         vector<uint32_t> col_to_var; // col_to_var[COL] tells which variable is at a given column in the matrix. Gives unassigned_var if the COL has been zeroed (i.e. the variable assigned)
