@@ -176,6 +176,8 @@ public:
                     #endif
                     cols_unset->clearBit(col);
                     cols_vals->setBit(col);
+                    // assert((*cols_vals)[col] == 1);
+                    // assert((*cols_unset)[col] == 0);
                     // if (prev_assigns[*start_literal] == l_False) {
                     //     is_backtracked = true;
                     // }
@@ -188,6 +190,8 @@ public:
                     assigns[*start_literal] = l_False;
                     #endif
                     cols_unset->clearBit(col);
+                    // assert((*cols_vals)[col] == 0);
+                    // assert((*cols_unset)[col] == 0);
                     // if (prev_assigns[*start_literal] == l_True) {
                     //     is_backtracked = true;
                     // }
@@ -196,6 +200,7 @@ public:
                     #endif
                     break;
                 default:
+                    // assert((*cols_unset)[col] == 1);
                     #ifdef PREVIOUS_ASSIGN
                     assigns[*start_literal] = l_Undef;
                     #endif

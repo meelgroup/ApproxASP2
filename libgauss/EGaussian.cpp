@@ -720,6 +720,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
     PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
     uint32_t num_row = 0; // row inde
     uint32_t nb_var = 0;
+    uint32_t col = 0;
     while (rowI != end) {
         // if ((*clauseIt)[num_row]) {
         //     ++rowI;
@@ -733,6 +734,13 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
                 solver->find_truth_ret_unresolved_precheck++;
             ++rowI;
             num_row++;
+            continue;
+        }
+        col = var_to_col[matrix.nb_rows[num_row]];
+        if ((*rowI)[col] == 1 && (*cols_unset)[col] == 1) {
+            ++rowI;
+            num_row++;
+            solver->find_truth_ret_unresolved_precheck++;
             continue;
         }
         const gret ret = (*rowI).checkGause(tmp_clause,
@@ -783,6 +791,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
                 #ifdef DEBUG
                 assert(unassigned == 0 && !conflict);
                 #endif
+                satisfied_xors[num_row] = 1;
                 break;
             
             default:
