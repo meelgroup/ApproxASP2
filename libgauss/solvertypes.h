@@ -46,5 +46,13 @@ using std::endl;
 using std::string;
 
 enum class gret{confl, unit_confl, prop, unit_prop, nothing, nothing_fnewwatch};
+enum class dret{BACKTRACK, FORWARD, UNCHANGED};
 
+inline std::ostream& operator<<(std::ostream& cout, const dret val)
+{
+    if (val == dret::BACKTRACK) cout << "BACKTRACK";
+    if (val == dret::FORWARD) cout << "FORWARD";
+    if (val == dret::UNCHANGED) cout << "UNCHANGED";
+    return cout;
+}
 #endif //SOLVERTYPES_H

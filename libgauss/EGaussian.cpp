@@ -118,9 +118,54 @@ void EGaussian::canceling() {
     //     a++;
     // }
     // clauses_toclear.resize(clauses_toclear.size() - a);
+    memset(satisfied_xors.data(), 0, satisfied_xors.size());
+    // THIS HEURISTICS IS UNIMPLEMENTED
+    // uint32_t num_row = 0, col = 0;
+    // for (auto itr = satisfied_xors_until.begin(); itr != satisfied_xors_until.end(); itr++, num_row++) {
+    //     if (*itr == 0) {
+    //         continue;
+    //     }
+    //     else {
+    //         if (*itr > 0) {
+    //             col = var_to_col[*itr];
+    //             if ((*cols_unset)[col] == 0 && (*cols_vals)[col] == 1) {
+    //                 satisfied_xors[num_row] = 1;
+    //             }
+    //             else {
+    //                 satisfied_xors_until[num_row] = 0;
+    //             }
+    //         }
+    //         else if (*itr < 0) {
+    //             col = var_to_col[abs(*itr)];
+    //             if ((*cols_unset)[col] == 0 && (*cols_vals)[col] == 0) {
+    //                 satisfied_xors[num_row] = 1;
+    //             }
+    //             else {
+    //                 satisfied_xors_until[num_row] = 0;
+    //             }
+    //         }
+    //     }
+    // }
+    // THIS HEURISTICS IS UNIMPLEMENTED
+    // PackedMatrix::iterator rowIt = clause_state.beginMatrix();
+    // (*rowIt).setZero(); //forget state
+}
 
-    PackedMatrix::iterator rowIt = clause_state.beginMatrix();
-    (*rowIt).setZero(); //forget state
+void EGaussian::forwarding() {
+    // uint32_t a = 0; // by mahi
+    // for (int i = clauses_toclear.size() - 1; i >= 0 && clauses_toclear[i].second > sublevel; i--) {
+    //     solver->cl_alloc.clauseFree(clauses_toclear[i].first);
+    //     a++;
+    // }
+    // clauses_toclear.resize(clauses_toclear.size() - a);
+    memset(unresolved_xors.data(), 0, unresolved_xors.size());
+    // PackedMatrix::iterator rowIt = clause_state.beginMatrix();
+    // (*rowIt).setZero(); //forget state
+}
+
+void EGaussian::mark_sat(uint32_t num_row, clingo_literal_t lit) {
+    satisfied_xors[num_row] = 1;
+    satisfied_xors_until[num_row] = lit;
 }
 
 uint32_t EGaussian::select_columnorder(matrixset& origMat) {
@@ -220,6 +265,8 @@ void EGaussian::fill_matrix(matrixset& origMat) {
     PackedMatrix::iterator rowIt = clause_state.beginMatrix();
     (*rowIt).setZero(); // reset this row all zero
     // print_matrix(origMat);
+    satisfied_xors.clear();
+    satisfied_xors.resize(origMat.num_rows, 0);
 }
 
 void EGaussian::clear_gwatches(const uint32_t var) {
@@ -400,6 +447,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                     // printf("%d:Warring: this row is conflic in adjust matrix!!!",row_id);
                     return gret::confl;
                 }
+                satisfied_xors[row_id] = 1;
                 break;
 
             //Normal propagation
@@ -419,6 +467,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 GasVar_state[tmp_clause[0].var()] = non_basic_var; // delete basic value in this row
 
                 solver->sum_initUnit++;
+                satisfied_xors[row_id] = 1;
                 return gret::unit_prop;
             }
 
@@ -497,6 +546,17 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
     //     *j++ = *i; // store watch list
     //     return true;
     // }
+    if (satisfied_xors[row_n]) {
+        // #ifdef VERBOSE_DEBUG
+        // cout << "-> xor satisfied as per satisfied_xors[row_n]" << endl;
+        // #endif
+        // #ifdef SLOW_DEBUG
+        // assert(check_row_satisfied(row_n));
+        // #endif
+        // solver->find_truth_ret_satisfied_precheck++;
+        *j++ = *i;
+        return true;
+    }
 
     //swap basic and non_basic variable
     if (GasVar_state[p] == basic_var) {
@@ -626,6 +686,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                 GasVar_state[p] = basic_var;
             }
             // (*clauseIt).setBit(row_n); // this clause arleady sat
+            satisfied_xors[row_n] = 1;
             return true;
         default:
             assert(false); // can not here
@@ -653,6 +714,12 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         //     num_row++;
         //     continue;
         // }
+        if (satisfied_xors[num_row]) {
+            // solver->find_truth_ret_satisfied_precheck++;
+            ++rowI;
+            num_row++;
+            continue;
+        }
         const gret ret = (*rowI).propGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
                                                    GasVar_state, nb_var, 0, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
@@ -676,6 +743,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
                 // printf("%d:This row is nothing( maybe already true) in eliminate col
                 // n",num_row);
                 // (*clauseIt).setBit(num_row);        // this clause arleady sat
+                satisfied_xors[num_row] = 1;
                 break;
             
             default:

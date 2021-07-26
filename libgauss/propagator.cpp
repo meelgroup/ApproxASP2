@@ -455,8 +455,11 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
     if (data->max_assumption_var == 0) {
         return true;
     } 
-    data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+    dret state = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
+    if (state == dret::BACKTRACK) {
+        data->gmatrixes[0]->canceling();
+    }
     gauss_elimation(control, changes, size, data);
     auto stop = high_resolution_clock::now();
     problem.gauss_propagate_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
@@ -483,8 +486,11 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     if (data->max_assumption_var == 0) {
         return true;
     }
-    data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+    dret state = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
+    if (state == dret::BACKTRACK) {
+        data->gmatrixes[0]->canceling();
+    }
     // auto start_literal = data->solver->literal.begin(); 
     // for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
     // {
