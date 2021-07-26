@@ -135,16 +135,16 @@ gret PackedRow::checkGause(
 ) {
 
     uint32_t pop = tmp_col.set_and_until_popcnt_atleast2(*this, cols_unset);
-    
-    if (pop >= 1) {
+
+    if (pop >= 2) {
         return gret::nothing_fnewwatch;
     }
 
     bool final = !rhs_internal;
     
     tmp_clause.clear();
-    uint32_t start = 0;
-    for (uint32_t i = start/64; i != size; i++) if (mp[i]) {
+
+    for (uint32_t i = 0; i != size; i++) if (mp[i]) {
         uint64_t tmp = mp[i];
         for (uint32_t i2 = 0 ; i2 < 64; i2++) {
             if(tmp & 1){
@@ -169,21 +169,39 @@ gret PackedRow::checkGause(
                 // if (unassigned_literal == 1 && val == l_Undef) {
                 //     std::swap(tmp_clause[0], tmp_clause.back());
                 // }
-                // NO NEED AS NO PROP
-                // if (val == l_Undef) {
-                //     std::swap(tmp_clause[0], tmp_clause.back());
-                // }
+                if (val == l_Undef) {
+                    std::swap(tmp_clause[0], tmp_clause.back());
+                }
             }
             tmp >>= 1;
         }
     }
+
+    // for ( uint32_t i =0; i != start/64; i++) if (likely(mp[i])) {
+    //     uint64_t tmp = mp[i];
+    //     for (uint32_t i2 = 0 ; i2 < 64; i2++) {
+    //         if(tmp & 1){
+    //             const uint32_t var = col_to_var[i * 64  + i2];
+    //             const lbool val = assigns[var];
+    //             if (unassigned_literal >= 2 && val == l_Undef &&  !GasVar_state[var] ){  // find non basic value
+    //                 nb_var = var;
+    //                 return gret::nothing_fnewwatch;   // nothing
+    //             }
+    //             const bool val_bool = val == l_True;
+    //             final ^= val_bool;
+    //             tmp_clause.push_back(Lit(var, val_bool));
+    //             if (unassigned_literal == 1 && val == l_Undef) {
+    //                 std::swap(tmp_clause[0], tmp_clause.back());
+    //             }
+    //         }
+    //         tmp >>= 1;
+    //     }
+    // }
     assert(pop <= 1);
-    // NO NEED AS NO PROP
-    // if (pop == 1) {    // propogate
-    //     tmp_clause[0] = tmp_clause[0].unsign()^final;
-    //     return gret::prop;  // propogate
-    // } else 
-    if (!final) {
+    if (pop == 1) {    // propogate
+        tmp_clause[0] = tmp_clause[0].unsign()^final;
+        return gret::prop;  // propogate
+    } else if (!final) {
         return gret::confl;  // conflict
     }
     // this row already true

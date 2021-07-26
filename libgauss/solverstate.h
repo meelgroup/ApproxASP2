@@ -58,12 +58,14 @@ public:
     uint32_t sum_Enconflict_propagate;
     uint32_t sum_Enconflict_check;
     uint32_t sum_Elimination_Col;
-    uint32_t sum_Enpropagate;
+    uint32_t sum_Enpropagate_propagate;
+    uint32_t sum_Enpropagate_check;
     uint32_t sum_Enunit;
     uint32_t sum_EnGauss;
     uint32_t find_truth_ret_satisfied_precheck;
     uint32_t find_truth_ret_unresolved_precheck;
     uint32_t find_truth_ret_unnecessary_precheck;
+    bool total_assignment;
     clingo_propagate_control_t* cpc = NULL;
     clingo_propagate_init_t* cpi = NULL;
     SolverState(uint32_t _vars, clingo_propagate_init_t* _cpi, std::unordered_set<clingo_literal_t> sol_literals)
@@ -145,6 +147,7 @@ public:
         cpc = control;
         dret is_backtracked = has_backtracked();
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
+        total_assignment = clingo_assignment_is_total(values);
         // assert(!clingo_assignment_has_conflict(values));
         #ifdef DEBUG
         decision_level = clingo_assignment_decision_level(values);
@@ -226,7 +229,8 @@ public:
         sum_gauss_unit_truths = 0;
         sum_initEnGauss = 0;
         sum_initUnit = 0;
-        sum_Enpropagate = 0;
+        sum_Enpropagate_propagate = 0;
+        sum_Enpropagate_check = 0;
         sum_Enunit = 0;
         sum_Elimination_Col = 0;
         find_truth_ret_satisfied_precheck = 0;
@@ -239,7 +243,8 @@ public:
         cout << "sum_EnGauss:\t" << sum_EnGauss << endl;
         cout << "sum_initEnGauss:\t" << sum_initEnGauss << endl;
         cout << "sum_initUnit:\t" << sum_initUnit << endl;
-        cout << "sum_Enpropagate:\t" << sum_Enpropagate << endl;
+        cout << "sum_Enpropagate_propagate:\t" << sum_Enpropagate_propagate << endl;
+        cout << "sum_Enpropagate_check:\t" << sum_Enpropagate_check << endl;
         cout << "sum_Enunit:\t" << sum_Enunit << endl;
         cout << "sum_Elimination_Col:\t" << sum_Elimination_Col << endl;
         cout << "find_truth_ret_satisfied_precheck:\t" << find_truth_ret_satisfied_precheck << endl;

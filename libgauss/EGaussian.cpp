@@ -341,7 +341,7 @@ bool EGaussian::full_init(bool& created) {
             case gret::prop:
             case gret::unit_prop:
                 do_again_gauss = true;
-                solver->sum_Enpropagate++;
+                solver->sum_Enpropagate_propagate++;
 
                 assert(solver->decisionLevel() == 0);
                 solver->ok = solver->add_initial_clause(tmp_clause);
@@ -753,39 +753,48 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
 void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
     PackedMatrix::iterator rowI = matrix.matrix.beginMatrix();
     PackedMatrix::iterator end = matrix.matrix.endMatrix();
-    PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
+    // PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
     uint32_t num_row = 0; // row inde
     uint32_t nb_var = 0;
-    uint32_t col = 0;
+    uint32_t nb_col = 0, b_col = 0;
     while (rowI != end) {
         // if ((*clauseIt)[num_row]) {
         //     ++rowI;
         //     num_row++;
         //     continue;
         // }
-        if (satisfied_xors[num_row] || unresolved_xors[num_row]) {
-            if (satisfied_xors[num_row])
-                solver->find_truth_ret_satisfied_precheck++;
-            else if (unresolved_xors[num_row])
-                solver->find_truth_ret_unresolved_precheck++;
+        if (satisfied_xors[num_row] ) {
+            solver->find_truth_ret_satisfied_precheck++;
             ++rowI;
             num_row++;
             continue;
         }
-        col = var_to_col[matrix.nb_rows[num_row]];
-        if ((*rowI)[col] == 1 && (*cols_unset)[col] == 1) {
+        if (unresolved_xors[num_row] && !solver->total_assignment) {
+            solver->find_truth_ret_unresolved_precheck++;
+            ++rowI;
+            num_row++;
+            continue;
+        }
+        nb_col = var_to_col[matrix.nb_rows[num_row]];
+        b_col = var_to_col[matrix.b_rows[num_row]];
+        if (((*rowI)[nb_col] == 1 && (*cols_unset)[nb_col] == 1) && ((*rowI)[b_col] == 1 && (*cols_unset)[b_col] == 1)) {
             ++rowI;
             num_row++;
             solver->find_truth_ret_unresolved_precheck++;
             continue;
         }
-        col = var_to_col[matrix.b_rows[num_row]];
-        if ((*rowI)[col] == 1 && (*cols_unset)[col] == 1) {
-            ++rowI;
-            num_row++;
-            solver->find_truth_ret_unresolved_precheck++;
-            continue;
-        }
+
+        // if   {
+        //     ++rowI;
+        //     num_row++;
+        //     solver->find_truth_ret_unresolved_precheck++;
+        //     continue;
+        // }
+
+        // const gret ret = (*rowI).propGause(tmp_clause,
+        //                                            solver->assigns, matrix.col_to_var, GasVar_state, nb_var, 0,
+        //                                            *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
+
         const gret ret = (*rowI).checkGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var, GasVar_state,
                                                    *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
@@ -836,6 +845,13 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
                 #endif
                 satisfied_xors[num_row] = 1;
                 break;
+
+            case gret::prop:
+                gqd.prop_clause_gauss = tmp_clause;
+                gqd.ret_gauss = 3;                      // gaussian matrix is   conflict
+                early_stop = true;
+                gqd.e_row_n = num_row;
+                return;
             
             default:
                 // can not here

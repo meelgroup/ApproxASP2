@@ -375,7 +375,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 break;
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
-                data->solver->sum_Enpropagate++;
+                data->solver->sum_Enpropagate_propagate++;
                 res = data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
                 if (res) {
                     l = data->gqueuedata[i->matrix_num].prop_clause_gauss[0];
@@ -444,7 +444,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             case 2: // propagation
             case 3: // unit propagation
                 gqd.big_propagate++;
-                data->solver->sum_Enpropagate++;
+                data->solver->sum_Enpropagate_propagate++;
                 // data->solver->add_clause(gqd.prop_clause_gauss, false);
             case 4:
                 //nothing
@@ -521,7 +521,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     }
     std::cout << "\n";
     #endif
-    bool immediate_break = false, final_check;
+    bool immediate_break = false, final_check, res;
+    clingo_literal_t lit;
+    Lit l;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
     }
@@ -537,8 +539,19 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
             //     cout << "It is wrong, all xor clauses are satisifed ..." << endl;
             // }
             for (GaussQData &gqd: data->gqueuedata) {
-                data->solver->sum_Enconflict_check++;
-                data->solver->add_clause(gqd.conflict_clause_gauss, true);
+                if (gqd.ret_gauss == 0){
+                    data->solver->sum_Enconflict_check++;
+                    data->solver->add_clause(gqd.conflict_clause_gauss, true);
+                } 
+                else if (gqd.ret_gauss == 3) {
+                    data->solver->sum_Enpropagate_check++;
+                    data->solver->add_clause(gqd.prop_clause_gauss, false);
+                    if (res) {
+                        l = gqd.prop_clause_gauss[0];
+                        lit = (clingo_literal_t)(l.sign()) ? (-l.var()) : (l.var());
+                        data->gmatrixes[0]->mark_sat(gqd.e_row_n, lit);
+                    }
+                }
             }
             auto stop = high_resolution_clock::now();
             problem.time_in_gje += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
