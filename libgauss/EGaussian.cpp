@@ -740,18 +740,18 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         }
         nb_col = var_to_col[matrix.nb_rows[num_row]];
         b_col = var_to_col[matrix.b_rows[num_row]];
-        if (((*rowI)[nb_col] == 1 && (*cols_unset)[nb_col] == 1)) {
+        if (((*rowI)[nb_col] == 1 && (*cols_unset)[nb_col] == 1) && (b_col != unassigned_col && ((*rowI)[b_col] == 1 && (*cols_unset)[b_col] == 1))) {
             ++rowI;
             num_row++;
             // solver->find_truth_ret_unresolved_precheck++;
             continue;
         }
-        if (b_col != unassigned_col && ((*rowI)[b_col] == 1 && (*cols_unset)[b_col] == 1)) {
-            ++rowI;
-            num_row++;
-            // solver->find_truth_ret_unresolved_precheck++;
-            continue;
-        }
+        // if  {
+        //     ++rowI;
+        //     num_row++;
+        //     // solver->find_truth_ret_unresolved_precheck++;
+        //     continue;
+        // }
         const gret ret = (*rowI).checkGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
                                                    GasVar_state, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
@@ -771,6 +771,12 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
                 // solver->gqhead = solver->trail.size();
                 // break;
             }
+            case gret::prop:
+                gqd.prop_clause_gauss = tmp_clause;
+                gqd.ret_gauss = 3;                      // gaussian matrix is   conflict
+                early_stop = true;
+                gqd.e_row_n = num_row;
+                return;
             case gret::nothing: // this row already tre
                 // printf("%d:This row is nothing( maybe already true) in eliminate col
                 // n",num_row);

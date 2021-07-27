@@ -512,7 +512,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     //     }
     // }
     // std::cout << "\n";
-    bool immediate_break = false;
+    bool immediate_break = false, res;
+    clingo_literal_t lit;
+    Lit l;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
     }
@@ -524,8 +526,19 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
         if (immediate_break)
         {
             for (GaussQData &gqd: data->gqueuedata) {
-                data->solver->sum_Enconflict++;
-                data->solver->add_clause(gqd.conflict_clause_gauss, true);
+                if (gqd.ret_gauss == 0) {
+                    data->solver->sum_Enconflict++;
+                    data->solver->add_clause(gqd.conflict_clause_gauss, true);
+                }
+                else if (gqd.ret_gauss == 3) {
+                    data->solver->sum_Enpropagate++;
+                    res = data->solver->add_clause(gqd.prop_clause_gauss, false);
+                    if (res) {
+                        l = gqd.prop_clause_gauss[0];
+                        lit = (clingo_literal_t)(l.sign()) ? (-l.var()) : (l.var());
+                        data->gmatrixes[0]->mark_sat(gqd.e_row_n, lit);
+                    }
+                }
             }
             auto stop = high_resolution_clock::now();
             problem.gauss_check_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
