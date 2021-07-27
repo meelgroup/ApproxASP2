@@ -123,6 +123,92 @@ inline int scan_fwd_64b(uint64_t value)
     return  __builtin_ffsll(value);
 }
 
+gret PackedRow::checkGause(
+    vector<Lit>& tmp_clause,
+    const vector<lbool>& assigns,
+    const vector<uint32_t>& col_to_var,
+    vec<bool> &GasVar_state, // variable state  : basic or non-basic
+    PackedRow& tmp_col,
+    PackedRow& tmp_col2,
+    PackedRow& cols_vals,
+    PackedRow& cols_unset
+) {
+
+    uint32_t pop = tmp_col.set_and_until_popcnt_atleast2(*this, cols_unset);
+
+    if (pop >= 2) {
+        return gret::nothing_fnewwatch;
+    }
+
+    bool final = !rhs_internal;
+    
+    tmp_clause.clear();
+
+    for (uint32_t i = 0; i != size; i++) if (mp[i]) {
+        uint64_t tmp = mp[i];
+        for (uint32_t i2 = 0 ; i2 < 64; i2++) {
+            if(tmp & 1){
+                const uint32_t var = col_to_var[i * 64  + i2];
+                lbool val = l_Undef;
+                if (!cols_unset[i * 64  + i2]) {
+                    if (cols_vals[i * 64  + i2]) {
+                        val = l_True;
+                    }
+                    else {
+                        val = l_False;
+                    }
+                }
+                // const lbool val = assigns[var];
+                // if (unassigned_literal >= 2 && val == l_Undef && !GasVar_state[var]) {  // find non basic value
+                //     nb_var = var;
+                //     return gret::nothing_fnewwatch; // nothing
+                // }
+                const bool val_bool = (val == l_True);
+                final ^= val_bool;
+                tmp_clause.push_back(Lit(var, val_bool));
+                // if (unassigned_literal == 1 && val == l_Undef) {
+                //     std::swap(tmp_clause[0], tmp_clause.back());
+                // }
+                if (val == l_Undef) {
+                    std::swap(tmp_clause[0], tmp_clause.back());
+                }
+            }
+            tmp >>= 1;
+        }
+    }
+
+    // for ( uint32_t i =0; i != start/64; i++) if (likely(mp[i])) {
+    //     uint64_t tmp = mp[i];
+    //     for (uint32_t i2 = 0 ; i2 < 64; i2++) {
+    //         if(tmp & 1){
+    //             const uint32_t var = col_to_var[i * 64  + i2];
+    //             const lbool val = assigns[var];
+    //             if (unassigned_literal >= 2 && val == l_Undef &&  !GasVar_state[var] ){  // find non basic value
+    //                 nb_var = var;
+    //                 return gret::nothing_fnewwatch;   // nothing
+    //             }
+    //             const bool val_bool = val == l_True;
+    //             final ^= val_bool;
+    //             tmp_clause.push_back(Lit(var, val_bool));
+    //             if (unassigned_literal == 1 && val == l_Undef) {
+    //                 std::swap(tmp_clause[0], tmp_clause.back());
+    //             }
+    //         }
+    //         tmp >>= 1;
+    //     }
+    // }
+    assert(pop <= 1);
+    if (pop == 1) {    // propogate
+        tmp_clause[0] = tmp_clause[0].unsign()^final;
+        return gret::prop;  // propogate
+    } else if (!final) {
+        return gret::confl;  // conflict
+    }
+    // this row already true
+    return gret::nothing;  // nothing
+
+}
+
 gret PackedRow::propGause(
     vector<Lit>& tmp_clause,
     const vector<lbool>& assigns,

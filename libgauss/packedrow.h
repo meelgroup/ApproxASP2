@@ -237,6 +237,9 @@ public:
     // using find nonbasic and basic value
     uint32_t find_watchVar(vector<Lit>& tmp_clause, const vector<uint32_t>& col_to_var,vec<bool> &GasVar_state , uint32_t& nb_var );
 
+    gret checkGause(vector<Lit>& tmp_clause,const vector<lbool>& assigns, const vector<uint32_t>& col_to_var, vec<bool> &GasVar_state ,
+        PackedRow& tmp_col, PackedRow& tmp_col2, PackedRow& cols_vals, PackedRow& cols_unset);
+        
     // using find nonbasic value after watch list is enter
     gret propGause(vector<Lit>& tmp_clause,const vector<lbool>& assigns, const vector<uint32_t>& col_to_var, vec<bool> &GasVar_state ,uint32_t& nb_var , uint32_t start,
         PackedRow& tmp_col, PackedRow& tmp_col2, PackedRow& cols_vals, PackedRow& cols_unset);

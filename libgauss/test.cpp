@@ -449,7 +449,8 @@ int main(int argc, char const **argv)
     // add_execution_time(ctl, &problem);
     // prop_data.solver->printStatistics();
     cout << "ApproxSMC execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " s" << endl;
-    cout << "Time elasped in gaussian elimination: " << problem.gauss_check_time << endl;
+    cout << "Time elasped in gaussian elimination: " << problem.gauss_check_time << " + " << 
+        problem.gauss_propagate_time << " = " << problem.gauss_check_time + problem.gauss_propagate_time << endl;
     cout << "Time elasped in Clingo assignment: " << problem.clingo_assignment_time << endl;
     cout << "Clingo assignment is called: " << problem.clingo_assignment_called << endl;
     cout << "Time elasped in Clingo add clause: " << problem.clingo_add_clause_time << endl;

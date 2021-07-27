@@ -339,7 +339,9 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                      size_t size, propagator_t *data)
 {
     bool immediate_break = false;
-    bool prop = false;
+    bool prop = false, res = false;
+    clingo_literal_t lit;
+    Lit l;
     for (auto &gqd: data->gqueuedata) {
         gqd.reset();
     }
@@ -369,7 +371,12 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
                 data->solver->sum_Enpropagate++;
-                data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
+                res = data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
+                if (res) {
+                    l = data->gqueuedata[i->matrix_num].prop_clause_gauss[0];
+                    lit = (clingo_literal_t) (l.sign()) ? (-l.var()) : (l.var());
+                    data->gmatrixes[0]->mark_sat(i->row_id, lit);
+                }
                 i++;
                 prop = true; 
                 break;
@@ -460,6 +467,9 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
     if (state == dret::BACKTRACK) {
         data->gmatrixes[0]->canceling();
     }
+    if (state != dret::UNCHANGED) {
+        data->gmatrixes[0]->forwarding();
+    }
     gauss_elimation(control, changes, size, data);
     auto stop = high_resolution_clock::now();
     problem.gauss_propagate_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
@@ -491,6 +501,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     if (state == dret::BACKTRACK) {
         data->gmatrixes[0]->canceling();
     }
+    if (state != dret::UNCHANGED) {
+        data->gmatrixes[0]->forwarding();
+    }
     // auto start_literal = data->solver->literal.begin(); 
     // for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
     // {
@@ -515,12 +528,12 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
                 data->solver->add_clause(gqd.conflict_clause_gauss, true);
             }
             auto stop = high_resolution_clock::now();
-            problem.gauss_propagate_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
+            problem.gauss_check_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
             return true;
         }
     }
     // std::cout << "One model found ... " << std::endl;
     auto stop = high_resolution_clock::now();
-    problem.gauss_propagate_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
+    problem.gauss_check_time += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
     return true;
 }

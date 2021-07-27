@@ -60,6 +60,7 @@ public:
     uint32_t sum_Elimination_Col;
     uint32_t sum_Enunit;
     uint32_t sum_EnGauss;
+    bool is_total_assignment;
     clingo_propagate_control_t* cpc = NULL;
     clingo_propagate_init_t* cpi = NULL;
     SolverState(uint32_t _vars, clingo_propagate_init_t* _cpi, std::unordered_set<clingo_literal_t> sol_literals)
@@ -141,6 +142,7 @@ public:
         cpc = control;
         dret is_backtracked = has_backtracked();
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
+        is_total_assignment = clingo_assignment_is_total(values);
         // decision_level = clingo_assignment_decision_level(values);
         clingo_truth_value_t value;
         #ifdef ASSIGNS_ENABLE
@@ -317,6 +319,7 @@ public:
         auto stop = high_resolution_clock::now();
         problem.clingo_add_clause_time += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
         assert(result);
+        return true;
     }
     bool add_initial_clause(vector<Lit> clause) {
         assert(cpi);

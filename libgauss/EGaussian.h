@@ -76,6 +76,7 @@ class EGaussian {
     class matrixset { // matrix information
       public:
         // added by hankf4
+        vec<uint32_t> b_rows; // the basic value in each row
         vec<uint32_t> nb_rows; // the non_basic value in each row
 
         // used in orignal matrix

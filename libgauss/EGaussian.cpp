@@ -256,6 +256,7 @@ void EGaussian::fill_matrix(matrixset& origMat) {
     GasVar_state.clear();                                // reset variable state
     GasVar_state.growTo(solver->nVars(), non_basic_var); // init varaible state
     origMat.nb_rows.clear();                             // clear non-basic
+    origMat.b_rows.clear();                             // clear basic
 
     // delete gauss watch list for this matrix
     for (size_t ii = 0; ii < solver->gwatches.size(); ii++) {
@@ -267,6 +268,10 @@ void EGaussian::fill_matrix(matrixset& origMat) {
     // print_matrix(origMat);
     satisfied_xors.clear();
     satisfied_xors.resize(origMat.num_rows, 0);
+    unresolved_xors.clear();
+    unresolved_xors.resize(origMat.num_rows, 0);
+    satisfied_xors_until.clear();
+    satisfied_xors_until.resize(origMat.num_rows, 0);
 }
 
 void EGaussian::clear_gwatches(const uint32_t var) {
@@ -427,7 +432,8 @@ void EGaussian::eliminate(matrixset& m) {
 
 gret EGaussian::adjust_matrix(matrixset& m) {
     assert(solver->decisionLevel() == 0);
-
+    assert(satisfied_xors.size() >= m.num_rows);
+    assert(unresolved_xors.size() >= m.num_rows);
     PackedMatrix::iterator end = m.matrix.beginMatrix() + m.num_rows;
     PackedMatrix::iterator rowIt = m.matrix.beginMatrix();
     uint32_t row_id = 0;      // row index
@@ -464,6 +470,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 //adjusting
                 (*rowIt).setZero(); // reset this row all zero
                 m.nb_rows.push(std::numeric_limits<uint32_t>::max()); // delete non basic value in this row
+                m.b_rows.push(std::numeric_limits<uint32_t>::max()); // delete basic value in this row
                 GasVar_state[tmp_clause[0].var()] = non_basic_var; // delete basic value in this row
 
                 solver->sum_initUnit++;
@@ -481,6 +488,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 solver->gwatches[nb_var].push(
                     GaussWatched(row_id, matrix_no)); // insert non-basic variable
                 m.nb_rows.push(nb_var);               // record in this row non_basic variable
+                m.b_rows.push(tmp_clause[0].var());               // record in this row non_basic variable
                 solver->add_watch_literal(tmp_clause[0].var());
                 solver->add_watch_literal(nb_var);
                 break;
@@ -490,6 +498,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
     }
     // printf("DD:nb_rows:%d %d %d    n",m.nb_rows.size() ,   row_id - adjust_zero  ,  adjust_zero);
     assert(m.nb_rows.size() == row_id - adjust_zero);
+    assert(m.b_rows.size() == row_id - adjust_zero);
 
     m.matrix.resizeNumRows(row_id - adjust_zero);
     m.num_rows = row_id - adjust_zero;
@@ -670,12 +679,14 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             GasVar_state[matrix.nb_rows[row_n]] =
                 non_basic_var;                // recover non_basic variable
             GasVar_state[nb_var] = basic_var; // set basic variable
+            matrix.b_rows[row_n] = basic_var;
             gqd.e_var = nb_var;                   // store the eliminate valuable
             if (nb_var == 0) {
                 cout << "nb_var == 0";
             }
             gqd.e_row_n = row_n;
             gqd.do_eliminate = true;
+            unresolved_xors[row_n] = 1;
             return true;
 
         case gret::nothing: // this row already treu
@@ -708,6 +719,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
     PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
     uint32_t num_row = 0; // row inde
     uint32_t nb_var = 0;
+    uint32_t nb_col, b_col;
     while (rowI != end) {
         // if ((*clauseIt)[num_row]) {
         //     ++rowI;
@@ -720,9 +732,29 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
             num_row++;
             continue;
         }
-        const gret ret = (*rowI).propGause(tmp_clause,
+        if (!solver->is_total_assignment && unresolved_xors[num_row]) {
+            // solver->find_truth_ret_unresolved_precheck++;
+            ++rowI;
+            num_row++;
+            continue;
+        }
+        nb_col = var_to_col[matrix.nb_rows[num_row]];
+        b_col = var_to_col[matrix.b_rows[num_row]];
+        if (((*rowI)[nb_col] == 1 && (*cols_unset)[nb_col] == 1)) {
+            ++rowI;
+            num_row++;
+            // solver->find_truth_ret_unresolved_precheck++;
+            continue;
+        }
+        if (b_col != unassigned_col && ((*rowI)[b_col] == 1 && (*cols_unset)[b_col] == 1)) {
+            ++rowI;
+            num_row++;
+            // solver->find_truth_ret_unresolved_precheck++;
+            continue;
+        }
+        const gret ret = (*rowI).checkGause(tmp_clause,
                                                    solver->assigns, matrix.col_to_var,
-                                                   GasVar_state, nb_var, 0, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
+                                                   GasVar_state, *tmp_col, *tmp_col2, *cols_vals, *cols_unset);
 
         switch (ret) {
             case gret::confl: {
@@ -860,6 +892,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         solver->gwatches[nb_var].push(GaussWatched(num_row, matrix_no));
                         matrix.nb_rows[num_row] = nb_var;
                         solver->add_watch_literal(nb_var);
+                        unresolved_xors[num_row] = 1;
                         break;
                     case gret::nothing: // this row already tre
                         // printf("%d:This row is nothing( maybe already true) in eliminate col
@@ -868,6 +901,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         solver->gwatches[p].push(GaussWatched(num_row, matrix_no));
                         matrix.nb_rows[num_row] = p; // update in this row non_basic variable
                         solver->add_watch_literal(p);
+                        satisfied_xors[num_row] = 1;
                         // (*clauseIt).setBit(num_row);        // this clause arleady sat
                         break;
                     default:
