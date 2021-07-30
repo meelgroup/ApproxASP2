@@ -352,8 +352,8 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
     }
     for (size_t gqhead = 0; gqhead < size; ++gqhead) {
         // the freshly assigned literal
-        const Lit p = Lit((int)changes[gqhead], (changes[gqhead] < 0));
-        assert(changes[gqhead] > 0 && "My understanding is wrong");
+        const Lit p = Lit((int) abs(changes[gqhead]), (changes[gqhead] < 0));
+        // assert(changes[gqhead] > 0 && "My understanding is wrong");
         vec<GaussWatched> &ws = data->solver->gwatches[p.var()];
         GaussWatched *i = ws.begin();
         GaussWatched *j = i;
@@ -410,13 +410,13 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             if (data->gqueuedata[g].do_eliminate) {
                 data->gmatrixes[g]->eliminate_col2(p.var(), data->gqueuedata[g], immediate_break);
                 data->solver->sum_Elimination_Col++;
-                if (immediate_break == false && !data->gqueuedata[g].prop_clause_gauss.empty()) {
+                // if (immediate_break == false && !data->gqueuedata[g].prop_clause_gauss.empty()) {
                     // cout << "Propagate clause of size: " << data->gqueuedata[g].prop_clause_gauss.size() << endl;
                     // data->solver->sum_Enpropagate++;
                     // if (!data->solver->add_clause(data->gqueuedata[g].prop_clause_gauss, false)) { 
                     //     return true; 
                     // }                        
-                }
+                // }
             }
         // data->gmatrixes[0]->check_watch_var();
         if (immediate_break)
@@ -463,6 +463,7 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
 {
     // get the thread specific state
     auto start = high_resolution_clock::now();
+    problem.propagate_called++;
     dret state = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
     if (state == dret::BACKTRACK) {
@@ -496,6 +497,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // c++;
     // get the thread specific state
     auto start = high_resolution_clock::now();
+    problem.check_called++;
     dret state = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
 

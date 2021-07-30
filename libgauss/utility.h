@@ -81,6 +81,8 @@ unsigned xor_last_added;
 double time_in_clasp;
 int assignment_called;
 int add_clause_called;
+int propagate_called;
+int check_called;
 double time_in_assignment;
 double time_in_back;
 double time_in_add_clause;

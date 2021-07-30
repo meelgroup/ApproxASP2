@@ -457,6 +457,8 @@ int main(int argc, char const **argv)
     cout << "c time spent in GJE: " << problem.time_in_gje << endl;
     cout << "c time spent in GJE (check): " << problem.time_in_gje_check << endl;
     cout << "c time spent in GJE (propagate): " << problem.time_in_gje_propagate << endl;
+    cout << "c check called: " << problem.check_called << endl;
+    cout << "c propagate called: " << problem.propagate_called << endl;
     add_execution_time(ctl, &problem);
     prop_data.solver->printStatistics();
     // printf("%g", problem.time_in_clasp);

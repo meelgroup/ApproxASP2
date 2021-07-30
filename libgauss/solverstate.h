@@ -261,10 +261,12 @@ public:
         auto start = high_resolution_clock::now();
         if (cpc) {
             clingo_propagate_control_add_watch(cpc, (clingo_literal_t) lit);
+            clingo_propagate_control_add_watch(cpc, (clingo_literal_t) -lit);
         }
         else {
             assert(cpi);
             clingo_propagate_init_add_watch(cpi, (clingo_literal_t) lit);
+            clingo_propagate_init_add_watch(cpi, (clingo_literal_t) -lit);
         }
         problem.watch_called++;
         auto stop = high_resolution_clock::now();
@@ -278,6 +280,7 @@ public:
         if (gwatches[lit].size() >= 1) return;
         auto start = high_resolution_clock::now();
         clingo_propagate_control_remove_watch(cpc, (clingo_literal_t) lit);
+        clingo_propagate_control_remove_watch(cpc, (clingo_literal_t) -lit);
         problem.watch_called++;
         auto stop = high_resolution_clock::now();
         problem.time_in_watch += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
