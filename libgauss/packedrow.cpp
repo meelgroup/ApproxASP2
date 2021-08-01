@@ -28,6 +28,7 @@ THE SOFTWARE.
 ***********************************************/
 
 #include "packedrow.h"
+#include <cstdint>
 
 // using namespace CMSat;
 
@@ -72,7 +73,7 @@ bool PackedRow::fill(
 
 ///returns popcnt
 uint32_t PackedRow::find_watchVar(
-    vector<Lit>& tmp_clause,
+    vector<int32_t>& tmp_clause,
     const vector<uint32_t>& col_to_var,
     vec<bool> &GasVar_state,
     uint32_t& nb_var
@@ -88,12 +89,14 @@ uint32_t PackedRow::find_watchVar(
         if (this->operator[](i)){
             popcnt++;
             tmp_var = col_to_var[i];
-            tmp_clause.push_back(Lit(tmp_var, false));
+            // tmp_clause.push_back(Lit(tmp_var, false));
+            tmp_clause.push_back(tmp_var);
             if( !GasVar_state[tmp_var] ){  //nobasic
                 nb_var = tmp_var;
                 break;
             }else{  // basic
-                Lit tmp(tmp_clause[0]);
+                // Lit tmp(tmp_clause[0]);
+                int32_t tmp = tmp_clause[0];
                 tmp_clause[0] = tmp_clause.back();
                 tmp_clause.back() = tmp;
             }
@@ -104,16 +107,18 @@ uint32_t PackedRow::find_watchVar(
         if (this->operator[](i)){
             popcnt++;
             tmp_var = col_to_var[i];
-            tmp_clause.push_back(Lit(tmp_var, false));
+            // tmp_clause.push_back(Lit(tmp_var, false));
+            tmp_clause.push_back(tmp_var);
             if( GasVar_state[tmp_var] ){  //basic
-                Lit tmp(tmp_clause[0]);
+                // Lit tmp(tmp_clause[0]);
+                int32_t tmp = tmp_clause[0];
                 tmp_clause[0] = tmp_clause.back();
                 tmp_clause.back() = tmp;
             }
         }
     }
     assert(tmp_clause.size() == popcnt);
-    assert( popcnt == 0 || GasVar_state[ tmp_clause[0].var() ]) ;
+    assert( popcnt == 0 || GasVar_state[ tmp_clause[0] ]) ;
     return popcnt;
 
 }
@@ -124,7 +129,7 @@ inline int scan_fwd_64b(uint64_t value)
 }
 
 gret PackedRow::checkGause(
-    vector<Lit>& tmp_clause,
+    vector<int32_t>& tmp_clause,
     const vector<lbool>& assigns,
     const vector<uint32_t>& col_to_var,
     vec<bool> &GasVar_state, // variable state  : basic or non-basic
@@ -165,7 +170,10 @@ gret PackedRow::checkGause(
                 // }
                 const bool val_bool = (val == l_True);
                 final ^= val_bool;
-                tmp_clause.push_back(Lit(var, val_bool));
+                tmp_clause.push_back(var);
+                if (val_bool) 
+                    tmp_clause.back() = -tmp_clause.back();
+                // tmp_clause.push_back(Lit(var, val_bool));
                 // if (unassigned_literal == 1 && val == l_Undef) {
                 //     std::swap(tmp_clause[0], tmp_clause.back());
                 // }
@@ -199,7 +207,8 @@ gret PackedRow::checkGause(
     // }
     assert(pop <= 1);
     if (pop == 1) {    // propogate
-        tmp_clause[0] = tmp_clause[0].unsign()^final;
+        if (final)
+            tmp_clause[0] = -tmp_clause[0];
         return gret::prop;  // propogate
     } else if (!final) {
         return gret::confl;  // conflict
@@ -210,7 +219,7 @@ gret PackedRow::checkGause(
 }
 
 gret PackedRow::propGause(
-    vector<Lit>& tmp_clause,
+    vector<int32_t>& tmp_clause,
     const vector<lbool>& assigns,
     const vector<uint32_t>& col_to_var,
     vec<bool> &GasVar_state, // variable state  : basic or non-basic
@@ -284,7 +293,11 @@ gret PackedRow::propGause(
                 // }
                 const bool val_bool = (val == l_True);
                 final ^= val_bool;
-                tmp_clause.push_back(Lit(var, val_bool));
+                tmp_clause.push_back(var);
+                if (val_bool) {
+                    tmp_clause.back() = -tmp_clause.back();
+                }
+                // tmp_clause.push_back(Lit(var, val_bool));
                 // if (unassigned_literal == 1 && val == l_Undef) {
                 //     std::swap(tmp_clause[0], tmp_clause.back());
                 // }
@@ -318,7 +331,9 @@ gret PackedRow::propGause(
     // }
     assert(pop <= 1);
     if (pop == 1) {    // propogate
-        tmp_clause[0] = tmp_clause[0].unsign()^final;
+        if (final)
+            tmp_clause[0] = -tmp_clause[0];
+        // tmp_clause[0] = tmp_clause[0].unsign()^final;
         return gret::prop;  // propogate
     } else if (!final) {
         return gret::confl;  // conflict
@@ -357,7 +372,7 @@ void PackedRow::degug_propGause(const vector<lbool>& assigns, const vector<uint3
 }
 
 gret PackedRow::propGause_debug(
-    vector<Lit>& tmp_clause,
+    vector<int32_t>& tmp_clause,
     const vector<lbool>& assigns,
     const vector<uint32_t>& col_to_var,
     vec<bool> &GasVar_state, // variable state  : basic or non-basic
@@ -382,7 +397,10 @@ gret PackedRow::propGause_debug(
                 }
                 const bool val_bool = (val == l_True);
                 final ^= val_bool;
-                tmp_clause.push_back(Lit(var, val_bool));
+                tmp_clause.push_back(var);
+                if (val_bool) {
+                    tmp_clause.back() = -tmp_clause.back();
+                }
                 string tmp = (int) Lit(var, val_bool).sign() ? "" : "-";
                 cout << Lit(var, val_bool).var() << " ";
                 if (likely(GasVar_state[var])) {
@@ -405,7 +423,10 @@ gret PackedRow::propGause_debug(
                 }
                 const bool val_bool = val == l_True;
                 final ^= val_bool;
-                tmp_clause.push_back(Lit(var, val_bool));
+                tmp_clause.push_back(var);
+                if (val_bool) {
+                    tmp_clause.back() = -tmp_clause.back();
+                }
                 
                 cout << Lit(var, val_bool).var() << " ";
                 if ( GasVar_state[var] ) {
@@ -416,8 +437,10 @@ gret PackedRow::propGause_debug(
         }
     }
     cout << "|" << rhs_internal << " ]";
-    if (assigns[tmp_clause[0].var()] == l_Undef) {    // propogate
-        tmp_clause[0] = tmp_clause[0].unsign()^final;
+    if (assigns[abs(tmp_clause[0])] == l_Undef) {    // propogate
+        if (final) {
+            tmp_clause[0] = -tmp_clause[0];
+        }
         return gret::prop;  // propogate
     } else if (!final) {
         cout << " <- conflict" << endl;

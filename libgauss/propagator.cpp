@@ -378,9 +378,9 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 data->solver->sum_Enpropagate_propagate++;
                 res = data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
                 if (res) {
-                    l = data->gqueuedata[i->matrix_num].prop_clause_gauss[0];
-                    lit = (clingo_literal_t) (l.sign()) ? (-l.var()) : (l.var());
-                    data->gmatrixes[0]->mark_sat(i->row_id, lit);
+                    // l = data->gqueuedata[i->matrix_num].prop_clause_gauss[0];
+                    // lit = (clingo_literal_t) (l.sign()) ? (-l.var()) : (l.var());
+                    data->gmatrixes[0]->mark_sat(i->row_id, data->gqueuedata[i->matrix_num].prop_clause_gauss[0]);
                 }
                 i++;
                 prop = true; 
@@ -549,9 +549,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
                     data->solver->sum_Enpropagate_check++;
                     data->solver->add_clause(gqd.prop_clause_gauss, false);
                     if (res) {
-                        l = gqd.prop_clause_gauss[0];
-                        lit = (clingo_literal_t)(l.sign()) ? (-l.var()) : (l.var());
-                        data->gmatrixes[0]->mark_sat(gqd.e_row_n, lit);
+                        // l = gqd.prop_clause_gauss[0];
+                        // lit = (clingo_literal_t)(l.sign()) ? (-l.var()) : (l.var());
+                        data->gmatrixes[0]->mark_sat(gqd.e_row_n, gqd.prop_clause_gauss[0]);
                     }
                 }
             }

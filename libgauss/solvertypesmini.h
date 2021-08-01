@@ -82,7 +82,7 @@ inline std::ostream& operator<<(std::ostream& os, const Lit lit)
     return os;
 }
 
-inline std::ostream& operator<<(std::ostream& co, const std::vector<Lit>& lits)
+inline std::ostream& operator<<(std::ostream& co, const std::vector<int32_t>& lits)
 {
     for (uint32_t i = 0; i < lits.size(); i++) {
         co << lits[i];

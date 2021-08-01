@@ -60,7 +60,7 @@ class EGaussian {
     SolverState* solver;   // orignal solver Configuration 
     // const GaussConf& config;  // gauss some configure   by mahi
     const uint32_t matrix_no;            // matrix index
-    vector<Lit> tmp_clause;  // conflict&propagation handling
+    vector<clingo_literal_t> tmp_clause;  // conflict&propagation handling
 
     //Is the clause at this ROW satisfied already?
     //clause_state[row] tells me that
