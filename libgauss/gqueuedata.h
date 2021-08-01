@@ -34,8 +34,8 @@ struct GaussQData {
     // PropBy confl;              // for choosing better conflict  "by mahi"
     int ret_gauss;         // gauss matrix result
     bool xorEqualFalse_gauss;            // conflict xor clause xorEqualFalse
-    vector<Lit> conflict_clause_gauss; // for gaussian elimination better conflict
-    vector<Lit> prop_clause_gauss;
+    vector<int32_t> conflict_clause_gauss; // for gaussian elimination better conflict
+    vector<int32_t> prop_clause_gauss;
 
 
     uint32_t big_gaussnum;   // total gauss time for DPLL

@@ -463,15 +463,18 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 // n",row_id);
 
                 xorEqualFalse = !m.matrix[row_id].rhs();
-                tmp_clause[0] = Lit(tmp_clause[0].var(), xorEqualFalse);
-                assert(solver->value(tmp_clause[0].var()) == l_Undef);
-                // solver->enqueue(tmp_clause[0]); // propagation
+                // tmp_clause[0] = Lit(tmp_clause[0].var(), xorEqualFalse);
+                // assert(solver->value(tmp_clause[0].var()) == l_Undef);
 
+                // solver->enqueue(tmp_clause[0]); // propagation
+                if (xorEqualFalse) 
+                    tmp_clause[0] = -tmp_clause[0];
+                assert(solver->value(abs(tmp_clause[0])) == l_Undef);
                 //adjusting
                 (*rowIt).setZero(); // reset this row all zero
                 m.nb_rows.push(std::numeric_limits<uint32_t>::max()); // delete non basic value in this row
                 m.b_rows.push(std::numeric_limits<uint32_t>::max()); // delete basic value in this row
-                GasVar_state[tmp_clause[0].var()] = non_basic_var; // delete basic value in this row
+                GasVar_state[abs(tmp_clause[0])] = non_basic_var; // delete basic value in this row
 
                 solver->sum_initUnit++;
                 satisfied_xors[row_id] = 1;
@@ -483,13 +486,13 @@ gret EGaussian::adjust_matrix(matrixset& m) {
                 assert(nb_var != std::numeric_limits<uint32_t>::max());
 
                 // insert watch list
-                solver->gwatches[tmp_clause[0].var()].push(
+                solver->gwatches[abs(tmp_clause[0])].push(
                     GaussWatched(row_id, matrix_no)); // insert basic variable
                 solver->gwatches[nb_var].push(
                     GaussWatched(row_id, matrix_no)); // insert non-basic variable
                 m.nb_rows.push(nb_var);               // record in this row non_basic variable
-                m.b_rows.push(tmp_clause[0].var());               // record in this row non_basic variable
-                solver->add_watch_literal(tmp_clause[0].var());
+                m.b_rows.push(abs(tmp_clause[0]));               // record in this row non_basic variable
+                solver->add_watch_literal(abs(tmp_clause[0]));
                 solver->add_watch_literal(nb_var);
                 break;
         }
@@ -530,7 +533,7 @@ inline void EGaussian::delete_gausswatch(const bool orig_basic, const uint32_t r
         }
         assert(debug_find);
     } else {
-        clear_gwatches(tmp_clause[0].var());
+        clear_gwatches(abs(tmp_clause[0]));
     }
 }
 
@@ -624,7 +627,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                 return false;
             } else {
                 gqd.ret_gauss = 2;
-                assert(solver->value(tmp_clause[0].var()) == l_Undef);
+                assert(solver->value(abs(tmp_clause[0])) == l_Undef);
                 // Clause* cla = solver->cl_alloc.Clause_new(
                 //     tmp_clause,
                 //     solver->sumConflicts
@@ -868,7 +871,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         matrix.nb_rows[num_row] = p;
                         solver->add_watch_literal(p);
                         gqd.prop_clause_gauss = tmp_clause; 
-                        assert(solver->value(tmp_clause[0].var()) == l_Undef);
+                        assert(solver->value(abs(tmp_clause[0])) == l_Undef);
                         if (solver->decisionLevel() == 0) {
                             //solver->enqueue(tmp_clause[0]);
                             gqd.ret_gauss = 3; // unit_propagation

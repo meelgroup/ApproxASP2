@@ -234,40 +234,42 @@ public:
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
         return clingo_assignment_has_conflict(values);
     }
-    bool add_clause(vector<Lit> clause, bool is_conflict_clause = false) {
+    bool add_clause(vector<clingo_literal_t> clause, bool is_conflict_clause = false) {
         auto start = high_resolution_clock::now();
         auto last_literal = literal.end();
         assert(cpc);
         size_t length = clause.size();
         bool result;
-        clingo_literal_t* new_clause = (clingo_literal_t *)malloc (length * sizeof(clingo_literal_t));
-        auto itr = clause.begin();
-        u_int32_t index = 0;
-        clingo_literal_t insert_lit, test_lit;
-        for (auto itr_end = clause.end(); itr != itr_end; itr++) {
-            test_lit = (*itr).var();
-            #ifdef DEBUG
-            assert(literal.find(test_lit) != last_literal);
-            assert(literal.find(test_lit) != literal.end());
-            if (index == 0 && !is_conflict_clause) {
-                assert(assigns[test_lit] == l_Undef);
-            }
-            else if ((*itr).sign())
-            {
-                assert(assigns[test_lit] == l_True);
-            }
-            else
-            {
-                assert(assigns[test_lit] == l_False);
-            }
-            #endif
-            insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
-            new_clause[index++] = insert_lit;
-        }
+        clingo_literal_t* new_clause;
+        new_clause = clause.data();
+        // clingo_literal_t* new_clause = (clingo_literal_t *)malloc (length * sizeof(clingo_literal_t));
+        // auto itr = clause.begin();
+        // u_int32_t index = 0;
+        // clingo_literal_t insert_lit, test_lit;
+        // for (auto itr_end = clause.end(); itr != itr_end; itr++) {
+        //     test_lit = (*itr).var();
+        //     #ifdef DEBUG
+        //     assert(literal.find(test_lit) != last_literal);
+        //     assert(literal.find(test_lit) != literal.end());
+        //     if (index == 0 && !is_conflict_clause) {
+        //         assert(assigns[test_lit] == l_Undef);
+        //     }
+        //     else if ((*itr).sign())
+        //     {
+        //         assert(assigns[test_lit] == l_True);
+        //     }
+        //     else
+        //     {
+        //         assert(assigns[test_lit] == l_False);
+        //     }
+        //     #endif
+        //     insert_lit = (clingo_literal_t)((*itr).sign()) ? (-(*itr).var()) : ((*itr).var());
+        //     new_clause[index++] = insert_lit;
+        // }
         // assert(index == length);
         // bool is_conflict = is_assignment_conflicting(cpc); 	
         // assert(is_conflicting(clause, !is_conflict_clause));	
-        if (is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
+        if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
         {	
             (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");	
             	
@@ -297,13 +299,13 @@ public:
             // }	
             assert(!result);  // this is conflicting	
         }	
-        if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
-        {	
-            (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");	
+        // if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
+        // {	
+        //     (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");	
             	
-            cout << "\nCan't insert clause\n";	
+        //     cout << "\nCan't insert clause\n";	
             	
-        }	
+        // }	
         if (!result) {	
             auto stop = high_resolution_clock::now();
             problem.clingo_add_clause_time += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
@@ -318,22 +320,17 @@ public:
             problem.clingo_add_clause_time += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
             return false;	
         }
-        free(new_clause);
+        // free(new_clause);
         auto stop = high_resolution_clock::now();
         problem.clingo_add_clause_time += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
         assert(result);
         return true;
     }
-    bool add_initial_clause(vector<Lit> clause) {
+    bool add_initial_clause(vector<clingo_literal_t> clause) {
         assert(cpi);
         assert(clause.size() == 1);
         clingo_literal_t* new_clause = (clingo_literal_t *)malloc (sizeof(clingo_literal_t));
-        if (clause[0].sign()) {
-            new_clause[0] = -clause[0].var();
-        }
-        else {
-            new_clause[0] = clause[0].var();
-        }
+        new_clause[0] = clause[0];
         bool result;
         // add the clause
         if (!clingo_propagate_init_add_clause(cpi, new_clause, 1, &result)) { return false; }
