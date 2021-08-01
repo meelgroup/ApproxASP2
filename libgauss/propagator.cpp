@@ -347,8 +347,8 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
     }
     for (size_t gqhead = 0; gqhead < size; ++gqhead) {
         // the freshly assigned literal
-        const Lit p = Lit((int)changes[gqhead], (changes[gqhead] < 0));
-        assert(changes[gqhead] > 0 && "My understanding is wrong");
+        const Lit p = Lit((int) abs(changes[gqhead]), (changes[gqhead] < 0));
+        // assert(changes[gqhead] > 0 && "My understanding is wrong");
         vec<GaussWatched> &ws = data->solver->gwatches[p.var()];
         GaussWatched *i = ws.begin();
         GaussWatched *j = i;

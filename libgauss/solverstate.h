@@ -215,10 +215,12 @@ public:
         #endif
         if (cpc) {
             clingo_propagate_control_add_watch(cpc, (clingo_literal_t) lit);
+            clingo_propagate_control_add_watch(cpc, (clingo_literal_t) -lit);
         }
         else {
             assert(cpi);
             clingo_propagate_init_add_watch(cpi, (clingo_literal_t) lit);
+            clingo_propagate_init_add_watch(cpi, (clingo_literal_t) -lit);
         }
     }
     void remove_watch_literal(uint32_t lit) {
@@ -226,6 +228,7 @@ public:
             return; 
         if (gwatches[lit].size() >= 1) return;
         clingo_propagate_control_remove_watch(cpc, (clingo_literal_t) lit);
+        clingo_propagate_control_remove_watch(cpc, (clingo_literal_t) -lit);
     }
     bool is_assignment_conflicting(clingo_propagate_control_t *control) {
         const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
