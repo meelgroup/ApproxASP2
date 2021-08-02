@@ -464,7 +464,7 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
     // get the thread specific state
     auto start = high_resolution_clock::now();
     problem.propagate_called++;
-    dret state = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+    dret state = data->solver->get_assignment2(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
     if (state == dret::BACKTRACK) {
         data->gmatrixes[0]->canceling();
@@ -486,7 +486,7 @@ bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, 
     for (EGaussian *gauss: data->gmatrixes) {
         gauss->canceling();
     }
-    data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+    data->solver->get_assignment2(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
     return true;
 }
@@ -498,7 +498,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     // get the thread specific state
     auto start = high_resolution_clock::now();
     problem.check_called++;
-    dret state = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
+    dret state = data->solver->get_assignment2(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
 
     if (state == dret::BACKTRACK) {
