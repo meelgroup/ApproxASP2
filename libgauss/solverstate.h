@@ -49,6 +49,7 @@ public:
     std::unordered_set<clingo_literal_t> literal;
     vec<vec<GaussWatched>> gwatches;
     vec<clingo_literal_t> decision_level_literal;
+    vector<bool> in_xor;
     uint32_t sum_gauss_called;
     uint32_t sum_gauss_confl;
     uint32_t sum_gauss_prop;
@@ -61,6 +62,7 @@ public:
     uint32_t sum_Enunit;
     uint32_t sum_EnGauss;
     bool is_total_assignment;
+    uint32_t last_trail_size;
     clingo_propagate_control_t* cpc = NULL;
     clingo_propagate_init_t* cpi = NULL;
     SolverState(uint32_t _vars, clingo_propagate_init_t* _cpi, std::unordered_set<clingo_literal_t> sol_literals)
@@ -70,6 +72,12 @@ public:
         num_of_vars = _vars;
         assigns.clear();
         assigns.insert(assigns.end(), num_of_vars + 1, l_Undef);
+        in_xor.clear();
+        in_xor.assign(num_of_vars, false);
+        for (auto start_literal = sol_literals.begin(), end_literal = sol_literals.end(); start_literal != end_literal ; start_literal++) {
+            in_xor[*start_literal] = true;
+        }
+        last_trail_size = 0;
         gwatches.resize(2 * num_of_vars + 1);
         literal = sol_literals;
         clearGaussStatistics();
@@ -148,42 +156,70 @@ public:
         #ifdef ASSIGNS_ENABLE
         assigns.assign(nVars(), l_Undef);
         #endif
-        auto start_literal = literal.begin(); 
-        cols_vals->setZero();
-        cols_unset->setOne();
-        for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
-        {
-            #ifdef DEBUG
-            assert(clingo_assignment_has_literal(values, *start_literal));
-            #endif
-            clingo_assignment_truth_value(values, *start_literal, &value);
-            uint32_t col = var_to_col[*start_literal];
-            switch (value)
+        clingo_literal_t lit;
+        uint32_t col, new_trail_size;
+        clingo_assignment_trail_size(values, &new_trail_size);
+        if (is_backtracked == dret::UNCHANGED || is_backtracked == dret::FORWARD) {
+            uint32_t trail_at;
+            assert(new_trail_size - last_trail_size >= 0);
+            for (trail_at = last_trail_size; trail_at < new_trail_size; trail_at++) {
+                clingo_assignment_trail_at(values, trail_at, &lit);
+                if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
+                    col = var_to_col[abs(lit)];
+                    if (col < std::numeric_limits<uint32_t>::max()) {
+                        if (lit > 0) {
+                            cols_unset->clearBit(col);
+                            cols_vals->setBit(col);
+                        } else if (lit < 0) {
+                            cols_unset->clearBit(col);
+                        }
+                    }
+                }
+            }
+            // if (decision_level == 0 && decision_level_offset.size() == 0) {
+            //     decision_level_offset.push(0);
+            // }
+            // decision_level_offset[decision_level] = decision_level_offset[decision_level] + literal_inserted;
+        }
+        else {
+            auto start_literal = literal.begin(); 
+            cols_vals->setZero();
+            cols_unset->setOne();
+            for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
             {
-                case clingo_truth_value_true:
-                    if (col < std::numeric_limits<uint32_t>::max()) {
-                        cols_unset->clearBit(col);
-                        cols_vals->setBit(col);
-                    }
-                    #ifdef ASSIGNS_ENABLE
-                    assigns[*start_literal] = l_True;
-                    #endif
-                    break;
-                case clingo_truth_value_false:
-                    if (col < std::numeric_limits<uint32_t>::max()) {
-                        cols_unset->clearBit(col);
-                    }
-                    #ifdef ASSIGNS_ENABLE
-                    assigns[*start_literal] = l_False;
-                    #endif
-                    break;
-                default:
-                    break;
+                #ifdef DEBUG
+                assert(clingo_assignment_has_literal(values, *start_literal));
+                #endif
+                clingo_assignment_truth_value(values, *start_literal, &value);
+                uint32_t col = var_to_col[*start_literal];
+                switch (value)
+                {
+                    case clingo_truth_value_true:
+                        if (col < std::numeric_limits<uint32_t>::max()) {
+                            cols_unset->clearBit(col);
+                            cols_vals->setBit(col);
+                        }
+                        #ifdef ASSIGNS_ENABLE
+                        assigns[*start_literal] = l_True;
+                        #endif
+                        break;
+                    case clingo_truth_value_false:
+                        if (col < std::numeric_limits<uint32_t>::max()) {
+                            cols_unset->clearBit(col);
+                        }
+                        #ifdef ASSIGNS_ENABLE
+                        assigns[*start_literal] = l_False;
+                        #endif
+                        break;
+                    default:
+                        break;
+                }
             }
         }
         auto stop = high_resolution_clock::now();
         problem.clingo_assignment_time += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
         problem.clingo_assignment_called++;
+        clingo_assignment_trail_size(values, &last_trail_size);
         return is_backtracked;
     }
     void clearGaussStatistics()
