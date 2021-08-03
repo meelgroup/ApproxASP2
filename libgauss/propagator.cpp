@@ -547,7 +547,7 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
                 } 
                 else if (gqd.ret_gauss == 3) {
                     data->solver->sum_Enpropagate_check++;
-                    data->solver->add_clause(gqd.prop_clause_gauss, false);
+                    res = data->solver->add_clause(gqd.prop_clause_gauss, false);
                     if (res) {
                         // l = gqd.prop_clause_gauss[0];
                         // lit = (clingo_literal_t)(l.sign()) ? (-l.var()) : (l.var());
