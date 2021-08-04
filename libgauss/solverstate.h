@@ -50,6 +50,8 @@ public:
     vec<vec<GaussWatched>> gwatches;
     vec<clingo_literal_t> decision_level_literal;
     vector<bool> in_xor;
+    vec<uint32_t> decision_level_offset;
+    vec<clingo_literal_t> local_trail;
     uint32_t sum_gauss_called;
     uint32_t sum_gauss_confl;
     uint32_t sum_gauss_prop;
@@ -62,6 +64,8 @@ public:
     uint32_t sum_Enunit;
     uint32_t sum_EnGauss;
     bool is_total_assignment;
+    uint32_t last_trail_level;
+    uint32_t backtrack_level;
     uint32_t last_trail_size;
     clingo_propagate_control_t* cpc = NULL;
     clingo_propagate_init_t* cpi = NULL;
@@ -82,6 +86,8 @@ public:
         literal = sol_literals;
         clearGaussStatistics();
         decision_level_literal.clear();
+        local_trail.clear();
+        decision_level_offset.clear();
         cpi = _cpi;
     }
 
@@ -121,6 +127,7 @@ public:
         uint32_t max_level = decision_level;
         if (decision_level < decision_level_literal.size()) {
             state = dret::BACKTRACK;
+            backtrack_level = decision_level;
             // max_level = decision_level_literal.size();
         }
         else if (decision_level > decision_level_literal.size()) {
@@ -159,14 +166,51 @@ public:
         clingo_literal_t lit;
         uint32_t col, new_trail_size;
         clingo_assignment_trail_size(values, &new_trail_size);
-        if (is_backtracked == dret::UNCHANGED || is_backtracked == dret::FORWARD) {
+        if (is_backtracked == dret::UNCHANGED) {
             uint32_t trail_at;
             assert(new_trail_size - last_trail_size >= 0);
             for (trail_at = last_trail_size; trail_at < new_trail_size; trail_at++) {
                 clingo_assignment_trail_at(values, trail_at, &lit);
                 if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
                     col = var_to_col[abs(lit)];
-                    if (col < std::numeric_limits<uint32_t>::max()) {
+                    local_trail.push(lit);
+                    if (lit > 0) {
+                        cols_unset->clearBit(col);
+                        cols_vals->setBit(col);
+                    }
+                    else if (lit < 0) {
+                        cols_unset->clearBit(col);
+                    }
+                }
+            }
+            if (decision_level == 0 && decision_level_offset.size() == 0) {
+                decision_level_offset.push(0);
+            }
+            decision_level_offset[decision_level] = local_trail.size();
+        }
+        else if (is_backtracked == dret::FORWARD) {
+            uint32_t trail_at;
+            uint32_t start_level = last_trail_level, offset_end, offset_start, literal_inserted;
+            assert(decision_level > last_trail_level);
+            for (auto level_at = start_level ; level_at <= decision_level; level_at++) {
+                clingo_assignment_trail_begin(values, level_at, &offset_start);
+                clingo_assignment_trail_end(values, level_at, &offset_end);
+                if (level_at == last_trail_level) {
+                    offset_start = last_trail_size;
+                }
+                else {
+                    // it is level_at'th level
+                    assert(decision_level_offset.size() >= level_at);
+                    if (decision_level_offset.size() == level_at) {
+                        decision_level_offset.push(local_trail.size());
+                    }
+                    assert(offset_start < offset_end);
+                }
+                for (trail_at = offset_start; trail_at < offset_end; trail_at++) {
+                    clingo_assignment_trail_at(values, trail_at, &lit);
+                    if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
+                        col = var_to_col[abs(lit)];
+                        local_trail.push(lit);
                         if (lit > 0) {
                             cols_unset->clearBit(col);
                             cols_vals->setBit(col);
@@ -175,51 +219,58 @@ public:
                         }
                     }
                 }
+                decision_level_offset[level_at] = local_trail.size(); 
             }
-            // if (decision_level == 0 && decision_level_offset.size() == 0) {
-            //     decision_level_offset.push(0);
-            // }
-            // decision_level_offset[decision_level] = decision_level_offset[decision_level] + literal_inserted;
         }
         else {
-            auto start_literal = literal.begin(); 
-            cols_vals->setZero();
-            cols_unset->setOne();
-            for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
-            {
-                #ifdef DEBUG
-                assert(clingo_assignment_has_literal(values, *start_literal));
-                #endif
-                clingo_assignment_truth_value(values, *start_literal, &value);
-                uint32_t col = var_to_col[*start_literal];
-                switch (value)
-                {
-                    case clingo_truth_value_true:
-                        if (col < std::numeric_limits<uint32_t>::max()) {
+            uint32_t trail_at;
+            uint32_t start_level = backtrack_level, offset_end, offset_start;
+            offset_start = decision_level_offset[backtrack_level - 1];
+            offset_end = local_trail.size();
+            for (trail_at = offset_start; trail_at < offset_end; trail_at++) {
+                // unassigning the value
+                col = var_to_col[abs(local_trail[trail_at])];
+                cols_unset->setBit(col);
+                cols_vals->clearBit(col);
+            }
+            local_trail.resize(decision_level_offset[backtrack_level - 1]);
+            decision_level_offset.resize(backtrack_level);
+
+            for (auto level_at = start_level ; level_at <= decision_level; level_at++) {
+                clingo_assignment_trail_begin(values, level_at, &offset_start);
+                clingo_assignment_trail_end(values, level_at, &offset_end);
+                // if (level_at == last_trail_level) {
+                //     offset_start = last_trail_size;
+                // }
+                // else {
+                    // it is level_at'th level
+                    assert(decision_level_offset.size() >= level_at);
+                    if (decision_level_offset.size() == level_at) {
+                        decision_level_offset.push(local_trail.size());
+                    }
+                    assert(offset_start < offset_end);
+                // }
+                for (trail_at = offset_start; trail_at < offset_end; trail_at++) {
+                    clingo_assignment_trail_at(values, trail_at, &lit);
+                    if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
+                        col = var_to_col[abs(lit)];
+                        local_trail.push(lit);
+                        if (lit > 0) {
                             cols_unset->clearBit(col);
                             cols_vals->setBit(col);
-                        }
-                        #ifdef ASSIGNS_ENABLE
-                        assigns[*start_literal] = l_True;
-                        #endif
-                        break;
-                    case clingo_truth_value_false:
-                        if (col < std::numeric_limits<uint32_t>::max()) {
+                        } else if (lit < 0) {
                             cols_unset->clearBit(col);
                         }
-                        #ifdef ASSIGNS_ENABLE
-                        assigns[*start_literal] = l_False;
-                        #endif
-                        break;
-                    default:
-                        break;
+                    }
                 }
+                decision_level_offset[level_at] = local_trail.size(); 
             }
         }
         auto stop = high_resolution_clock::now();
         problem.clingo_assignment_time += duration_cast<microseconds>(stop - start).count() / pow(10, 6);
         problem.clingo_assignment_called++;
         clingo_assignment_trail_size(values, &last_trail_size);
+        last_trail_level = decision_level;
         return is_backtracked;
     }
     void clearGaussStatistics()
