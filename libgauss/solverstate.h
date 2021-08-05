@@ -173,6 +173,8 @@ public:
                 clingo_assignment_trail_at(values, trail_at, &lit);
                 if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
                     col = var_to_col[abs(lit)];
+                    if (col == std::numeric_limits<uint32_t>::max()) 
+                        continue; 
                     local_trail.push(lit);
                     if (lit > 0) {
                         cols_unset->clearBit(col);
@@ -210,6 +212,8 @@ public:
                     clingo_assignment_trail_at(values, trail_at, &lit);
                     if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
                         col = var_to_col[abs(lit)];
+                        if (col == std::numeric_limits<uint32_t>::max()) 
+                            continue; 
                         local_trail.push(lit);
                         if (lit > 0) {
                             cols_unset->clearBit(col);
@@ -254,6 +258,8 @@ public:
                     clingo_assignment_trail_at(values, trail_at, &lit);
                     if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
                         col = var_to_col[abs(lit)];
+                        if (col == std::numeric_limits<uint32_t>::max()) 
+                            continue; 
                         local_trail.push(lit);
                         if (lit > 0) {
                             cols_unset->clearBit(col);
