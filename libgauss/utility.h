@@ -67,8 +67,11 @@ const char** asp_argument;
 int argu_count;
 int seed;
 
+bool use_ind_sup = false;
 std::vector<clingo_symbol_t> atoms;
 std::vector<clingo_symbol_t> active_atoms;
+std::vector<clingo_symbol_t> active_atoms_ind_sup;
+std::vector<std::string> independent_sup_symbols;
 std::unordered_map<clingo_symbol_t, string> atom_symbol_map;
 std::unordered_map<clingo_literal_t, clingo_symbol_t> literal_atom_map;
 unsigned number_of_active_atoms;

@@ -317,11 +317,11 @@ int main(int argc, char const **argv)
     }
     if (problem.independent_set.empty()) {
         cout << "It is recommended to use independent support" << endl;
-        exit(-1);
+        // exit(-1);
     } else {
         if (stat(problem.independent_set.c_str(), &buffer) == -1) {
             cout << "No independent support file with name: " << problem.independent_set << endl;
-            exit(-1);
+            // exit(-1);
         }
     }
     if (!problem.input_file) {
@@ -342,29 +342,46 @@ int main(int argc, char const **argv)
     problem.thresh = compute_pivot(problem.tol);
     // compute delta
     problem.t = compute_iteration(&problem);
-    std::ifstream infile(problem.independent_set);
+    if (!problem.independent_set.empty()) {
+        std::ifstream infile(problem.independent_set);
 
-    if (infile.good())
-    {
-        string sLine;
-        getline(infile, sLine);
-        if (sLine.rfind("c ind", 0) != 0)
+        if (infile.good())
         {
-            cout << "Independent support should start with \"c ind\" " << endl;
-            exit(-1);
+            string sLine;
+            getline(infile, sLine);
+            if (sLine.rfind("c ind", 0) != 0)
+            {
+                cout << "Independent support should start with \"c ind\" " << endl;
+                exit(-1);
+            }
+            string endding(" 0");
+            if (!std::equal(sLine.begin() + sLine.size() - endding.size(), sLine.end(), endding.begin())) {
+                cout << "Independent support should end with \" 0\" " << endl;
+                exit(-1);
+            }
+            problem.independent_sup_symbols.clear();
+            std::string delimiter = " ";
+            size_t pos = 0;
+            std::string token;
+            sLine.erase(0, std::string("c ind").length() + 1);
+            while ((pos = sLine.find(delimiter)) != std::string::npos)
+            {
+                token = sLine.substr(0, pos);
+                if (!token.empty())
+                    problem.independent_sup_symbols.push_back(token);
+                sLine.erase(0, pos + delimiter.length());
+            }
+            cout << "c Total Independent Supports: " << problem.independent_sup_symbols.size() << endl;
+            if (!problem.independent_sup_symbols.empty()) {
+                problem.use_ind_sup = true;
+            }
         }
-        string endding(" 0");
-        if (!std::equal(sLine.begin() + sLine.size() - endding.size(), sLine.end(), endding.begin())) {
-            cout << "Independent support should end with \" 0\" " << endl;
+        else
+        {
+            cout << "Error in " << problem.independent_set << endl;
             exit(-1);
         }
     }
-    else
-    {
-        cout << "Error in " << problem.independent_set << endl;
-        exit(-1);
-    }
-    
     // setting pivot in clingo control
     if (problem.argu_count == 0)
         problem.asp_argument = (const char **)malloc(sizeof(char *));
