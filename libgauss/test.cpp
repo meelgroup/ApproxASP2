@@ -368,7 +368,7 @@ int main(int argc, char const **argv)
             {
                 token = sLine.substr(0, pos);
                 if (!token.empty())
-                    problem.independent_sup_symbols.push_back(token);
+                    problem.independent_sup_symbols.insert(token);
                 sLine.erase(0, pos + delimiter.length());
             }
             cout << "c Total Independent Supports: " << problem.independent_sup_symbols.size() << endl;

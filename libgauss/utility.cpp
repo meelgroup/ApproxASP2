@@ -37,7 +37,7 @@
 #include "iterations.h"
 
 using std::string;
-
+extern Configuration problem;
 int compute_pivot(float xi)
 {
     assert(xi > 0.0 && xi < 1.0);
@@ -175,11 +175,14 @@ void get_symbol_atoms(clingo_control_t *ctl, Configuration *con)
 
         if (!fact && !external) {
             con->active_atoms.push_back(symbol);
+            if (problem.independent_sup_symbols.find(std::string(predicate)) != problem.independent_sup_symbols.end()) {
+                con->active_atoms_ind_sup.push_back(symbol);
+            }
         }
         // advance the next element in the sequence
         clingo_symbolic_atoms_next(atoms, it_atoms, &it_atoms);
     }
-    std::cout << "Active atoms: " << con->active_atoms.size();
+    std::cout << "Active atoms (independent support): " << con->active_atoms.size() << " (" << con->active_atoms_ind_sup.size() << ")";
 }
 
 void print_all(Configuration *con)
