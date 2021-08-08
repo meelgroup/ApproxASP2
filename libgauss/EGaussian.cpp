@@ -682,7 +682,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             GasVar_state[matrix.nb_rows[row_n]] =
                 non_basic_var;                // recover non_basic variable
             GasVar_state[nb_var] = basic_var; // set basic variable
-            matrix.b_rows[row_n] = basic_var;
+            matrix.b_rows[row_n] = nb_var;
             gqd.e_var = nb_var;                   // store the eliminate valuable
             if (nb_var == 0) {
                 cout << "nb_var == 0";
@@ -719,7 +719,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
 void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
     PackedMatrix::iterator rowI = matrix.matrix.beginMatrix();
     PackedMatrix::iterator end = matrix.matrix.endMatrix();
-    PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
+    // PackedMatrix::iterator clauseIt = clause_state.beginMatrix();
     uint32_t num_row = 0; // row inde
     uint32_t nb_var = 0;
     uint32_t nb_col, b_col;
@@ -743,7 +743,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
         }
         nb_col = var_to_col[matrix.nb_rows[num_row]];
         b_col = var_to_col[matrix.b_rows[num_row]];
-        if (((*rowI)[nb_col] == 1 && (*cols_unset)[nb_col] == 1) && (b_col != unassigned_col && ((*rowI)[b_col] == 1 && (*cols_unset)[b_col] == 1))) {
+        if (((*rowI)[nb_col] == 1 && (*cols_unset)[nb_col] == 1) && ((*rowI)[b_col] == 1 && (*cols_unset)[b_col] == 1)) {
             ++rowI;
             num_row++;
             // solver->find_truth_ret_unresolved_precheck++;
@@ -871,7 +871,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         matrix.nb_rows[num_row] = p;
                         solver->add_watch_literal(p);
                         gqd.prop_clause_gauss = tmp_clause; 
-                        assert(solver->value(abs(tmp_clause[0])) == l_Undef);
+                        // assert(solver->value(abs(tmp_clause[0])) == l_Undef);
                         if (solver->decisionLevel() == 0) {
                             //solver->enqueue(tmp_clause[0]);
                             gqd.ret_gauss = 3; // unit_propagation

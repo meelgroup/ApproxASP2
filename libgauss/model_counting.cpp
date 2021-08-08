@@ -95,7 +95,7 @@ void do_initial_setup(clingo_control_t** ctl, Configuration* con, int m_value)
     }
 
     con->xor_last_added = 1;
-    // clingo_control_ground(*ctl, parts, 1, NULL, NULL);
+    clingo_control_ground(*ctl, parts, 1, NULL, NULL);
     
     std::string parity_string;
     parity_string.clear();

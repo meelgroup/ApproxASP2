@@ -82,6 +82,7 @@ public:
             in_xor[*start_literal] = true;
         }
         last_trail_size = 0;
+        last_trail_level = 0;
         gwatches.resize(2 * num_of_vars + 1);
         literal = sol_literals;
         clearGaussStatistics();
@@ -137,6 +138,9 @@ public:
             clingo_assignment_decision(values, level, &decision_literal);
             if (decision_level_literal.size() > level) {
                 if (decision_level_literal[level] != decision_literal) {
+                    if (state == dret::UNCHANGED) {
+                        backtrack_level = level;
+                    }
                     state = dret::BACKTRACK;
                 } 
                 decision_level_literal[level] = decision_literal;
@@ -330,6 +334,7 @@ public:
     bool add_clause(vector<clingo_literal_t> clause, bool is_conflict_clause = false) {
         auto start = high_resolution_clock::now();
         auto last_literal = literal.end();
+        problem.clingo_add_clause_called++;
         assert(cpc);
         size_t length = clause.size();
         bool result;
