@@ -287,7 +287,7 @@ public:
         }
         auto stop = high_resolution_clock::now();
         problem.time_in_assignment += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
-        
+        problem.assignment_called++;
         clingo_assignment_trail_size(values, &last_trail_size);
         last_trail_level = decision_level;
         return is_backtracked;
