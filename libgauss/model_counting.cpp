@@ -287,6 +287,8 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
     do_initial_setup(&control, con, 0);
     get_symbol_atoms(control, con);
     con->number_of_active_atoms = con->active_atoms.size();
+    if (problem.use_ind_sup)
+        con->number_of_active_atoms = con->active_atoms_ind_sup.size();
     // first of all checking whether the problem is trivial or not
     unsigned result = Bounded_counter(control, con, 0);
     if (result <= con->thresh) {
