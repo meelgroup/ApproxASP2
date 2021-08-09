@@ -183,6 +183,10 @@ void get_symbol_atoms(clingo_control_t *ctl, Configuration *con)
         clingo_symbolic_atoms_next(atoms, it_atoms, &it_atoms);
     }
     std::cout << "Active atoms (independent support): " << con->active_atoms.size() << " (" << con->active_atoms_ind_sup.size() << ")";
+    if (problem.use_ind_sup) {
+        std::cout << std::endl;
+        std::cout << "c Using independent support from " << problem.independent_set; 
+    }
 }
 
 void print_all(Configuration *con)
@@ -204,7 +208,10 @@ void generate_k_xors(unsigned k, Configuration *con)
     int xor_generated = k - con->xor_cons.size();
     for (int i = 0; i < xor_generated; i++) {
         XOR new_xor;
-        new_xor.literals = selectKItems(con->active_atoms);
+        if (problem.use_ind_sup)
+            new_xor.literals = selectKItems(con->active_atoms_ind_sup);
+        else
+            new_xor.literals = selectKItems(con->active_atoms);
         new_xor.rhs = rand() % 2;
         // std::cout << "new_xor.rhs: " << new_xor.rhs << std::endl;
         con->xor_cons.push_back(new_xor);

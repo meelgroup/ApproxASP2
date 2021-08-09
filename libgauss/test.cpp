@@ -371,7 +371,7 @@ int main(int argc, char const **argv)
                     problem.independent_sup_symbols.insert(token);
                 sLine.erase(0, pos + delimiter.length());
             }
-            cout << "c Total Independent Supports: " << problem.independent_sup_symbols.size() << endl;
+            cout << "c Size of Independent Support: " << problem.independent_sup_symbols.size() << endl;
             if (!problem.independent_sup_symbols.empty()) {
                 problem.use_ind_sup = true;
             }
@@ -391,7 +391,7 @@ int main(int argc, char const **argv)
     }
     char pivot_str[10];
     auto start = high_resolution_clock::now();
-    sprintf(pivot_str, "-n %d", problem.thresh);
+    sprintf(pivot_str, "-n %d", problem.thresh + 1);
     problem.asp_argument[problem.argu_count++] = pivot_str;
     reset_Configuration(&problem);
     // register propagator class
