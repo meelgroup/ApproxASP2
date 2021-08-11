@@ -639,6 +639,25 @@ public:
         // propagate it
         if (!clingo_propagate_init_propagate(cpi, &result)) { return false; }
         if (!result) { return false; }
+        const clingo_assignment_t *values = clingo_propagate_init_assignment(cpi);
+        auto start_literal = literal.begin(); 
+        assigns.assign(nVars(), l_Undef);
+        clingo_truth_value_t value;
+        for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
+        {
+            clingo_assignment_truth_value(values, *start_literal, &value);
+            switch (value)
+            {
+                case clingo_truth_value_true:
+                    assigns[*start_literal] = l_True;
+                    break;
+                case clingo_truth_value_false:
+                    assigns[*start_literal] = l_False;
+                    break;
+                default:
+                    break;
+            }
+        }
         return true;
     }
 };
