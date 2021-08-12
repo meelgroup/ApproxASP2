@@ -78,49 +78,29 @@ uint32_t PackedRow::find_watchVar(
     vec<bool> &GasVar_state,
     uint32_t& nb_var
 ) {
-    uint32_t  tmp_var = 0;
     uint32_t popcnt = 0;
     nb_var = std::numeric_limits<uint32_t>::max();
-    uint32_t i;
     tmp_clause.clear();
 
-
-    for(i = 0; i < size*64; i++) {
+    for(int i = 0; i < size*64; i++) {
         if (this->operator[](i)){
             popcnt++;
-            tmp_var = col_to_var[i];
-            // tmp_clause.push_back(Lit(tmp_var, false));
-            tmp_clause.push_back(tmp_var);
-            if( !GasVar_state[tmp_var] ){  //nobasic
-                nb_var = tmp_var;
-                break;
-            }else{  // basic
-                // Lit tmp(tmp_clause[0]);
-                int32_t tmp = tmp_clause[0];
-                tmp_clause[0] = tmp_clause.back();
-                tmp_clause.back() = tmp;
-            }
-        }
-    }
+            uint32_t var = col_to_var[i];
+            tmp_clause.push_back(var);
 
-    for( i = i + 1 ; i <  size*64; i++) {
-        if (this->operator[](i)){
-            popcnt++;
-            tmp_var = col_to_var[i];
-            // tmp_clause.push_back(Lit(tmp_var, false));
-            tmp_clause.push_back(tmp_var);
-            if( GasVar_state[tmp_var] ){  //basic
-                // Lit tmp(tmp_clause[0]);
-                int32_t tmp = tmp_clause[0];
-                tmp_clause[0] = tmp_clause.back();
-                tmp_clause.back() = tmp;
+            if (!GasVar_state[var]) {
+                nb_var = var;
+            } else {
+                //What??? WARNING
+                //This var already has a responsible for it...
+                //How can it be 1???
+                std::swap(tmp_clause[0], tmp_clause.back());
             }
         }
     }
     assert(tmp_clause.size() == popcnt);
     assert( popcnt == 0 || GasVar_state[ tmp_clause[0] ]) ;
     return popcnt;
-
 }
 
 inline int scan_fwd_64b(uint64_t value)

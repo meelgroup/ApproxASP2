@@ -192,13 +192,15 @@ public:
                 clingo_assignment_trail_at(values, trail_at, &lit);
                 if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
                     col = var_to_col[abs(lit)];
-                    local_trail.push(lit);
-                    if (lit > 0) {
-                        cols_unset->clearBit(col);
-                        cols_vals->setBit(col);
-                    }
-                    else if (lit < 0) {
-                        cols_unset->clearBit(col);
+                    if (col < std::numeric_limits<uint32_t>::max()) {
+                        local_trail.push(lit);
+                        if (lit > 0) {
+                            cols_unset->clearBit(col);
+                            cols_vals->setBit(col);
+                        }
+                        else if (lit < 0) {
+                            cols_unset->clearBit(col);
+                        }
                     }
                 }
             }
@@ -229,12 +231,14 @@ public:
                     clingo_assignment_trail_at(values, trail_at, &lit);
                     if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
                         col = var_to_col[abs(lit)];
-                        local_trail.push(lit);
-                        if (lit > 0) {
-                            cols_unset->clearBit(col);
-                            cols_vals->setBit(col);
-                        } else if (lit < 0) {
-                            cols_unset->clearBit(col);
+                        if (col < std::numeric_limits<uint32_t>::max()) {
+                            local_trail.push(lit);
+                            if (lit > 0) {
+                                cols_unset->clearBit(col);
+                                cols_vals->setBit(col);
+                            } else if (lit < 0) {
+                                cols_unset->clearBit(col);
+                            }
                         }
                     }
                 }
@@ -273,12 +277,14 @@ public:
                     clingo_assignment_trail_at(values, trail_at, &lit);
                     if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
                         col = var_to_col[abs(lit)];
-                        local_trail.push(lit);
-                        if (lit > 0) {
-                            cols_unset->clearBit(col);
-                            cols_vals->setBit(col);
-                        } else if (lit < 0) {
-                            cols_unset->clearBit(col);
+                        if (col < std::numeric_limits<uint32_t>::max()) {
+                            local_trail.push(lit);
+                            if (lit > 0) {
+                                cols_unset->clearBit(col);
+                                cols_vals->setBit(col);
+                            } else if (lit < 0) {
+                                cols_unset->clearBit(col);
+                            }
                         }
                     }
                 }
@@ -659,6 +665,23 @@ public:
             }
         }
         return true;
+    }
+    bool make_unsat() {
+        assert(cpi);
+        clingo_literal_t* new_clause = (clingo_literal_t *)malloc (sizeof(clingo_literal_t));
+        // if (clause[0].sign()) {
+        //     new_clause[0] = -clause[0].var();
+        // }
+        // else {
+        //     new_clause[0] = clause[0].var();
+        // }
+        bool result;
+        // add the clause
+        if (!clingo_propagate_init_add_clause(cpi, new_clause, 0, &result)) { return false; }
+        if (!result) { return false; }
+        // propagate it
+        if (!clingo_propagate_init_propagate(cpi, &result)) { return false; }
+        if (!result) { return false; }
     }
 };
 

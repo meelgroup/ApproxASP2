@@ -334,7 +334,9 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     // printf("propagation %d.\n", data->solver->value(largest_var));
 
     if (!init_all_matrixes(data)) {
-        return true;
+        data->solver->ok = false;
+        bool sat = data->solver->make_unsat();
+        assert(!sat);
     }
     // data->solver->printStatistics();
     // cout << "here" << endl;
@@ -462,6 +464,7 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
                propagator_t *data)
 {
     // get the thread specific state
+    assert(data->solver->ok);
     auto start = high_resolution_clock::now();
     problem.propagate_called++;
     dret state = data->solver->get_assignment2(control, data->gmatrixes[0]->cols_vals,

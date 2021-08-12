@@ -541,7 +541,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
 
             //Conflict potentially
             case 0:
-                printf("%d:Warring: this row is all zero in adjust matrix    n",row_id);
+                printf("%d:Warring: this row is all zero in adjust matrix    n\n",row_id);
                 adjust_zero++;        // information
                 if ((*rowIt).rhs()) { // conflict
                     // printf("%d:Warring: this row is conflic in adjust matrix!!!",row_id);
@@ -553,8 +553,7 @@ gret EGaussian::adjust_matrix(matrixset& m) {
             //Normal propagation
             case 1:
             {
-                printf("%d:This row only one variable, need to propogation!!!! in adjust matrix \
-                n",row_id);
+                printf("%d:This row only one variable, need to propogation!!!! in adjust matrix \n",row_id);
 
                 xorEqualFalse = !m.matrix[row_id].rhs();
                 // tmp_clause[0] = Lit(tmp_clause[0].var(), xorEqualFalse);
