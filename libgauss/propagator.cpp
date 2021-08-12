@@ -328,7 +328,9 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         // printf("propagation %d.\n", data->solver->value(largest_var));
         
         if (!init_all_matrixes(data)) {
-            return false;
+            data->solver->ok = false;
+            bool sat = data->solver->make_unsat();
+            assert(!sat);
         }
         // data->solver->printStatistics();
         // cout << "here" << endl;

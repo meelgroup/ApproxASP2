@@ -89,6 +89,8 @@ class EGaussian {
 
 
     bool clean_xors();
+    bool clean_one_xor(Xor& x, bool &prop);
+    bool clean_xor_clauses(vector<Xor>& xors, bool &prop);
     void clear_gwatches(const uint32_t var);
     void print_matrix(matrixset& m) const ;   // print matrix
     void eliminate(matrixset& m) ;            //gaussian elimination
