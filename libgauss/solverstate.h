@@ -128,6 +128,10 @@ public:
     {
         return decision_level;
     }
+    uint32_t backtrackLevel()
+    {
+        return backtrack_level;
+    }
     dret has_backtracked() {
         auto start = high_resolution_clock::now();
         dret state = dret::UNCHANGED;
