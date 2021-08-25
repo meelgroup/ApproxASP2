@@ -139,7 +139,10 @@ public:
         const clingo_assignment_t *values = clingo_propagate_control_assignment(cpc);
         decision_level = clingo_assignment_decision_level(values);
         uint32_t max_level = decision_level;
-        if (decision_level < decision_level_literal.size()) {
+        if (decision_level + 1 == decision_level_literal.size()) {
+            state = dret::UNCHANGED;
+        } 
+        else if (decision_level < decision_level_literal.size()) {
             state = dret::BACKTRACK;
             backtrack_level = decision_level;
             // max_level = decision_level_literal.size();
@@ -216,7 +219,7 @@ public:
         else if (is_backtracked == dret::FORWARD) {
             uint32_t trail_at;
             uint32_t start_level = last_trail_level, offset_end, offset_start, literal_inserted;
-            assert(decision_level > last_trail_level);
+            assert(decision_level == 0 || decision_level > last_trail_level);
             for (auto level_at = start_level ; level_at <= decision_level; level_at++) {
                 clingo_assignment_trail_begin(values, level_at, &offset_start);
                 clingo_assignment_trail_end(values, level_at, &offset_end);
@@ -329,8 +332,8 @@ public:
                     #endif
                     // cols_unset->clearBit(col);
                     // cols_vals->setBit(col);
-                    assert((*cols_vals)[col] == 1);
                     assert((*cols_unset)[col] == 0);
+                    assert((*cols_vals)[col] == 1);
                     // if (prev_assigns[*start_literal] == l_False) {
                     //     is_backtracked = true;
                     // }

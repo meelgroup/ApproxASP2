@@ -511,6 +511,9 @@ bool check(clingo_propagate_control_t *control, propagator_t *data)
     if (state != dret::UNCHANGED) {
         data->gmatrixes[0]->forwarding();
     }
+    if (!data->solver->total_assignment) {
+        return true;
+    }
     #ifdef DEBUG_MODE
     auto start_literal = data->solver->literal.begin(); 
     for (auto end_literal = data->solver->literal.end(); start_literal != end_literal ; start_literal++)
