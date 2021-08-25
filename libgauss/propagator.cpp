@@ -465,6 +465,7 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
 {
     // get the thread specific state
     assert(data->solver->ok);
+    assert(!data->solver->is_assignment_conflicting(control));
     auto start = high_resolution_clock::now();
     problem.propagate_called++;
     dret state = data->solver->get_assignment2(control, data->gmatrixes[0]->cols_vals,

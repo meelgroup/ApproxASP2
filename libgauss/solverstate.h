@@ -144,7 +144,7 @@ public:
             backtrack_level = decision_level;
             // max_level = decision_level_literal.size();
         }
-        else if (decision_level > decision_level_literal.size()) {
+        else if (decision_level >= decision_level_literal.size()) {
             state = dret::FORWARD;
         }
         for (uint32_t level = 0; level <= max_level; level++) {
@@ -162,7 +162,7 @@ public:
                 decision_level_literal.push(decision_literal);
             }
         }
-        decision_level_literal.resize(decision_level);
+        decision_level_literal.resize(decision_level + 1);
         auto stop = high_resolution_clock::now();
         problem.time_in_back += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
         
@@ -246,6 +246,9 @@ public:
                         }
                     }
                 }
+                if (level_at == 0 && decision_level_offset.size() == 0) {
+                    decision_level_offset.push(0);
+                }
                 decision_level_offset[level_at] = local_trail.size(); 
             }
         }
@@ -297,10 +300,70 @@ public:
         }
         auto stop = high_resolution_clock::now();
         problem.time_in_assignment += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
+        // debug_assignment(control, cols_vals, cols_unset, var_to_col);
         problem.assignment_called++;
         clingo_assignment_trail_size(values, &last_trail_size);
         last_trail_level = decision_level;
         return is_backtracked;
+    }
+    void debug_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col) {
+        const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
+        auto start_literal = literal.begin(); 
+        clingo_truth_value_t value;
+        for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
+        {
+            #ifdef DEBUG
+            assert(clingo_assignment_has_literal(values, *start_literal));
+            #endif
+            clingo_assignment_truth_value(values, *start_literal, &value);
+            #ifdef DEBUG
+            clingo_assignment_is_true(values, *start_literal, &true_value);
+            clingo_assignment_is_false(values, *start_literal, &false_value);
+            #endif
+            uint32_t col = var_to_col[*start_literal];
+            switch (value)
+            {
+                case clingo_truth_value_true:
+                    #ifdef PREVIOUS_ASSIGN
+                    assigns[*start_literal] = l_True;
+                    #endif
+                    // cols_unset->clearBit(col);
+                    // cols_vals->setBit(col);
+                    assert((*cols_vals)[col] == 1);
+                    assert((*cols_unset)[col] == 0);
+                    // if (prev_assigns[*start_literal] == l_False) {
+                    //     is_backtracked = true;
+                    // }
+                    #ifdef DEBUG
+                    assert(true_value);
+                    #endif
+                    break;
+                case clingo_truth_value_false:
+                    #ifdef PREVIOUS_ASSIGN
+                    assigns[*start_literal] = l_False;
+                    #endif
+                    // cols_unset->clearBit(col);
+                    assert((*cols_unset)[col] == 0);
+                    // assert((*cols_vals)[col] == 0);
+                    // assert((*cols_unset)[col] == 0);
+                    // if (prev_assigns[*start_literal] == l_True) {
+                    //     is_backtracked = true;
+                    // }
+                    #ifdef DEBUG
+                    assert(false_value);
+                    #endif
+                    break;
+                default:
+                    assert((*cols_unset)[col] == 1);
+                    #ifdef PREVIOUS_ASSIGN
+                    assigns[*start_literal] = l_Undef;
+                    #endif
+                    // if (prev_assigns[*start_literal] != l_Undef) {
+                    //     is_backtracked = true;
+                    // }
+                    break;
+            }
+        }
     }
     dret get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
     {
@@ -577,7 +640,8 @@ public:
             //     new_clause[index++] = insert_lit;
             //     printf("%d\t", insert_lit);
             // }
-            cout << "\nCan't insert clause\n";
+            cout << "Can't insert clause\n";
+            return false;
             
         }
         // const clingo_assignment_t *values2 = clingo_propagate_control_assignment(cpc);
