@@ -126,12 +126,15 @@ public:
         const clingo_assignment_t *values = clingo_propagate_control_assignment(cpc);
         decision_level = clingo_assignment_decision_level(values);
         uint32_t max_level = decision_level;
+        if (decision_level + 1 == decision_level_literal.size()) {
+            state = dret::UNCHANGED;
+        }
         if (decision_level < decision_level_literal.size()) {
             state = dret::BACKTRACK;
             backtrack_level = decision_level;
             // max_level = decision_level_literal.size();
         }
-        else if (decision_level > decision_level_literal.size()) {
+        else if (decision_level >= decision_level_literal.size()) {
             state = dret::FORWARD;
         }
         for (uint32_t level = 0; level <= max_level; level++) {
@@ -149,7 +152,7 @@ public:
                 decision_level_literal.push(decision_literal);
             }
         }
-        decision_level_literal.resize(decision_level);
+        decision_level_literal.resize(decision_level + 1);
         auto stop = high_resolution_clock::now();
         // problem.time_in_back += (duration_cast<microseconds>(stop - start).count() / pow(10, 6));
 
@@ -197,7 +200,7 @@ public:
         else if (is_backtracked == dret::FORWARD) {
             uint32_t trail_at;
             uint32_t start_level = last_trail_level, offset_end, offset_start, literal_inserted;
-            assert(decision_level > last_trail_level);
+            assert(decision_level == 0 || decision_level > last_trail_level);
             for (auto level_at = start_level ; level_at <= decision_level; level_at++) {
                 clingo_assignment_trail_begin(values, level_at, &offset_start);
                 clingo_assignment_trail_end(values, level_at, &offset_end);
@@ -226,6 +229,9 @@ public:
                             cols_unset->clearBit(col);
                         }
                     }
+                }
+                if (level_at == 0 && decision_level_offset.size() == 0) {
+                    decision_level_offset.push(0);
                 }
                 decision_level_offset[level_at] = local_trail.size(); 
             }
@@ -395,7 +401,7 @@ public:
             // else if (!is_assignment_conflicting(cpc)) {	
             //     assert(false);	
             // }	
-            assert(!result);  // this is conflicting	
+            // assert(!result);  // this is conflicting	
         }	
         // if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
         // {	
