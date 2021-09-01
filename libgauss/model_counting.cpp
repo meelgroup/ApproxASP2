@@ -42,7 +42,7 @@ using std::endl;
 using namespace std::chrono;
 std::list<int> numHashList, numCountList, medianComputeList;
 //TODO fix!!!
-#define TIMEOUT 1000
+#define TIMEOUT 5000
 
 int findMin(std::list<int> numList)
 {
