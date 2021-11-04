@@ -278,11 +278,23 @@ std::string get_parity_predicate(string term, int xor_id, int parity)
     return pred;
 }
 
+std::string get_parity(int parity)
+{
+    assert(parity == 0 || parity == 1);
+    std::string pred = "";
+    if (parity)
+        pred += "&odd{ ";
+    else
+        pred += "&even{ ";
+    return pred;
+}
+
 void translation(
     clingo_control_t **ctl,
     Configuration *con,
     bool debug,
     std::ostream &debug_file,
+    std::ostream &xorro_file,
     unsigned start,
     int end
 ) {
@@ -296,15 +308,24 @@ void translation(
     auto start_itr = con->xor_cons.begin() + start - 1;
     auto end_itr = con->xor_cons.begin() + end;
     std::string string_added;
+    std::string string_added_xorro;
     while (start_itr != end_itr) {
         bool parity = (*start_itr).rhs;
         auto terms = (*start_itr).literals;
         auto start_term = terms.begin();
         string_added += get_parity_predicate("", start - 1, (int)parity);
+        string_added_xorro += get_parity((int) parity);
         while (start_term != terms.end()) {
             string term = atom_to_symbol(*start_term, con);
             std::string temp = get_parity_predicate(term, start - 1, (int)parity);
             string_added += temp;
+            string_added_xorro += (term + ":" + term);
+            if (start_term + 1 == terms.end()) {
+                string_added_xorro += "}. ";
+            }
+            else {
+                string_added_xorro += ";";
+            }
             myfile << temp << std::endl;
             start_term++;
         }
@@ -316,12 +337,13 @@ void translation(
     myfile.close();
 
     if (debug) {
-        debug_file << string_added << std::endl;
+        xorro_file << string_added << std::endl;
+        debug_file << string_added_xorro << std::endl;
         std::string condition;
         condition =
             ":- { __parity(ID,even,X) } = N, N\\2!=0, __parity(ID,even).  \
             :- { __parity(ID,odd ,X) } = N, N\\2!=1, __parity(ID,odd).";
-        debug_file << condition << std::endl;
+        xorro_file << condition << std::endl;
     }
     clingo_control_add(*ctl, "base", NULL, 0, string_added.c_str());
 }

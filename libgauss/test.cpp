@@ -283,6 +283,8 @@ int main(int argc, char const **argv)
             problem.asp_file = std::string(argv[++scan]);
         } else if (!strcmp(arg, "--seed")) {
             problem.seed = atoi(argv[++scan]);
+        } else if (!strcmp(arg, "--k")) {
+            problem.xors = atoi(argv[++scan]);
         } else if (!strcmp(arg, "--input")) {
             problem.input_file = (char *)malloc(sizeof(char) * (strlen(argv[scan++]) + 1));
             strcpy(problem.input_file, argv[scan]);
@@ -403,7 +405,7 @@ int main(int argc, char const **argv)
     // user data for the propagator
     propagator_t prop_data = {};
     bool debug = true;
-    std::ofstream debug_out;
+    std::ofstream debug_out, xorro_file;
 
     // Need to test several time
     // scan = 0;
@@ -436,11 +438,14 @@ int main(int argc, char const **argv)
     if (debug) {
         std::ifstream fin;
         fin.open(problem.asp_file);
-        debug_out.open("debug.txt", std::ios::trunc);
+        debug_out.open(problem.asp_file + ".xorro.lp", std::ios::trunc);
+        xorro_file.open("xorro.lp", std::ios::trunc);
         debug_out << fin.rdbuf() << std::endl;
+        xorro_file << fin.rdbuf() << std::endl;
         if (problem.input_file) {
             fin.open(problem.input_file);
             debug_out << fin.rdbuf() << std::endl;
+            xorro_file << fin.rdbuf() << std::endl;
         }
     }
 
@@ -449,9 +454,11 @@ int main(int argc, char const **argv)
         goto error;
     }
     get_symbol_atoms(ctl, &problem);
-    
-    generate_k_xors(18, &problem);
-    translation(&ctl, &problem, debug, debug_out, 1, -1);
+    if (problem.xors == 0) {
+        problem.xors =1;
+    }
+    generate_k_xors(problem.xors, &problem);
+    translation(&ctl, &problem, debug, debug_out, xorro_file, 1, -1);
     if (!clingo_control_ground(ctl, parts, 1, NULL, NULL)) {
         goto error;
     }

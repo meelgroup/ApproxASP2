@@ -81,6 +81,7 @@ std::vector<XOR> xor_cons;
 std::vector<int> independent_support;
 
 unsigned xor_last_added;
+unsigned xors;
 
 double time_in_clasp;
 int assignment_called;
@@ -119,12 +120,14 @@ void get_symbol_atoms(clingo_control_t *ctl, Configuration *con);
 void print_all(Configuration *con);
 void generate_k_xors(unsigned k, Configuration *con);
 void add_execution_time(clingo_control_t *ctl, Configuration *con);
+std::string get_parity(int parity);
 std::string get_parity_predicate(string term, int xor_id, int parity);
 void translation(
     clingo_control_t **ctl,
     Configuration *con,
     bool debug,
     std::ostream &debug_file,
+    std::ostream &xorro_file,
     unsigned start,
     int end
 );
