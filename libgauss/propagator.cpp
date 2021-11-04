@@ -315,7 +315,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         // cout << "temp_xorclause size: " << temp_xorclause.size() << endl;
         xorclauses.push_back(Xor(temp_xorclause, xorparity[each_xor->first]));
     }
-    printf("largest_var %d.\n", largest_var);
+    // printf("largest_var %d.\n", largest_var);
     assert(xorclauses.size() == xor_count);
     #ifdef DEBUG_MODE
     for (int i = 0; i < xorclauses.size(); i++) {

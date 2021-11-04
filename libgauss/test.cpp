@@ -265,7 +265,7 @@ int main(int argc, char const **argv)
     clingo_control_t *ctl = NULL;
     clingo_part_t parts[] = {{"base", NULL, 0}};
     model_buffer_t buf = {NULL, 0, NULL, 0};
-    printf("%f, %f, %u.\n", problem.conf, problem.tol, problem.interval);
+    // printf("%f, %f, %u.\n", problem.conf, problem.tol, problem.interval);
 
     int scan = 1;
     char *arg;
@@ -474,17 +474,18 @@ int main(int argc, char const **argv)
         cout << "c execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " seconds." << endl;
     }
     cout << "c time spent in clingo assignemnt: " << problem.time_in_assignment << endl;
-    cout << "c time spent in backtrack: " << problem.time_in_back << endl;
-    cout << "c clingo assignemnt is called: " << problem.assignment_called << endl;
+    // cout << "c time spent in backtrack: " << problem.time_in_back << endl;
+    // cout << "c clingo assignemnt is called: " << problem.assignment_called << endl;
     cout << "c time spent in clingo add clause: " << problem.time_in_add_clause << endl;
-    cout << "c clingo add clause is called: " << problem.add_clause_called << endl;
+    // cout << "c clingo add clause is called: " << problem.add_clause_called << endl;
     cout << "c time spent in GJE: " << problem.time_in_gje << endl;
-    cout << "c time spent in GJE (check): " << problem.time_in_gje_check << endl;
-    cout << "c time spent in GJE (propagate): " << problem.time_in_gje_propagate << endl;
-    cout << "c check called: " << problem.check_called << endl;
-    cout << "c propagate called: " << problem.propagate_called << endl;
+    // cout << "c time spent in GJE (check): " << problem.time_in_gje_check << endl;
+    // cout << "c time spent in GJE (propagate): " << problem.time_in_gje_propagate << endl;
+    // cout << "c check called: " << problem.check_called << endl;
+    // cout << "c propagate called: " << problem.propagate_called << endl;
     add_execution_time(ctl, &problem);
-    prop_data.solver->printStatistics();
+    // prop_data.solver->printStatistics();
+    
     // printf("%g", problem.time_in_clasp);
     goto out;
 
