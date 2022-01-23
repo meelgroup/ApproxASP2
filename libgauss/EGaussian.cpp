@@ -119,34 +119,20 @@ void EGaussian::canceling() {
     // }
     // clauses_toclear.resize(clauses_toclear.size() - a);
     memset(satisfied_xors.data(), 0, satisfied_xors.size());
-    // THIS HEURISTICS IS UNIMPLEMENTED
-    // uint32_t num_row = 0, col = 0;
+    // uint32_t num_row = 0;
     // for (auto itr = satisfied_xors_until.begin(); itr != satisfied_xors_until.end(); itr++, num_row++) {
     //     if (*itr == 0) {
     //         continue;
-    //     }
+    //     } 
     //     else {
-    //         if (*itr > 0) {
-    //             col = var_to_col[*itr];
-    //             if ((*cols_unset)[col] == 0 && (*cols_vals)[col] == 1) {
-    //                 satisfied_xors[num_row] = 1;
-    //             }
-    //             else {
-    //                 satisfied_xors_until[num_row] = 0;
-    //             }
-    //         }
-    //         else if (*itr < 0) {
-    //             col = var_to_col[abs(*itr)];
-    //             if ((*cols_unset)[col] == 0 && (*cols_vals)[col] == 0) {
-    //                 satisfied_xors[num_row] = 1;
-    //             }
-    //             else {
-    //                 satisfied_xors_until[num_row] = 0;
-    //             }
+    //         if (*itr < solver->backtrackLevel()) {
+    //             satisfied_xors[num_row] = 1;
+    //         } else {
+    //             *itr = 0;
+    //             satisfied_xors[num_row] = 0;
     //         }
     //     }
     // }
-    // THIS HEURISTICS IS UNIMPLEMENTED
     // PackedMatrix::iterator rowIt = clause_state.beginMatrix();
     // (*rowIt).setZero(); //forget state
 }
@@ -163,9 +149,9 @@ void EGaussian::forwarding() {
     // (*rowIt).setZero(); //forget state
 }
 
-void EGaussian::mark_sat(uint32_t num_row, clingo_literal_t lit) {
+void EGaussian::mark_sat(uint32_t num_row, uint32_t level) {
     satisfied_xors[num_row] = 1;
-    satisfied_xors_until[num_row] = lit;
+    satisfied_xors_until[num_row] = level;
 }
 
 uint32_t EGaussian::select_columnorder(matrixset& origMat) {
@@ -295,25 +281,96 @@ bool EGaussian::clean_xors()
     return true;
 }
 
+bool EGaussian::clean_one_xor(Xor& x, bool &prop)
+{
+    bool rhs = x.rhs;
+    size_t i = 0;
+    size_t j = 0;
+    for(size_t size = x.size(); i < size; i++) {
+        uint32_t var = x[i];
+        if (solver->assigns[var] != l_Undef) {
+            rhs ^= solver->assigns[var] == l_True;
+        } else {
+            x[j++] = var;
+        }
+    }
+    x.resize(j);
+    x.rhs = rhs;
+
+    switch(x.size()) {
+        case 0:
+            solver->ok &= !x.rhs;
+            return false;
+
+        case 1: {
+            vector<clingo_literal_t> clause;
+            clause.clear();
+            if (x.rhs) 
+                clause.push_back(x[0]);
+            else
+                clause.push_back(-x[0]);
+            solver->ok = solver->add_initial_clause(clause);
+            prop = true;
+            return false;
+        }
+        default: {
+            return true;
+        }
+    }
+}
+
+bool EGaussian::clean_xor_clauses(vector<Xor>& xors, bool &prop)
+{
+    assert(solver->ok);
+
+    // size_t last_trail = std::numeric_limits<size_t>::max();
+    // while(last_trail != solver->trail_size()) {
+    //     last_trail = solver->trail_size();
+        size_t i = 0;
+        size_t j = 0;
+        for(size_t size = xors.size(); i < size; i++) {
+            Xor& x = xors[i];
+            //cout << "Checking to keep xor: " << x << endl;
+            const bool keep = clean_one_xor(x, prop);
+            if (!solver->ok) {
+                return false;
+            }
+
+            if (keep) {
+                xors[j++] = x;
+            }
+        }
+        xors.resize(j);
+    // }
+    return solver->okay();
+}
+
 bool EGaussian::full_init(bool& created) {
     assert(solver->ok);
     assert(solver->decisionLevel() == 0);
-    bool do_again_gauss = true;
+    bool do_again_gauss = true, prop;
     created = true;
     if (!clean_xors()) {
         return false;
     }
     while (do_again_gauss) { // need to chekc
     
-        do_again_gauss = false;
+        do_again_gauss = false, prop = false;
         solver->sum_initEnGauss++;
-        assert(solver->value(solver->num_of_vars) == l_Undef);
+        // assert(solver->value(solver->num_of_vars) == l_Undef);
          // to gather statistics
         
         // if (!solver->clauseCleaner->clean_xor_clauses(xorclauses)) {
         //     return false;
         // } by mahi
-        assert(solver->value(solver->num_of_vars) == l_Undef);
+        // assert(solver->value(solver->num_of_vars) == l_Undef);
+        if (!clean_xor_clauses(xorclauses, prop)) {
+            return false;
+        }
+        if (prop) {
+            do_again_gauss = true;
+            continue;
+        }
 
         fill_matrix(matrix);
         if (matrix.num_rows == 0 || matrix.num_cols == 0) {
@@ -701,6 +758,7 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             }
             // (*clauseIt).setBit(row_n); // this clause arleady sat
             satisfied_xors[row_n] = 1;
+            // satisfied_xors_until[row_n] = solver->decisionLevel();
             return true;
         default:
             assert(false); // can not here
@@ -785,6 +843,7 @@ void EGaussian::check_xor(GaussQData& gqd, bool& early_stop) {
                 // n",num_row);
                 // (*clauseIt).setBit(num_row);        // this clause arleady sat
                 satisfied_xors[num_row] = 1;
+                // satisfied_xors_until[num_row] = solver->decisionLevel();
                 break;
             
             default:
@@ -911,6 +970,7 @@ void EGaussian::eliminate_col2(uint32_t p, GaussQData& gqd, bool& early_stop) {
                         matrix.nb_rows[num_row] = p; // update in this row non_basic variable
                         solver->add_watch_literal(p);
                         satisfied_xors[num_row] = 1;
+                        // satisfied_xors_until[num_row] = solver->decisionLevel();
                         // (*clauseIt).setBit(num_row);        // this clause arleady sat
                         break;
                     default:

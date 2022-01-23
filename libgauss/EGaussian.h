@@ -89,6 +89,8 @@ class EGaussian {
 
 
     bool clean_xors();
+    bool clean_one_xor(Xor& x, bool &prop);
+    bool clean_xor_clauses(vector<Xor>& xors, bool &prop);
     void clear_gwatches(const uint32_t var);
     void print_matrix(matrixset& m) const ;   // print matrix
     void eliminate(matrixset& m) ;            //gaussian elimination
@@ -121,7 +123,7 @@ class EGaussian {
     vector<char> satisfied_xors;
     //Is the clause at this ROW satisfied already?
     //satisfied_xors[decision_level][row] tells me that
-    vector<clingo_literal_t> satisfied_xors_until;
+    vector<uint32_t> satisfied_xors_until;
     //Is the clause at this ROW checked already?
     //unresolved_xors[decision_level][row] tells me that
     vector<char> unresolved_xors;
@@ -131,7 +133,7 @@ class EGaussian {
     // functiion
     void canceling(); //functions used throughout the Solver
     void forwarding(); //functions used throughout the Solver
-    void mark_sat(uint32_t num_row, clingo_literal_t lit);
+    void mark_sat(uint32_t num_row, uint32_t level);
     bool full_init(bool& created);  // initial arrary. return true is fine , return false means solver already false;
     void fill_matrix(matrixset& origMat); // Fills the origMat matrix
     uint32_t select_columnorder(matrixset& origMat); // Fills var_to_col and col_to_var of the origMat matrix.

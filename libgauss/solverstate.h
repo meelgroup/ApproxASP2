@@ -119,6 +119,10 @@ public:
     {
         return decision_level;
     }
+    uint32_t backtrackLevel()
+    {
+        return backtrack_level;
+    }
     dret has_backtracked() {
         auto start = high_resolution_clock::now();
         dret state = dret::UNCHANGED;
@@ -126,6 +130,9 @@ public:
         const clingo_assignment_t *values = clingo_propagate_control_assignment(cpc);
         decision_level = clingo_assignment_decision_level(values);
         uint32_t max_level = decision_level;
+        // if (decision_level + 1 == decision_level_literal.size()) {
+        //     state = dret::UNCHANGED;
+        // }
         if (decision_level < decision_level_literal.size()) {
             state = dret::BACKTRACK;
             backtrack_level = decision_level;
@@ -227,6 +234,9 @@ public:
                         }
                     }
                 }
+                // if (level_at == 0 && decision_level_offset.size() == 0) {
+                //     decision_level_offset.push(0);
+                // }
                 decision_level_offset[level_at] = local_trail.size(); 
             }
         }
@@ -395,7 +405,7 @@ public:
             // else if (!is_assignment_conflicting(cpc)) {	
             //     assert(false);	
             // }	
-            assert(!result);  // this is conflicting	
+            // assert(!result);  // this is conflicting	
         }	
         // if (!is_conflict_clause && !clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
         // {	
@@ -436,7 +446,43 @@ public:
         // propagate it
         if (!clingo_propagate_init_propagate(cpi, &result)) { return false; }
         if (!result) { return false; }
+        const clingo_assignment_t *values = clingo_propagate_init_assignment(cpi);
+        auto start_literal = literal.begin(); 
+        assigns.assign(nVars(), l_Undef);
+        clingo_truth_value_t value;
+        for (auto end_literal = literal.end(); start_literal != end_literal ; start_literal++)
+        {
+            clingo_assignment_truth_value(values, *start_literal, &value);
+            switch (value)
+            {
+                case clingo_truth_value_true:
+                    assigns[*start_literal] = l_True;
+                    break;
+                case clingo_truth_value_false:
+                    assigns[*start_literal] = l_False;
+                    break;
+                default:
+                    break;
+            }
+        }
         return true;
+    }
+    bool make_unsat() {
+        assert(cpi);
+        clingo_literal_t* new_clause = (clingo_literal_t *)malloc (sizeof(clingo_literal_t));
+        // if (clause[0].sign()) {
+        //     new_clause[0] = -clause[0].var();
+        // }
+        // else {
+        //     new_clause[0] = clause[0].var();
+        // }
+        bool result;
+        // add the clause
+        if (!clingo_propagate_init_add_clause(cpi, new_clause, 0, &result)) { return false; }
+        if (!result) { return false; }
+        // propagate it
+        if (!clingo_propagate_init_propagate(cpi, &result)) { return false; }
+        if (!result) { return false; }
     }
 };
 
