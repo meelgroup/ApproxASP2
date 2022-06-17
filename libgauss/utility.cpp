@@ -141,6 +141,28 @@ std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream)
     return reservoir;
 }
 
+int find_best_sparse_match(Configuration *con)
+{
+    for(int i = 0; i < (int)con->constants.index_var_maps.size(); i++) {
+        if (con->constants.index_var_maps[i].vars_to_inclusive >= con->active_atoms.size()) {
+            if (true) {
+                std::cout << "c [sparse] Using match: " << i
+                << " sampling set size: " << con->active_atoms.size()
+                << " prev end inclusive is: " << (i == 0 ? -1 : (int)con->constants.index_var_maps[i-1].vars_to_inclusive)
+                << " this end inclusive is: " << con->constants.index_var_maps[i].vars_to_inclusive
+                << " next end inclusive is: " << ((i+1 < (int)con->constants.index_var_maps.size()) ? ((int)con->constants.index_var_maps[i+1].vars_to_inclusive) : -1)
+                << " sampl size: " << con->active_atoms.size()
+                << std::endl;
+            }
+
+            return i;
+        }
+    }
+
+    std::cout << "c [sparse] No match. Using default 0.5" << std::endl;
+    return -1;
+}
+
 void get_symbol_atoms(clingo_control_t *ctl, Configuration *con)
 {
     assert(ctl != NULL);
@@ -206,6 +228,7 @@ void print_all(Configuration *con)
 void generate_k_xors(unsigned k, Configuration *con)
 {
     assert(k >= con->xor_cons.size());
+    find_best_sparse_match(con);
     srand(con->seed);
     //srand(0);
     int xor_generated = k - con->xor_cons.size();

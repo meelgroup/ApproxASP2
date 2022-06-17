@@ -25,6 +25,7 @@
 
 #ifndef UTILITY_H_
 #define UTILITY_H_
+#include "iterations.h"
 #include <assert.h>
 #include <clingo.h>
 #include <math.h>
@@ -77,6 +78,7 @@ std::vector<clingo_symbol_t> active_atoms_ind_sup;
 std::set<std::string> independent_sup_symbols;
 std::unordered_map<clingo_symbol_t, string> atom_symbol_map;	
 std::unordered_map<clingo_literal_t, clingo_symbol_t> literal_atom_map;
+const Constants constants;
 unsigned number_of_active_atoms;
 
 std::vector<XOR> xor_cons;
@@ -124,5 +126,6 @@ void translation(
     unsigned start,
     int end
 );
+int find_best_sparse_match(Configuration *con);
 
 #endif //UTILITY_H_
