@@ -121,4 +121,4 @@ for index, item in enumerate(l):
         independent_support_string += item
 
 os.system('echo "{0}" > IS_{1}'.format(independent_support_string, file_name))
-os.system('rm normalized_{0}'.format(file_name))
+os.system('rm normalized_{0} cnf_{0}'.format(file_name))
