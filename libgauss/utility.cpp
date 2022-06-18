@@ -38,10 +38,10 @@
 
 using std::string;
 extern Configuration problem;
-int compute_pivot(float xi)
+int compute_pivot(float xi, double thresh)
 {
     assert(xi > 0.0 && xi < 1.0);
-    return (int)1 + 9.84 * (1 + (xi / (1 + xi))) * pow((1 + 1 / xi), 2);
+    return (int) 1 + thresh * 9.84 * (1 + (xi / (1 + xi))) * pow((1 + 1 / xi), 2);
 }
 
 int compute_iteration(Configuration *con)
@@ -114,11 +114,11 @@ string atom_to_symbol(clingo_symbol_t atom, Configuration *con)
     return it->second;	
 }
 
-std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream)
+std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream, double sparse_prob)
 {
     int i; // index for elements in stream[]
     int n = stream.size();
-    int k = n / 2;
+    int k = ceil(n * sparse_prob);
     std::vector<clingo_symbol_t> reservoir;
     for (i = 0; i < k; i++)
         reservoir.push_back(stream[i]);
@@ -225,19 +225,43 @@ void print_all(Configuration *con)
         std::cout << e << "\n";
 }
 
-void generate_k_xors(unsigned k, Configuration *con)
+void generate_k_xors(unsigned k, Configuration *con, SparseData& sparse_data)
 {
     assert(k >= con->xor_cons.size());
-    find_best_sparse_match(con);
+    
     srand(con->seed);
     //srand(0);
     int xor_generated = k - con->xor_cons.size();
-    for (int i = 0; i < xor_generated; i++) {
+    for (int hash_index = 0; hash_index < xor_generated; hash_index++) {
         XOR new_xor;
+        // the sparse hashing part is here
+        if (con->use_sparse && sparse_data.table_no != -1)
+        {
+            // Do we need to update the probability?
+            const auto &table = con->constants.index_var_maps[sparse_data.table_no];
+            const auto next_var_index = table.index_var_map[sparse_data.next_index];
+            if (hash_index >= next_var_index)
+            {
+                sparse_data.sparseprob = con->constants.probval[sparse_data.next_index];
+                sparse_data.next_index = std::min<uint32_t>(
+                    sparse_data.next_index + 1, table.index_var_map.size() - 1);
+            }
+            assert(sparse_data.sparseprob <= 0.5);
+            // cutoff = std::ceil(1000.0 * sparse_data.sparseprob);
+            if (false)
+            {
+                std::cout << "c [sparse] cutoff: " << sparse_data.sparseprob
+                     << " table: " << sparse_data.table_no
+                     << " lookup index: " << sparse_data.next_index
+                     << " hash index: " << hash_index
+                     << std::endl;
+            }
+        }
+        // sparse hashing part ends
         if (problem.use_ind_sup)
-            new_xor.literals = selectKItems(con->active_atoms_ind_sup);
+            new_xor.literals = selectKItems(con->active_atoms_ind_sup, sparse_data.sparseprob);
         else
-            new_xor.literals = selectKItems(con->active_atoms);
+            new_xor.literals = selectKItems(con->active_atoms, sparse_data.sparseprob);
         new_xor.rhs = rand() % 2;
         // std::cout << "new_xor.rhs: " << new_xor.rhs << std::endl;
         con->xor_cons.push_back(new_xor);

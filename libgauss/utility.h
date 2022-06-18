@@ -63,6 +63,7 @@ std::vector<float> confidences;
 
 std::string asp_file;
 std::string independent_set;
+bool use_sparse;
 std::string parity_string;
 std::vector<std::string> xor_parity_string;
 char* input_file;
@@ -102,7 +103,17 @@ char *string;
 size_t string_n;
 } string_buffer_t;
 
-int compute_pivot(float xi);
+struct SparseData {
+    explicit SparseData(int _table_no) :
+        table_no(_table_no)
+    {}
+
+    uint32_t next_index = 0;
+    double sparseprob = 0.5;
+    int table_no = -1;
+};
+
+int compute_pivot(float xi, double thresh);
 int compute_iteration(Configuration *con);
 float in_range(char const *label, float conf);
 float confidence(char const *label, float value);
@@ -114,7 +125,7 @@ string atom_to_symbol(clingo_symbol_t atom, Configuration *con);
 std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream);
 void get_symbol_atoms(clingo_control_t *ctl, Configuration *con);
 void print_all(Configuration *con);
-void generate_k_xors(unsigned k, Configuration *con);
+void generate_k_xors(unsigned k, Configuration *con, SparseData& sparse_data);
 void add_execution_time(clingo_control_t *ctl, Configuration *con);
 std::string get_parity_predicate(string term, int xor_id, int parity);
 std::string get_parity_string(Configuration *con, int m_value);

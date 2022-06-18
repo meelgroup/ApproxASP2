@@ -279,12 +279,47 @@ SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con, int counte
     return solCount;
 }
 
+void set_up_probs_measurements(
+    Configuration *con, SparseData& sparse_data)
+{
+    //Set up probabilities, threshold and measurements
+    int best_match = find_best_sparse_match(con);
+
+    if (con->use_sparse && best_match != -1) {
+        sparse_data = SparseData(best_match);
+    } else {
+        con->use_sparse = false;
+    }
+}
+
+void set_up_threshold_measurements(
+    Configuration *con, SparseData& sparse_data)
+{
+    //Set up probabilities, threshold and measurements
+    int best_match = find_best_sparse_match(con);
+    if (con->use_sparse && best_match != -1) {
+        con->thresh = compute_pivot(con->tol, 1.1);
+        cout << "Setting new threshold: " << con->thresh+1 << endl;
+        // setting new threshold
+        char pivot_str[6];
+        sprintf(pivot_str, "-n %d", con->thresh+1);
+        // std::string my_string(con->asp_argument[con->argu_count-1]);
+        // cout << my_string << endl;
+        con->asp_argument[con->argu_count-1] = pivot_str;
+        // my_string.clear();
+        // my_string.assign(con->asp_argument[con->argu_count-1], 10);
+        // cout << my_string << endl;
+    }
+}
+
 void ApproxSMC(clingo_control_t* control, Configuration* con)
 {
     // clingo_part_t parts[] = {{"base", NULL, 0}};
     // clingo_control_new(con->asp_argument, con->argu_count, NULL, NULL, 20, &control);
     SATCount solCount;
     do_initial_setup(&control, con, 0);
+    SparseData sparse_data(-1);
+    set_up_probs_measurements(con, sparse_data);
     get_symbol_atoms(control, con);
     con->number_of_active_atoms = con->active_atoms.size();
     if (problem.use_ind_sup)
@@ -297,12 +332,12 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
         return;
     }
     cout << "The problem has more than thresh number of solutions" << endl;
-    
+    set_up_threshold_measurements(con, sparse_data);
     // the problem is not trivial, so we are running approxmc
     int counter = 0;
     while (counter < con->t) {
         counter++;
-        generate_k_xors(con->number_of_active_atoms - 1, con);
+        generate_k_xors(con->number_of_active_atoms - 1, con, sparse_data);
         translation(&control, con, false, std::cout, 1, -1);
         solCount = ApproxSMCCore(control, con, counter);
         con->xor_cons.clear();

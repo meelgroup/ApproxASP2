@@ -290,6 +290,8 @@ int main(int argc, char const **argv)
             strcpy(problem.input_file, argv[scan]);
         } else if (!strcmp(arg, "--useind")) {
             problem.independent_set = std::string(argv[++scan]);
+        } else if (!strcmp(arg, "--sparse")) {
+            problem.use_sparse = true;
         }
 
         else {
@@ -341,7 +343,7 @@ int main(int argc, char const **argv)
          << "..." << endl;
 
     // compute pivot
-    problem.thresh = compute_pivot(problem.tol);
+    problem.thresh = compute_pivot(problem.tol, 1);
     // compute delta
     problem.t = compute_iteration(&problem);
     if (!problem.independent_set.empty()) {
@@ -417,9 +419,9 @@ int main(int argc, char const **argv)
     ApproxSMC(ctl, &problem);
     auto stop = high_resolution_clock::now();
     // create a control object and pass command line arguments
-    if (!clingo_control_new(problem.asp_argument, problem.argu_count, NULL, NULL, 20, &ctl) != 0) {
-        goto error;
-    }
+    // if (!clingo_control_new(problem.asp_argument, problem.argu_count, NULL, NULL, 20, &ctl) != 0) {
+    //     goto error;
+    // }
 
     // register propagator object
     // clingo_control_register_propagator(ctl, &prop, &prop_data, false);
