@@ -160,6 +160,8 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
         if (!model)
             break;
         model_count++;
+        if (model_count > con->thresh) 
+            break;
     }
     clingo_solve_handle_cancel(handle);
     add_execution_time(ctl, con);
@@ -287,28 +289,11 @@ void set_up_probs_measurements(
 
     if (con->use_sparse && best_match != -1) {
         sparse_data = SparseData(best_match);
+        con->thresh = compute_pivot(con->tol, 1.1);
     } else {
         con->use_sparse = false;
-    }
-}
-
-void set_up_threshold_measurements(
-    Configuration *con, SparseData& sparse_data)
-{
-    //Set up probabilities, threshold and measurements
-    int best_match = find_best_sparse_match(con);
-    if (con->use_sparse && best_match != -1) {
-        con->thresh = compute_pivot(con->tol, 1.1);
-        cout << "Setting new threshold: " << con->thresh+1 << endl;
-        // setting new threshold
-        char pivot_str[6];
-        sprintf(pivot_str, "-n %d", con->thresh+1);
-        // std::string my_string(con->asp_argument[con->argu_count-1]);
-        // cout << my_string << endl;
-        con->asp_argument[con->argu_count-1] = pivot_str;
-        // my_string.clear();
-        // my_string.assign(con->asp_argument[con->argu_count-1], 10);
-        // cout << my_string << endl;
+        con->thresh = compute_pivot(con->tol, 1);
+        cout << "c Using default 0.5 probability as sparse probability !!!" << endl;
     }
 }
 
@@ -319,11 +304,13 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
     SATCount solCount;
     do_initial_setup(&control, con, 0);
     SparseData sparse_data(-1);
-    set_up_probs_measurements(con, sparse_data);
+    
     get_symbol_atoms(control, con);
     con->number_of_active_atoms = con->active_atoms.size();
     if (problem.use_ind_sup)
         con->number_of_active_atoms = con->active_atoms_ind_sup.size();
+    // sparse counting 
+    set_up_probs_measurements(con, sparse_data);
     // first of all checking whether the problem is trivial or not
     unsigned result = Bounded_counter(control, con, 0);
     if (result <= con->thresh) {
@@ -332,7 +319,7 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
         return;
     }
     cout << "The problem has more than thresh number of solutions" << endl;
-    set_up_threshold_measurements(con, sparse_data);
+
     // the problem is not trivial, so we are running approxmc
     int counter = 0;
     while (counter < con->t) {

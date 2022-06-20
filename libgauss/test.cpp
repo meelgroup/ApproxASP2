@@ -343,7 +343,12 @@ int main(int argc, char const **argv)
          << "..." << endl;
 
     // compute pivot
-    problem.thresh = compute_pivot(problem.tol, 1);
+    if (problem.use_sparse) {
+        problem.thresh = compute_pivot(problem.tol, 1.1);
+    }
+    else {
+        problem.thresh = compute_pivot(problem.tol, 1);
+    }
     // compute delta
     problem.t = compute_iteration(&problem);
     if (!problem.independent_set.empty()) {

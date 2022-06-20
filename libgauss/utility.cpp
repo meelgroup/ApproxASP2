@@ -144,14 +144,14 @@ std::vector<clingo_symbol_t> selectKItems(std::vector<clingo_symbol_t> stream, d
 int find_best_sparse_match(Configuration *con)
 {
     for(int i = 0; i < (int)con->constants.index_var_maps.size(); i++) {
-        if (con->constants.index_var_maps[i].vars_to_inclusive >= con->active_atoms.size()) {
+        if (con->constants.index_var_maps[i].vars_to_inclusive >= con->number_of_active_atoms) {
             if (true) {
                 std::cout << "c [sparse] Using match: " << i
-                << " sampling set size: " << con->active_atoms.size()
+                << " sampling set size: " << con->number_of_active_atoms
                 << " prev end inclusive is: " << (i == 0 ? -1 : (int)con->constants.index_var_maps[i-1].vars_to_inclusive)
                 << " this end inclusive is: " << con->constants.index_var_maps[i].vars_to_inclusive
                 << " next end inclusive is: " << ((i+1 < (int)con->constants.index_var_maps.size()) ? ((int)con->constants.index_var_maps[i+1].vars_to_inclusive) : -1)
-                << " sampl size: " << con->active_atoms.size()
+                << " sampl size: " << con->number_of_active_atoms
                 << std::endl;
             }
 
