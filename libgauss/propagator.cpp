@@ -318,7 +318,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         xorclauses.push_back(Xor(temp_xorclause, xorparity[each_xor->first]));
     }
     // printf("largest_var %d.\n", largest_var);
-    assert(xorclauses.size() == xor_count);
+    // assert(xorclauses.size() == xor_count);
     if (xor_count > 0) {
         data->gqueuedata.clear();
         clearEnGaussMatrixes(data);
