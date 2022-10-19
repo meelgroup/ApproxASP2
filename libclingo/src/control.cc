@@ -608,6 +608,11 @@ extern "C" bool clingo_assignment_decision(clingo_assignment_t const *ass, uint3
     GRINGO_CLINGO_CATCH;
 }
 
+// extern "C" bool clingo_assignment_changes_next(clingo_assignment_t const *ass, clingo_literal_t *ret) {
+//     GRINGO_CLINGO_TRY { *ret = ass->nextdel(); }
+//     GRINGO_CLINGO_CATCH;
+// }
+
 extern "C" bool clingo_assignment_is_fixed(clingo_assignment_t const *ass, clingo_literal_t lit, bool *ret) {
     GRINGO_CLINGO_TRY { *ret = ass->isFixed(lit); }
     GRINGO_CLINGO_CATCH;

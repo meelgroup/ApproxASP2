@@ -1065,6 +1065,8 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_trail_end(clingo_assignment_t c
 //! @return whether the call was successful
 CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_trail_at(clingo_assignment_t const *assignment, uint32_t offset, clingo_literal_t *literal);
 
+// CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_changes_next(clingo_assignment_t const *assignment, clingo_literal_t *literal);
+
 //! @}
 
 //! Supported check modes for propagators.
