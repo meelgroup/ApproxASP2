@@ -457,6 +457,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
 }
 
 bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
+            const clingo_literal_t *del, size_t del_size,
                propagator_t *data)
 {
     auto start = high_resolution_clock::now();

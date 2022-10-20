@@ -1349,7 +1349,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_propagate_control_propagate(clingo_propaga
 typedef bool (*clingo_propagator_init_callback_t) (clingo_propagate_init_t *, void *);
 
 //! Typedef for @ref ::clingo_propagator::propagate().
-typedef bool (*clingo_propagator_propagate_callback_t) (clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *);
+typedef bool (*clingo_propagator_propagate_callback_t) (clingo_propagate_control_t *, clingo_literal_t const *, size_t, clingo_literal_t const *, size_t, void *);
 
 //! Typedef for @ref ::clingo_propagator::undo().
 typedef void (*clingo_propagator_undo_callback_t) (clingo_propagate_control_t const *, clingo_literal_t const *, size_t, void *);
@@ -1412,7 +1412,7 @@ typedef struct clingo_propagator {
     //! @param[in] data user data for the callback
     //! @return whether the call was successful
     //! @see ::clingo_propagator_propagate_callback_t
-    bool (*propagate) (clingo_propagate_control_t *control, clingo_literal_t const *changes, size_t size, void *data);
+    bool (*propagate) (clingo_propagate_control_t *control, clingo_literal_t const *changes, size_t size, clingo_literal_t const *del, size_t del_size, void *data);
     //! Called whenever a solver undoes assignments to watched solver literals.
     //!
     //! This callback is meant to update assignment dependent state in the propagator.

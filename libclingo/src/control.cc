@@ -1910,8 +1910,8 @@ public:
         if (prop_.init && !prop_.init(&init, data_)) { throw ClingoError(); }
     }
 
-    void propagate(Potassco::AbstractSolver& solver, ChangeList const &changes) override {
-        if (prop_.propagate && !prop_.propagate(static_cast<clingo_propagate_control_t*>(&solver), changes.first, changes.size, data_)) { throw ClingoError(); }
+    void propagate(Potassco::AbstractSolver& solver, ChangeList const &changes, ChangeList const &del) override {
+        if (prop_.propagate && !prop_.propagate(static_cast<clingo_propagate_control_t*>(&solver), changes.first, changes.size, del.first, del.size, data_)) { throw ClingoError(); }
     }
 
     void undo(Potassco::AbstractSolver const &solver, ChangeList const &undo) override {
