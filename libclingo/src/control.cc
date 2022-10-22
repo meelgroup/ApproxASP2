@@ -1918,8 +1918,8 @@ public:
         if (prop_.undo) { prop_.undo(static_cast<clingo_propagate_control_t const *>(&solver), undo.first, undo.size, data_); }
     }
 
-    void check(Potassco::AbstractSolver& solver) override {
-        if (prop_.check && !prop_.check(static_cast<clingo_propagate_control_t*>(&solver), data_)) { throw ClingoError(); }
+    void check(Potassco::AbstractSolver& solver, ChangeList const &del) override {
+        if (prop_.check && !prop_.check(static_cast<clingo_propagate_control_t*>(&solver), del.first, del.size, data_)) { throw ClingoError(); }
     }
 
     bool hasHeuristic() const override {

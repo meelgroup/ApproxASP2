@@ -1436,7 +1436,7 @@ typedef struct clingo_propagator {
     //! @param[in] data user data for the callback
     //! @return whether the call was successful
     //! @see ::clingo_propagator_check_callback_t
-    bool (*check) (clingo_propagate_control_t *control, void *data);
+    bool (*check) (clingo_propagate_control_t *control, clingo_literal_t const *del, size_t del_size, void *data);
     //! This function allows a propagator to implement domain-specific heuristics.
     //!
     //! It is called whenever propagation reaches a fixed point and
