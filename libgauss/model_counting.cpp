@@ -127,7 +127,7 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
         (bool (*)(clingo_propagate_init_t *, void *))init,
         (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, clingo_literal_t const *, size_t, void *))propagate,
         NULL,
-        (bool (*)(clingo_propagate_control_t *, void *))check};
+        (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))check};
     // user data for the propagator
     propagator_t prop_data = {};
     prop_data.max_assumption_var = m_value;
