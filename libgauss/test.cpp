@@ -406,9 +406,9 @@ int main(int argc, char const **argv)
     // register propagator class
     clingo_propagator_t prop = {
         (bool (*)(clingo_propagate_init_t *, void *))init,
-        (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, clingo_literal_t const *, size_t, void *))propagate,
+        (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
         NULL,
-        (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))check};
+        (bool (*)(clingo_propagate_control_t *, void *))check};
     // user data for the propagator
     propagator_t prop_data = {};
     bool debug = true;

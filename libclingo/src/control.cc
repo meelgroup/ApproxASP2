@@ -608,10 +608,10 @@ extern "C" bool clingo_assignment_decision(clingo_assignment_t const *ass, uint3
     GRINGO_CLINGO_CATCH;
 }
 
-extern "C" bool clingo_assignment_clear_del(clingo_assignment_t const *ass, clingo_literal_t *ret) {
-    GRINGO_CLINGO_TRY { *ret = ass->clear_del(); }
-    GRINGO_CLINGO_CATCH;
-}
+// extern "C" bool clingo_assignment_clear_del(clingo_assignment_t const *ass, clingo_literal_t *ret) {
+//     GRINGO_CLINGO_TRY { *ret = ass->clear_del(); }
+//     GRINGO_CLINGO_CATCH;
+// }
 
 extern "C" bool clingo_assignment_is_fixed(clingo_assignment_t const *ass, clingo_literal_t lit, bool *ret) {
     GRINGO_CLINGO_TRY { *ret = ass->isFixed(lit); }
@@ -1910,16 +1910,16 @@ public:
         if (prop_.init && !prop_.init(&init, data_)) { throw ClingoError(); }
     }
 
-    void propagate(Potassco::AbstractSolver& solver, ChangeList const &changes, ChangeList const &del) override {
-        if (prop_.propagate && !prop_.propagate(static_cast<clingo_propagate_control_t*>(&solver), changes.first, changes.size, del.first, del.size, data_)) { throw ClingoError(); }
+    void propagate(Potassco::AbstractSolver& solver, ChangeList const &changes) override {
+        if (prop_.propagate && !prop_.propagate(static_cast<clingo_propagate_control_t*>(&solver), changes.first, changes.size, data_)) { throw ClingoError(); }
     }
 
     void undo(Potassco::AbstractSolver const &solver, ChangeList const &undo) override {
         if (prop_.undo) { prop_.undo(static_cast<clingo_propagate_control_t const *>(&solver), undo.first, undo.size, data_); }
     }
 
-    void check(Potassco::AbstractSolver& solver, ChangeList const &del) override {
-        if (prop_.check && !prop_.check(static_cast<clingo_propagate_control_t*>(&solver), del.first, del.size, data_)) { throw ClingoError(); }
+    void check(Potassco::AbstractSolver& solver) override {
+        if (prop_.check && !prop_.check(static_cast<clingo_propagate_control_t*>(&solver), data_)) { throw ClingoError(); }
     }
 
     bool hasHeuristic() const override {

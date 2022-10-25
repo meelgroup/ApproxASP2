@@ -1065,7 +1065,7 @@ CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_trail_end(clingo_assignment_t c
 //! @return whether the call was successful
 CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_trail_at(clingo_assignment_t const *assignment, uint32_t offset, clingo_literal_t *literal);
 
-CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_clear_del(clingo_assignment_t const *assignment, clingo_literal_t *literal);
+// CLINGO_VISIBILITY_DEFAULT bool clingo_assignment_clear_del(clingo_assignment_t const *assignment, clingo_literal_t *literal);
 
 //! @}
 
@@ -1412,7 +1412,7 @@ typedef struct clingo_propagator {
     //! @param[in] data user data for the callback
     //! @return whether the call was successful
     //! @see ::clingo_propagator_propagate_callback_t
-    bool (*propagate) (clingo_propagate_control_t *control, clingo_literal_t const *changes, size_t size, clingo_literal_t const *del, size_t del_size, void *data);
+    bool (*propagate) (clingo_propagate_control_t *control, clingo_literal_t const *changes, size_t size, void *data);
     //! Called whenever a solver undoes assignments to watched solver literals.
     //!
     //! This callback is meant to update assignment dependent state in the propagator.
@@ -1436,7 +1436,7 @@ typedef struct clingo_propagator {
     //! @param[in] data user data for the callback
     //! @return whether the call was successful
     //! @see ::clingo_propagator_check_callback_t
-    bool (*check) (clingo_propagate_control_t *control, clingo_literal_t const *del, size_t del_size, void *data);
+    bool (*check) (clingo_propagate_control_t *control, void *data);
     //! This function allows a propagator to implement domain-specific heuristics.
     //!
     //! It is called whenever propagation reaches a fixed point and
