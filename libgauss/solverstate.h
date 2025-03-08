@@ -77,9 +77,10 @@ public:
         assigns.clear();
         assigns.insert(assigns.end(), num_of_vars + 1, l_Undef);
         in_xor.clear();
-        in_xor.assign(num_of_vars, false);
+        in_xor.assign(num_of_vars + 1, false);
         for (auto start_literal = sol_literals.begin(), end_literal = sol_literals.end(); start_literal != end_literal ; start_literal++) {
-            in_xor[*start_literal] = true;
+            if (*start_literal >= 0)
+                in_xor[*start_literal] = true;
         }
         last_trail_size = 0;
         last_trail_level = 0;
