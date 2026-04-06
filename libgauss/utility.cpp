@@ -247,6 +247,9 @@ void generate_k_xors(unsigned k, Configuration *con, SparseData& sparse_data)
                     sparse_data.next_index + 1, table.index_var_map.size() - 1);
             }
             assert(sparse_data.sparseprob <= 0.5);
+            if (hash_index == 0) {
+                sparse_data.sparseprob = 0.5;
+            }
             // cutoff = std::ceil(1000.0 * sparse_data.sparseprob);
             if (false)
             {
