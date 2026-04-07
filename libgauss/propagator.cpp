@@ -457,7 +457,7 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
 }
 
 bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
-            const clingo_literal_t *del, size_t del_size,
+            //const clingo_literal_t *del, size_t del_size,
                propagator_t *data)
 {
     auto start = high_resolution_clock::now();
@@ -479,7 +479,7 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
     return true;
 }
 
-bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
+bool undo(clingo_propagate_control_t *control, 
           propagator_t *data)
 {
     // get the thread specific state
@@ -491,7 +491,7 @@ bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, 
 }
 
 bool check(clingo_propagate_control_t *control, 
-    const clingo_literal_t *del, size_t del_size, propagator_t *data)
+    propagator_t *data)
 {
     // static int c = 0;
     // c++;

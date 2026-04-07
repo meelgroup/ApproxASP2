@@ -257,7 +257,7 @@ SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con, int counte
     if (numHashList.size() > 0) {
         prev_cells = numHashList.back();
     }
-    cout << "ApproxSMCCore iteration: " << counter << " started ..." << endl;
+    cout << "ApproxASPCore iteration: " << counter << " started ..." << endl;
     solCount = LogSATSearch(control, con, prev_cells);
     if (solCount.cellSolCount != -1) {
         prev_cells = n_cell;
@@ -272,7 +272,7 @@ SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con, int counte
         }
         assert(numHashList.size() == medianComputeList.size());
         medSolCount = findMedian(medianComputeList);
-        cout << "ApproxSMCCore iteration: " << counter << " completed !!!" << endl;
+        cout << "ApproxASPCore iteration: " << counter << " completed !!!" << endl;
         solCount.cellSolCount = medSolCount;
         solCount.hashCount = minHash;
         cout << "After the iteration, the (median) number of solution: " << solCount.cellSolCount << " * 2 ^ " << solCount.hashCount << endl; 
