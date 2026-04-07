@@ -1,3 +1,4 @@
+
 // {{{ MIT License
 
 // Copyright 2019 Mahi XYZ
@@ -29,6 +30,7 @@
 #include <unordered_set>
 #include <clingo.h>
 #include <cstdlib>
+#include "solvertypes.h"
 #include "solvertypesmini.h"
 #include "gausswatched.h"
 #include "Vec.h"
@@ -67,6 +69,7 @@ public:
     uint32_t last_trail_level;
     uint32_t backtrack_level;
     uint32_t last_trail_size;
+    uint64_t max_lit_range;
     clingo_propagate_control_t* cpc = NULL;
     clingo_propagate_init_t* cpi = NULL;
     SolverState(uint32_t _vars, clingo_propagate_init_t* _cpi, std::unordered_set<clingo_literal_t> sol_literals)
@@ -163,6 +166,47 @@ public:
 
         return state;
     }
+    /*dret get_assignment2(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
+    {
+        auto start = high_resolution_clock::now();
+        cpc = control;
+        dret is_backtracked = has_backtracked();
+        const clingo_assignment_t *values = clingo_propagate_control_assignment(control);
+        clingo_literal_t lit;
+        clingo_truth_value_t value;
+        uint32_t col;
+        int iter = 0;
+        is_total_assignment = clingo_assignment_is_total(values);
+        while (true) {
+            clingo_assignment_changes_next(values, &lit);
+            if (lit == 0) {
+                break;
+            }
+            assert(clingo_assignment_has_literal(values, lit));
+            
+            if (abs(lit) <= in_xor.size() && in_xor[abs(lit)] && max_lit_range >= abs(lit)) {
+                clingo_assignment_truth_value(values, lit, &value);
+                col = var_to_col[abs(lit)];
+                if (col == std::numeric_limits<uint32_t>::max()) 
+                    continue; 
+                switch (value)
+                {
+                    case clingo_truth_value_true:
+                        cols_unset->clearBit(col);
+                        cols_vals->setBit(col);
+                        break;
+                    case clingo_truth_value_false:
+                        cols_unset->clearBit(col);
+                        break;
+                    case clingo_truth_value_free:
+                        cols_unset->setBit(col);
+                        cols_vals->clearBit(col);
+                        break;
+                }  
+            }
+        }
+        return is_backtracked;
+    }*/
     dret get_assignment(clingo_propagate_control_t *control, PackedRow* cols_vals, PackedRow* cols_unset, vector<uint32_t> var_to_col)
     {
         auto start = high_resolution_clock::now();
@@ -183,7 +227,7 @@ public:
             assert(new_trail_size - last_trail_size >= 0);
             for (trail_at = last_trail_size; trail_at < new_trail_size; trail_at++) {
                 clingo_assignment_trail_at(values, trail_at, &lit);
-                if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
+                if (abs(lit) <= in_xor.size() && in_xor[abs(lit)] && max_lit_range >= abs(lit)) {
                     col = var_to_col[abs(lit)];
                     if (col == std::numeric_limits<uint32_t>::max()) 
                         continue; 
@@ -222,7 +266,7 @@ public:
                 }
                 for (trail_at = offset_start; trail_at < offset_end; trail_at++) {
                     clingo_assignment_trail_at(values, trail_at, &lit);
-                    if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
+                    if (abs(lit) <= in_xor.size() && in_xor[abs(lit)] && max_lit_range >= abs(lit)) {
                         col = var_to_col[abs(lit)];
                         if (col == std::numeric_limits<uint32_t>::max()) 
                             continue; 
@@ -235,9 +279,9 @@ public:
                         }
                     }
                 }
-                // if (level_at == 0 && decision_level_offset.size() == 0) {
-                //     decision_level_offset.push(0);
-                // }
+                if (level_at == 0 && decision_level_offset.size() == 0) {
+                    decision_level_offset.push(0);
+                }
                 decision_level_offset[level_at] = local_trail.size(); 
             }
         }
@@ -271,7 +315,7 @@ public:
                 // }
                 for (trail_at = offset_start; trail_at < offset_end; trail_at++) {
                     clingo_assignment_trail_at(values, trail_at, &lit);
-                    if (abs(lit) <= in_xor.size() && in_xor[abs(lit)]) {
+                    if (abs(lit) <= in_xor.size() && in_xor[abs(lit)] && max_lit_range >= abs(lit)) {
                         col = var_to_col[abs(lit)];
                         if (col == std::numeric_limits<uint32_t>::max()) 
                             continue; 
@@ -317,7 +361,7 @@ public:
         cout << "sum_Enunit:\t" << sum_Enunit << endl;
     }
     void add_watch_literal(uint32_t lit) {
-        if (gwatches[lit].size() > 1) return;
+        // if (gwatches[lit].size() > 1) return;
         #ifdef DEBUG
         assert(gwatches[lit].size() == 1);
         #endif
@@ -378,7 +422,8 @@ public:
         // assert(index == length);
         // bool is_conflict = is_assignment_conflicting(cpc); 	
         // assert(is_conflicting(clause, !is_conflict_clause));	
-        if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clingo_clause_type_volatile, &result))	
+        clingo_clause_type_t clause_type = clingo_clause_type_volatile;
+        if (!clingo_propagate_control_add_clause(cpc, new_clause, length, clause_type, &result))	
         {	
             (is_conflict_clause) ? printf("\nConflict\n") : printf("\nPropagation\n");	
             	

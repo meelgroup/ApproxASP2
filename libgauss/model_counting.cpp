@@ -1,3 +1,4 @@
+
 // {{{ MIT License
 
 // Copyright 2019 Mahi XYZ
@@ -42,7 +43,7 @@ using std::endl;
 using namespace std::chrono;
 std::list<int> numHashList, numCountList, medianComputeList;
 //TODO fix!!!
-#define TIMEOUT 5000
+#define TIMEOUT 1000
 
 int findMin(std::list<int> numList)
 {
@@ -99,12 +100,22 @@ void do_initial_setup(clingo_control_t** ctl, Configuration* con, int m_value)
     
     std::string parity_string;
     parity_string.clear();
-    if (m_value > 0) {
-        parity_string = get_parity_string(con, m_value);
-        clingo_control_add(*ctl, "base", NULL, 0, parity_string.c_str());
-        clingo_part_t parts[] = {{"base", NULL, 0}};
-        // clingo_control_ground(*ctl, parts, 1, NULL, NULL);
-    }
+    // we are not going to add parity constraints in this way
+    #if false
+    // if (m_value > 0) {
+    //     // parity_string = get_parity_string(con, m_value);
+    //     for (auto parity_itr = con->xor_parity_string.begin(); 
+    //         parity_itr != con->xor_parity_string.begin() + m_value; 
+    //         parity_itr++) {
+    //             parity_string.clear();
+    //             parity_string = (*parity_itr);
+    //             clingo_control_add(*ctl, "base", NULL, 0, parity_string.c_str());
+    //     }
+        
+    //     clingo_part_t parts[] = {{"base", NULL, 0}};
+    //     // clingo_control_ground(*ctl, parts, 1, NULL, NULL);
+    // }
+    #endif
     clingo_control_ground(*ctl, parts, 1, NULL, NULL);
 }
 
@@ -148,6 +159,9 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
     double remaining_time = TIMEOUT;
     clock_t tStart = clock();
     unsigned model_count = 0;
+    // set max number of conflict and propagation clauses 
+    // problem.max_conflict_clause_per_call = problem.upper_conflict_clause_per_call;
+    // problem.max_prop_clause_per_call = problem.upper_prop_clause_per_call;
     while (true) {
         clingo_solve_handle_resume(handle);
         remaining_time = TIMEOUT - (double)(clock() - tStart) / CLOCKS_PER_SEC;
@@ -159,8 +173,18 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
         clingo_solve_handle_model(handle, &model);
         if (!model)
             break;
+        
         model_count++;
-        if (model_count > con->thresh) 
+        if (problem.verbose) {
+            cout << "Model count: " << model_count << endl;
+            cout << "Propagation clauses: " << problem.total_prop_clauses << ", conflict clauses: " << problem.total_conflict_clauses << endl;
+            cout << "Max Propagation clauses: " << problem.max_prop_clause_per_call << ", max conflict clauses: " << problem.max_conflict_clause_per_call << endl;
+        
+        }
+        
+        problem.total_conflict_clauses = 0;
+        problem.total_prop_clauses = 0;
+        if (model_count > con->thresh)
             break;
     }
     clingo_solve_handle_cancel(handle);
@@ -168,8 +192,8 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
     con->clasp_call++;
     if (!finished)
         con->clasp_call_timeout++;
-    if (con->clasp_call > 0 && con->clasp_call % con->interval == 0)
-        print_stat(con);
+    // if (con->clasp_call > 0 && con->clasp_call % con->interval == 0)
+    //     print_stat(con);
     return finished ? model_count : -1;
 }
 
@@ -183,10 +207,16 @@ SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
     assert(m_prev <= con->number_of_active_atoms);
     SATCount ret;
     ret.cellSolCount = -1;
-    while (num_explored < con->number_of_active_atoms) {
+    while (num_explored < con->number_of_active_atoms - 1) {
         swap_var = m_value;
         auto start = high_resolution_clock::now();
         unsigned result = Bounded_counter(control, con, m_value);
+        if (result) {
+            cout << "SAT" << endl;
+        }
+        else {
+            cout << "UNSAT" << endl;
+        }
         auto stop = high_resolution_clock::now();
         cout << "c execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " seconds." << endl;
         
@@ -212,11 +242,13 @@ SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
             if (abs(m_value - m_prev) < 2 && m_prev != 0) {
                 lo_index = m_value;
                 m_value++;
-            } else if ((lo_index + (m_value - lo_index) * 2) >= hi_index - 1) {
+            // } else if ((lo_index + (m_value - lo_index) * 2) >= hi_index - 1) {
+            //     lo_index = m_value;
+            //     m_value = (lo_index + hi_index) >> 1;
+            } else {
                 lo_index = m_value;
                 m_value = (lo_index + hi_index) >> 1;
-            } else
-                m_value = lo_index + (m_value - lo_index) * 2;
+            }
         }
 
         else if (result <= con->thresh) {
@@ -257,25 +289,28 @@ SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con, int counte
     if (numHashList.size() > 0) {
         prev_cells = numHashList.back();
     }
-    cout << "ApproxASPCore iteration: " << counter << " started ..." << endl;
+    cout << "Hashcounter iteration: " << counter << " started ..." << endl;
     solCount = LogSATSearch(control, con, prev_cells);
     if (solCount.cellSolCount != -1) {
-        prev_cells = n_cell;
+        prev_cells = n_cell; 
         numCountList.push_back(solCount.cellSolCount);
-        numHashList.push_back(solCount.hashCount);
-        minHash = findMin(numHashList);
+        numHashList.push_back(solCount.hashCount - 1);
+        // minHash = findMin(numHashList);
         medianComputeList.clear();
         assert(numHashList.size() == numCountList.size());
         for (std::list<int>::iterator it1 = numHashList.begin(), it2 = numCountList.begin();
                 it1 != numHashList.end() && it2 != numCountList.end(); it1++, it2++) {
-            medianComputeList.push_back((*it2) * std::pow(2, (*it1) - minHash));
+            medianComputeList.push_back((*it1));
         }
-        assert(numHashList.size() == medianComputeList.size());
-        medSolCount = findMedian(medianComputeList);
-        cout << "ApproxASPCore iteration: " << counter << " completed !!!" << endl;
-        solCount.cellSolCount = medSolCount;
-        solCount.hashCount = minHash;
-        cout << "After the iteration, the (median) number of solution: " << solCount.cellSolCount << " * 2 ^ " << solCount.hashCount << endl; 
+        if (counter <= 2)
+            medSolCount = findMin(medianComputeList);
+        else {
+            medSolCount = findMedian(medianComputeList);
+        }
+        cout << "Hashcounter iteration: " << counter << " completed !!!" << endl;
+        solCount.cellSolCount = 1;
+        solCount.hashCount = medSolCount;
+        cout << "After the iteration, the lower bound: " << solCount.cellSolCount << " * 2 ^ " << solCount.hashCount - 3.322 << endl; 
     }
     
     return solCount;
@@ -286,7 +321,7 @@ void set_up_probs_measurements(
 {
     //Set up probabilities, threshold and measurements
     int best_match = find_best_sparse_match(con);
-
+    // con->thresh = 0;  // it is either SAT or UNSAT for Hashcounter
     if (con->use_sparse && best_match != -1) {
         sparse_data = SparseData(best_match);
         con->thresh = compute_pivot(con->tol, 1.1);
@@ -322,11 +357,13 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
 
     // the problem is not trivial, so we are running approxmc
     int counter = 0;
+    con->thresh = 0; // for Hashcounter, the check is either SAT or UNSAT
     while (counter < con->t) {
         counter++;
         generate_k_xors(con->number_of_active_atoms - 1, con, sparse_data);
         translation(&control, con, false, std::cout, 1, -1);
         solCount = ApproxSMCCore(control, con, counter);
+        sparse_data.next_index = 0;
         con->xor_cons.clear();
         con->seed = counter + 1;
     }

@@ -292,7 +292,7 @@ int main(int argc, char const **argv)
             problem.independent_set = std::string(argv[++scan]);
         } else if (!strcmp(arg, "--sparse")) {
             problem.use_sparse = true;
-        }
+        } 
 
         else {
             if (problem.argu_count == 0)
@@ -329,28 +329,29 @@ int main(int argc, char const **argv)
         }
     }
     if (!problem.input_file) {
-        cout << "Approximate counting using file: " << problem.asp_file << "..." << endl;
+        cout << "Hashcounter counting using file: " << problem.asp_file << "..." << endl;
     } else {
         if (stat(problem.input_file, &buffer) == -1) {
             printf("No input file with name: %s.\n", problem.input_file);
         }
-        cout << "Approximate counting using files: " << problem.asp_file << " & "
+        cout << "Hashcounter counting using files: " << problem.asp_file << " & "
              << problem.input_file << endl;
     }
 
-    cout << "Approximate counting using confidence " << std::fixed << std::setprecision(2)
-         << problem.conf << " and tolerance " << std::fixed << std::setprecision(2) << problem.tol
-         << "..." << endl;
+    // cout << "Approximate counting using confidence " << std::fixed << std::setprecision(2)
+    //      << problem.conf << " and tolerance " << std::fixed << std::setprecision(2) << problem.tol
+    //      << "..." << endl;
 
     // compute pivot
-    if (problem.use_sparse) {
-        problem.thresh = compute_pivot(problem.tol, 1.1);
-    }
-    else {
-        problem.thresh = compute_pivot(problem.tol, 1);
-    }
+    // if (problem.use_sparse) {
+    //     problem.thresh = compute_pivot(problem.tol, 1.1);
+    // }
+    // else {
+    //     problem.thresh = compute_pivot(problem.tol, 1);
+    // }
     // compute delta
-    problem.t = compute_iteration(&problem);
+    // problem.t = compute_iteration(&problem);
+    problem.t = 1;
     if (!problem.independent_set.empty()) {
         std::ifstream infile(problem.independent_set);
 
@@ -400,7 +401,8 @@ int main(int argc, char const **argv)
             (const char **)realloc(problem.asp_argument, (problem.argu_count + 1) * sizeof(char *));
     }
     char pivot_str[10];
-    sprintf(pivot_str, "-n %d", problem.thresh+1);
+    // it is a recent change
+    sprintf(pivot_str, "-n %d", 0);
     problem.asp_argument[problem.argu_count++] = pivot_str;
     reset_Configuration(&problem);
     // register propagator class
@@ -408,7 +410,7 @@ int main(int argc, char const **argv)
         (bool (*)(clingo_propagate_init_t *, void *))init,
         (bool (*)(clingo_propagate_control_t *, clingo_literal_t const *, size_t, void *))propagate,
         NULL,
-        (bool (*)(clingo_propagate_control_t *, void *))check};
+        (bool (*)(clingo_propagate_control_t *,void *))check};
     // user data for the propagator
     propagator_t prop_data = {};
     bool debug = true;
@@ -473,11 +475,13 @@ int main(int argc, char const **argv)
     // }
     // add_execution_time(ctl, &problem);
     // prop_data.solver->printStatistics();
-    cout << "ApproxSMC execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " s" << endl;
+    cout << "Hashcounter execution time: " << duration_cast<microseconds>(stop - start).count() / pow(10, 6) << " s" << endl;
     cout << "Time elasped in gaussian elimination: " << problem.gauss_check_time << " + " << 
         problem.gauss_propagate_time << " = " << problem.gauss_check_time + problem.gauss_propagate_time << endl;
     cout << "Time elasped in Clingo assignment: " << problem.clingo_assignment_time << endl;
     cout << "Clingo assignment is called: " << problem.clingo_assignment_called << endl;
+    cout << "Total number of conflict clauses: " << problem.E_conflict_clauses << endl;
+    cout << "Total number of propagation clauses: " << problem.E_prop_clauses << endl;
     cout << "Time elasped in Clingo add clause: " << problem.clingo_add_clause_time << endl;
     printf("Time spend in Clasp: %g s\n", problem.time_in_clasp);
     goto out;

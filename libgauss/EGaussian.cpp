@@ -594,8 +594,8 @@ inline void EGaussian::delete_gausswatch(const bool orig_basic, const uint32_t r
     }
 }
 
-bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p,
-                             const uint32_t row_n, GaussQData& gqd
+bool EGaussian::find_truths2(GaussWatched*& i, GaussWatched*& j, uint32_t p,
+                             const uint32_t row_n, GaussQData& gqd, bool& to_delete
 ) {
     // printf("dd Watch variable : %d  ,  Wathch row num %d    n", p , row_n);
     gqd.prop_clause_gauss.clear();
@@ -723,10 +723,12 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
                 }
                 return true;
             }
+            to_delete = true;
             assert(nb_var != std::numeric_limits<uint32_t>::max());
             if (orig_basic) {
                 /// clear watchlist, because only one basic value in watchlist
-                clear_gwatches(nb_var);
+                if (solver->gwatches[nb_var].size() > 0)
+                    clear_gwatches(nb_var);
             }
             // update gausWatch list
             solver->gwatches[nb_var].push(GaussWatched(row_n, matrix_no));
@@ -744,6 +746,8 @@ bool EGaussian::find_truths2(const GaussWatched* i, GaussWatched*& j, uint32_t p
             if (nb_var == 0) {
                 cout << "nb_var == 0";
             }
+            // as we have a single matrix, we have data->gqueuedata.size() == 1
+            // assert(solver->gwatches[nb_var].size() == 1);
             gqd.e_row_n = row_n;
             gqd.do_eliminate = true;
             unresolved_xors[row_n] = 1;

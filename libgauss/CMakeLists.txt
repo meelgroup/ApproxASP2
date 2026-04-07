@@ -7,7 +7,7 @@ add_executable(approxasp-bin
     utility.cpp
 )
 set_target_properties(approxasp-bin PROPERTIES
-    OUTPUT_NAME approxasp
+    OUTPUT_NAME hashcount
     RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
     INSTALL_RPATH_USE_LINK_PATH TRUE)
 

@@ -140,11 +140,12 @@ class EGaussian {
 
     //execute gaussian
     bool  find_truths2(
-        const GaussWatched* i,
+        GaussWatched*& i,
         GaussWatched*& j,
         uint32_t p,
         const uint32_t row_n,
         GaussQData& gqd
+        , bool& to_delete
     );
 
     // when basic variable is touch , eliminate one col

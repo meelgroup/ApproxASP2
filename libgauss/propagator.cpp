@@ -70,6 +70,7 @@ bool init_all_matrixes(propagator_t *prop)
     }
     prop->gmatrixes.resize(prop->gmatrixes.size() - (i - j));
     prop->gqueuedata.resize(prop->gmatrixes.size());
+    prop->solver->max_lit_range = prop->gmatrixes[0]->var_to_col.size() - 1;
     for (auto &gqd: prop->gqueuedata) {
         gqd.reset_stats();
     }
@@ -156,9 +157,9 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         return false;
     }
     // create place/2 signature to filter symbolic atoms with
-    if (!clingo_signature_create("__parity", 2, true, &sig)) {
-        return false;
-    }
+    // if (!clingo_signature_create("__parity", 2, true, &sig)) {
+    //     return false;
+    // }
     // get an iterator after the last place/2 atom
     // (atom order corresponds to grounding order (and is unpredictable))
     if (!clingo_symbolic_atoms_end(atoms, &atoms_ie)) {
@@ -171,6 +172,7 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     if (!clingo_symbolic_atoms_begin(atoms, &sig, &atoms_it)) {
         return false;
     }
+    // this signature has no use !! so no worries
     char *parity;
     int xor_count = (data->max_assumption_var > 0) ? data->max_assumption_var : 0;
     clingo_literal_t largest_var = std::numeric_limits<uint32_t>::max();
@@ -217,76 +219,25 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
     //         }
     //     }
     // }
-    printf("The number of XOR constraints: %d.\n", xor_count);
+    printf("The number of XOR constraints: %d => ", xor_count);
     xorparity.resize(xor_count);
-    if (!clingo_signature_create("__parity", 3, true, &sig)) {
-        return false;
-    }
-    // get an iterator after the last place/2 atom
-    // (atom order corresponds to grounding order (and is unpredictable))
-    if (!clingo_symbolic_atoms_end(atoms, &atoms_ie)) {
-        return false;
-    }
-
-    // loop over the place/2 atoms in two passes
-    // the first pass determines the maximum placement literal
-    // the second pass allocates memory for data structures based on the first pass
-    if (!clingo_symbolic_atoms_begin(atoms, &sig, &atoms_it)) {
-        return false;
-    }
+    // my modifications will be there
+    bool equal;
     char *condition;
     clingo_literal_t lit, lit2;
     clingo_symbol_t sym;
-    while (true) {
-        int id;
-        char *s;
-        bool equal;
-        // stop iteration if the end is reached
-        if (!clingo_symbolic_atoms_iterator_is_equal_to(atoms, atoms_it, atoms_ie, &equal)) {
-            return false;
-        }
-        if (equal) {
-            break;
-        }
-        // get the solver literal for the placement atom
-        if (!clingo_symbolic_atoms_literal(atoms, atoms_it, &lit2)) {
-            return false;
-        }
-        // printf("clingo_symbolic_atoms_literal: %d.\n", lit);
-        if (!clingo_propagate_init_solver_literal(init, lit2, &lit)) {
-            return false;
-        }
-        // printf("clingo_propagate_init_solver_literal: %d.\n", lit);
-
-        // extract the hole number from the atom
-        if (!clingo_symbolic_atoms_symbol(atoms, atoms_it, &sym)) {
-            return false;
-        }
-        get_arg(sym, 0, &id);
-        if (id >= xor_count) {
-            clingo_symbolic_atoms_next(atoms, atoms_it, &atoms_it);
-            continue;
-        }
-        get_arg_str(sym, 1, &parity);
-        sym = get_arg_str(sym, 2, &condition);
-        assert(id < xor_count);
-        assert(!strcmp(parity, "odd") || !strcmp(parity, "even"));
-        xorparity[id] = (strcmp(parity, "odd") == 0) ? 1 : 0;
-        symbol_to_literal[sym] = 0;
-        xor_to_symbol[id].push_back(sym);
-
-        // advance to the next placement atom
-        if (!clingo_symbolic_atoms_next(atoms, atoms_it, &atoms_it)) {
-            return false;
+    symbol_to_literal.clear();
+    for (auto hash_index = 0; hash_index < problem.xor_cons.size(); hash_index++) {
+        for (auto start_itr = problem.xor_cons[hash_index].literals.begin(),
+            end_itr = problem.xor_cons[hash_index].literals.end(); start_itr != end_itr; start_itr++) {
+                symbol_to_literal[*start_itr] = 0;
         }
     }
-    if (!clingo_symbolic_atoms_end(atoms, &atoms_ie)) {
-        return false;
-    }
-    bool equal;
+    // getting the solver literal id
     for (auto it = symbol_to_literal.begin(); it != symbol_to_literal.end(); ++it) {
         equal = false;
         clingo_symbolic_atoms_find(atoms, it->first, &finder);
+        // cout << "it->first: " << it->first ;
         clingo_symbolic_atoms_iterator_is_equal_to(atoms, finder, atoms_ie, &equal);
         assert(!equal);
         clingo_symbolic_atoms_literal(atoms, finder, &lit2);
@@ -297,25 +248,34 @@ bool init(clingo_propagate_init_t *init, propagator_t *data)
         it->second = lit;
         solver_literal.insert(lit);
     }
-    auto each_xor = xor_to_symbol.begin();
-    for (auto xor_end = xor_to_symbol.end(); each_xor != xor_end; each_xor++) {
-        assert(each_xor->second.size() > 0);
-        auto symbol = each_xor->second.begin();
-        vector<uint32_t> temp_xorclause;
-        temp_xorclause.clear();
-        for (auto symbol_end = each_xor->second.end(); symbol != symbol_end; symbol++) {
-            auto symbol_finder = symbol_to_literal.find(*symbol);
-            assert(symbol_finder != symbol_to_literal.end());
-            assert(symbol_finder->second > 0);
-            auto it = find(temp_xorclause.begin(), temp_xorclause.end(), symbol_finder->second);
-            if (it != temp_xorclause.end()) {
-                temp_xorclause.erase(it);
+    // std::cout << "problem.xor_cons.size(): " << problem.xor_cons.size() << endl;
+    auto each_xor = problem.xor_cons.begin();
+    for (auto xor_end = problem.xor_cons.begin() + data->max_assumption_var; 
+        each_xor != xor_end; each_xor++) {
+            auto symbol = each_xor->literals.begin();
+            vector<uint32_t> temp_xorclause;
+            temp_xorclause.clear();
+            for (auto symbol_end = each_xor->literals.end(); symbol != symbol_end; symbol++) {
+                auto symbol_finder = symbol_to_literal.find(*symbol);
+                assert(symbol_finder != symbol_to_literal.end());
+                assert(symbol_finder->second != 0);
+                assert(symbol_finder->second >= -1);
+                if (symbol_finder->second == 1 || symbol_finder->second == -1) {
+                    // this are true or false
+                    if (symbol_finder->second == 1) {
+                        each_xor->rhs = !each_xor->rhs;
+                    }
+                    continue;
+                }
+                auto it = find(temp_xorclause.begin(), temp_xorclause.end(), symbol_finder->second);
+                if (it != temp_xorclause.end()) {
+                    temp_xorclause.erase(it);
+                }
+                else {
+                    temp_xorclause.push_back(symbol_finder->second);
+                }
             }
-            else {
-                temp_xorclause.push_back(symbol_finder->second);
-            }
-        }
-        xorclauses.push_back(Xor(temp_xorclause, xorparity[each_xor->first]));
+            xorclauses.push_back(Xor(temp_xorclause, each_xor->rhs));
     }
     // printf("largest_var %d.\n", largest_var);
     // assert(xorclauses.size() == xor_count);
@@ -341,7 +301,8 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                      size_t size, propagator_t *data)
 {
     bool immediate_break = false;
-    bool prop = false, res = false;
+    bool prop = false, res = false, to_delete;
+    vector<int> deleted_row;
     clingo_literal_t lit;
     Lit l;
     for (auto &gqd: data->gqueuedata) {
@@ -358,13 +319,14 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
         // assert(i != end);
         if (i == end)
             continue;
-
+        deleted_row.clear();
         for (; i != end; i++) {
+            to_delete = false;
             data->gqueuedata[i->matrix_num].enter_matrix = true;
             data->gqueuedata[i->matrix_num].do_eliminate = false;
             if (!data->gmatrixes[i->matrix_num]->find_truths2(
                 i, j, p.var(), i->row_id,
-                data->gqueuedata[i->matrix_num])
+                data->gqueuedata[i->matrix_num], to_delete)
             ) {
                 //conflict
                 immediate_break = true;
@@ -373,16 +335,26 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
             } else if (!data->gqueuedata[i->matrix_num].prop_clause_gauss.empty()){
                 //must propagate
                 data->solver->sum_Enpropagate++;
+                problem.total_prop_clauses++;
+                problem.E_prop_clauses++;
                 res = data->solver->add_clause(data->gqueuedata[i->matrix_num].prop_clause_gauss, false);
+                if (problem.verbose && problem.total_prop_clauses % 100000 == 0) {
+                  cout << "Total prop clauses: " << problem.total_prop_clauses
+                       << endl;
+                }
                 if (res) {
                     // l = data->gqueuedata[i->matrix_num].prop_clause_gauss[0];
                     // lit = (clingo_literal_t) (l.sign()) ? (-l.var()) : (l.var());
+                    problem.E_prop_success++;
                     data->gmatrixes[0]->mark_sat(i->row_id, data->solver->decisionLevel());
                 }
                 i++;
                 prop = true; 
                 break;
                 // return true;
+            }
+            else if (to_delete) {
+                deleted_row.push_back(i->row_id);
             }
         }
 
@@ -434,7 +406,13 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
                 lbool ret;
                 gqd.big_conflict++;
                 data->solver->sum_Enconflict++;
+                problem.total_conflict_clauses++;
+                problem.E_conflict_clauses++;
                 data->solver->add_clause(gqd.conflict_clause_gauss, true);
+                if (problem.verbose && problem.total_conflict_clauses % 100000 == 0)
+                {
+                    cout << "Total conflict clauses: " << problem.total_conflict_clauses << endl;
+                }
                 return true;
             }
 
@@ -457,7 +435,6 @@ bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t
 }
 
 bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
-            //const clingo_literal_t *del, size_t del_size,
                propagator_t *data)
 {
     auto start = high_resolution_clock::now();
@@ -479,7 +456,7 @@ bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *chan
     return true;
 }
 
-bool undo(clingo_propagate_control_t *control, 
+bool undo(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
           propagator_t *data)
 {
     // get the thread specific state
@@ -490,8 +467,7 @@ bool undo(clingo_propagate_control_t *control,
     return true;
 }
 
-bool check(clingo_propagate_control_t *control, 
-    propagator_t *data)
+bool check(clingo_propagate_control_t *control, propagator_t *data)
 {
     // static int c = 0;
     // c++;
@@ -500,6 +476,7 @@ bool check(clingo_propagate_control_t *control,
     if (data->max_assumption_var == 0) {
         return true;
     }
+    // do not solve the problem if it is too hard and limited search version is turned on
     dret state = data->solver->get_assignment(control, data->gmatrixes[0]->cols_vals,
         data->gmatrixes[0]->cols_unset, data->gmatrixes[0]->var_to_col);
     if (state == dret::BACKTRACK) {
@@ -532,13 +509,24 @@ bool check(clingo_propagate_control_t *control,
             for (GaussQData &gqd: data->gqueuedata) {
                 if (gqd.ret_gauss == 0) {
                     data->solver->sum_Enconflict++;
+                    problem.total_conflict_clauses++;
                     data->solver->add_clause(gqd.conflict_clause_gauss, true);
+                    if (problem.verbose && problem.total_conflict_clauses % 100000 == 0) {
+                      cout << "Total conflict clauses: "
+                           << problem.total_conflict_clauses << endl;
+                    }
                 }
                 else if (gqd.ret_gauss == 3) {
                     data->solver->sum_Enpropagate++;
+                    problem.total_prop_clauses++;
                     res = data->solver->add_clause(gqd.prop_clause_gauss, false);
                     if (res) {
                         data->gmatrixes[0]->mark_sat(gqd.e_row_n, data->solver->decisionLevel());
+                        problem.E_prop_success++;
+                    }
+                    if (problem.verbose && problem.total_prop_clauses % 100000 == 0) {
+                      cout << "Total prop clauses: "
+                           << problem.total_prop_clauses << endl;
                     }
                 }
             }
