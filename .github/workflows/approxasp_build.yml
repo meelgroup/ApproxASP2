@@ -27,4 +27,4 @@ jobs:
           make -j12
           
       - name: Check Binary
-        run: ls approxasp 
+        run: ls build/approxasp 
