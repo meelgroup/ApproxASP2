@@ -343,14 +343,15 @@ int main(int argc, char const **argv)
          << "..." << endl;
 
     // compute pivot
-    if (problem.use_sparse) {
-        problem.thresh = compute_pivot(problem.tol, 1.1);
-    }
-    else {
-        problem.thresh = compute_pivot(problem.tol, 1);
-    }
+    // if (problem.use_sparse) {
+    //     problem.thresh = compute_pivot(problem.tol, 1.1);
+    // }
+    // else {
+    //     problem.thresh = compute_pivot(problem.tol, 1);
+    // }
     // compute delta
     problem.t = compute_iteration(&problem);
+    // problem.t = 1;
     if (!problem.independent_set.empty()) {
         std::ifstream infile(problem.independent_set);
 
@@ -400,7 +401,8 @@ int main(int argc, char const **argv)
             (const char **)realloc(problem.asp_argument, (problem.argu_count + 1) * sizeof(char *));
     }
     char pivot_str[10];
-    sprintf(pivot_str, "-n %d", problem.thresh+1);
+    // it is a recent change
+    sprintf(pivot_str, "-n %d", 0);
     problem.asp_argument[problem.argu_count++] = pivot_str;
     reset_Configuration(&problem);
     // register propagator class
@@ -479,6 +481,10 @@ int main(int argc, char const **argv)
     cout << "Time elasped in Clingo assignment: " << problem.clingo_assignment_time << endl;
     cout << "Clingo assignment is called: " << problem.clingo_assignment_called << endl;
     cout << "Time elasped in Clingo add clause: " << problem.clingo_add_clause_time << endl;
+    cout << "Total number of conflict clauses: " << problem.E_conflict_clauses << endl;
+    cout << "Total number of propagation clauses: " << problem.E_prop_clauses << endl;
+    cout << "Total number of successful propagation clauses: " << problem.E_prop_success
+        << " the fraction is: " << (double) problem.E_prop_success / problem.E_prop_clauses << endl;
     printf("Time spend in Clasp: %g s\n", problem.time_in_clasp);
     goto out;
 

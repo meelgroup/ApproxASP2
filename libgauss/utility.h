@@ -78,6 +78,7 @@ std::vector<clingo_symbol_t> active_atoms;
 std::vector<clingo_symbol_t> active_atoms_ind_sup;
 std::set<std::string> independent_sup_symbols;
 std::unordered_map<clingo_symbol_t, string> atom_symbol_map;	
+std::unordered_map<string, clingo_symbol_t> string_symbol_map;
 std::unordered_map<clingo_literal_t, clingo_symbol_t> literal_atom_map;
 const Constants constants;
 unsigned number_of_active_atoms;
@@ -96,6 +97,13 @@ double clingo_assignment_time = 0;
 int clingo_assignment_called = 0;
 double clingo_add_clause_time = 0;
 int clingo_add_clause_called = 0;
+uint64_t total_conflict_clauses = 0;
+uint64_t total_prop_clauses = 0;
+uint64_t E_conflict_clauses = 0;
+uint64_t E_prop_clauses = 0;
+uint64_t E_prop_success = 0;
+uint64_t E_prop_check = 0;
+uint64_t E_conflict_check = 0;
 } Configuration;
 
 typedef struct string_buffer {

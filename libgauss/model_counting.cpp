@@ -95,17 +95,17 @@ void do_initial_setup(clingo_control_t** ctl, Configuration* con, int m_value)
     }
 
     con->xor_last_added = 1;
-    clingo_control_ground(*ctl, parts, 1, NULL, NULL);
+    if (!clingo_control_ground(*ctl, parts, 1, NULL, NULL)) {
+        // exit if memout
+        char const *error_message;
+        if (!(error_message = clingo_error_message())) { error_message = "error"; }
+        printf("%s\n", error_message);
+        exit(0);
+    }
+    // clingo_control_ground(*ctl, parts, 1, NULL, NULL);
     
     std::string parity_string;
     parity_string.clear();
-    if (m_value > 0) {
-        parity_string = get_parity_string(con, m_value);
-        clingo_control_add(*ctl, "base", NULL, 0, parity_string.c_str());
-        clingo_part_t parts[] = {{"base", NULL, 0}};
-        // clingo_control_ground(*ctl, parts, 1, NULL, NULL);
-    }
-    clingo_control_ground(*ctl, parts, 1, NULL, NULL);
 }
 
 unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
@@ -160,7 +160,7 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
         if (!model)
             break;
         model_count++;
-        if (model_count > con->thresh) 
+        if (model_count > con->thresh)
             break;
     }
     clingo_solve_handle_cancel(handle);
@@ -327,6 +327,7 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
         generate_k_xors(con->number_of_active_atoms - 1, con, sparse_data);
         translation(&control, con, false, std::cout, 1, -1);
         solCount = ApproxSMCCore(control, con, counter);
+        sparse_data.next_index = 0;
         con->xor_cons.clear();
         con->seed = counter + 1;
     }

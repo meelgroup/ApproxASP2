@@ -53,8 +53,8 @@ bool init(clingo_propagate_init_t *init, propagator_t *data);
 bool gauss_elimation(clingo_propagate_control_t *control, const clingo_literal_t *changes,
                      size_t size, propagator_t *data);
 bool propagate(clingo_propagate_control_t *control, const clingo_literal_t *changes, size_t size,
-              propagator_t *data);
-bool undo(clingo_propagate_control_t *control, 
+               propagator_t *data);
+bool undo(clingo_propagate_control_t *control,
           propagator_t *data);
 bool check(clingo_propagate_control_t *control, propagator_t *data);
 

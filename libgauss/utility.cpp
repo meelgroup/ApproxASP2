@@ -193,6 +193,7 @@ void get_symbol_atoms(clingo_control_t *ctl, Configuration *con)
         predicate = (char *)malloc(sizeof(char) * buf.string_n);
         strcpy(predicate, buf.string);
         con->atom_symbol_map[symbol] = std::string(predicate);;
+        con->string_symbol_map[std::string(predicate)] = symbol;
         // printf("Inside get_symbol_atoms %lu %s.\n", symbol, buf.string);
 
         if (!fact && !external) {
