@@ -1,0 +1,30 @@
+
+name: CI Build
+
+on:
+  push:
+    branches: [approxsmc]
+  pull_request:
+    branches: [approxsmc]
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install libraries
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake bison re2c
+
+      - name: Run build
+        run: |
+          mkdir build && cd build
+          cmake -DCLINGO_BUILD_SHARED=ON ..
+          make -j12
+          
+      - name: Check Binary
+        run: ls approxasp 
