@@ -310,7 +310,7 @@ SATCount ApproxSMCCore(clingo_control_t* control, Configuration* con, int counte
         cout << "Hashcounter iteration: " << counter << " completed !!!" << endl;
         solCount.cellSolCount = 1;
         solCount.hashCount = medSolCount;
-        cout << "After the iteration, the lower bound: " << solCount.cellSolCount << " * 2 ^ " << solCount.hashCount - 3.322 << endl; 
+        cout << "The lower bound: " << solCount.cellSolCount << " * 2 ^ " << solCount.hashCount - 3.322 << endl; 
     }
     
     return solCount;
