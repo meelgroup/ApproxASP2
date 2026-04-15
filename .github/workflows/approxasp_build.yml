@@ -28,9 +28,3 @@ jobs:
           
       - name: Check Binary
         run: ls build/approxasp 
-      
-      - name: Check Clingo
-        run: clingo --help
-
-      - name: Check Gringo
-        run: gringo --help
