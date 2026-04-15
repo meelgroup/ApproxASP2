@@ -30,7 +30,7 @@ jobs:
         run: ls build/approxasp 
       
       - name: Check Clingo
-        run: clingo
+        run: clingo --help
 
       - name: Check Gringo
-        run: gringo
+        run: gringo --help
