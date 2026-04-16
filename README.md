@@ -7,17 +7,17 @@ You need to install `bison` and `re2c`. It is required by clingo.
 ```
 sudo apt-get install bison
 sudo apt-get install re2c
+sudo apt-get install build-essential cmake
 ```
 
 ### Building
-Execute the following:
+Compile approxasp as follows:
 
 ```
-mkdir build && cd build
-cmake -DCLINGO_BUILD_SHARED=ON ..
-make -j12
+chmod +x build.sh
+./build.sh
 ```
-You should now have the binary `appproxasp` in your directory
+
 
 ### Running ApproxASP
 copy `approxasp` from build: `cp build/approxasp .`

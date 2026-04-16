@@ -22,9 +22,8 @@ jobs:
 
       - name: Run build
         run: |
-          mkdir build && cd build
-          cmake -DCLINGO_BUILD_SHARED=ON ..
-          make -j12
+          chmod +x build.sh
+          ./build.sh
           
       - name: Check Binary
         run: |
@@ -32,12 +31,10 @@ jobs:
 
       - name: Sample Run ApproxASP 1
         run: |
-          cp build/approxasp .
           ./approxasp --useind IS_molise.lp --asp molise.lp 2>&1 | tee /tmp/out.txt
           grep -q "final ApproxASP estimate" /tmp/out.txt
 
       - name: Sample Run ApproxASP 2
         run: |
-          cp build/approxasp .
           ./approxasp --asp vertex-cover.lp 2>&1 | tee /tmp/out.txt
           grep -q "final ApproxASP estimate" /tmp/out.txt
