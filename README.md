@@ -1,6 +1,12 @@
 ## ApproxASP
 Approximate counting of answer sets via answer set solver clingo. The related publication: [ApproxASP](https://ojs.aaai.org/index.php/AAAI/article/view/20518)
 
+### Clone
+clone the repo with submodules:
+```
+git clone --recurse-submodules git@github.com:meelgroup/ApproxASP.git
+```
+
 
 ### Dependencies
 You need to install `bison` and `re2c`. It is required by clingo.
