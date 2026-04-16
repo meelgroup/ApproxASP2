@@ -20,14 +20,25 @@ make -j12
 You should now have the binary `appproxasp` in your directory
 
 ### Running ApproxASP
+copy `approxasp` from build: `cp build/approxasp .`
+
+Run approxasp
 - With independent support
 `./approxasp --useind <independent support file> --asp <asp file>`
+e.g.,
+```
+./approxasp --useind IS_molise.lp --asp molise.lp
+```
 
 - Without independent support
 `./approxasp --asp <asp file>`
+e.g.,
+```
+./approxasp --asp vertex-cover.lp
+```
 
-### Benchmark and binaries
-The benchmark used in our AAAI 2022 paper evaluation is available [here](https://zenodo.org/records/19316194).
+### Benchmark and Artifacts
+The benchmark and artifact used in our AAAI 2022 paper evaluation is available [here](https://zenodo.org/records/19316194).
 
 ### Reference
 Please cite our work if you use it:

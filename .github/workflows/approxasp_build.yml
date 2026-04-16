@@ -3,9 +3,9 @@ name: CI Build
 
 on:
   push:
-    branches: [approxsmc]
+    branches: [approxsmc,approxasp]
   pull_request:
-    branches: [approxsmc]
+    branches: [approxsmc,approxasp]
 
 jobs:
   build:
@@ -27,10 +27,17 @@ jobs:
           make -j12
           
       - name: Check Binary
-        run: ls build/approxasp 
+        run: |
+          ls build/approxasp
 
-      - name: Check Clingo
-        run: clingo
+      - name: Sample Run ApproxASP 1
+        run: |
+          cp build/approxasp .
+          ./approxasp --useind IS_molise.lp --asp molise.lp 2>&1 | tee /tmp/out.txt
+          grep -q "final ApproxASP estimate" /tmp/out.txt
 
-      - name: Check Gringo
-        run: gringo
+      - name: Sample Run ApproxASP 2
+        run: |
+          cp build/approxasp .
+          ./approxasp --asp vertex-cover.lp 2>&1 | tee /tmp/out.txt
+          grep -q "final ApproxASP estimate" /tmp/out.txt

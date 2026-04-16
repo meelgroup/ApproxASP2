@@ -145,7 +145,7 @@ int find_best_sparse_match(Configuration *con)
 {
     for(int i = 0; i < (int)con->constants.index_var_maps.size(); i++) {
         if (con->constants.index_var_maps[i].vars_to_inclusive >= con->number_of_active_atoms) {
-            if (true) {
+            if (con -> use_sparse) {
                 std::cout << "c [sparse] Using match: " << i
                 << " sampling set size: " << con->number_of_active_atoms
                 << " prev end inclusive is: " << (i == 0 ? -1 : (int)con->constants.index_var_maps[i-1].vars_to_inclusive)

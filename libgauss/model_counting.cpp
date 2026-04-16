@@ -168,8 +168,8 @@ unsigned Bounded_counter(clingo_control_t* ctl, Configuration* con,
     con->clasp_call++;
     if (!finished)
         con->clasp_call_timeout++;
-    if (con->clasp_call > 0 && con->clasp_call % con->interval == 0)
-        print_stat(con);
+    // if (con->clasp_call > 0 && con->clasp_call % con->interval == 0)
+    //     print_stat(con);
     return finished ? model_count : -1;
 }
 
@@ -331,4 +331,5 @@ void ApproxSMC(clingo_control_t* control, Configuration* con)
         con->xor_cons.clear();
         con->seed = counter + 1;
     }
+    cout << "final ApproxASP estimate: " << solCount.cellSolCount << " * 2 ^ " << solCount.hashCount << endl; 
 }
