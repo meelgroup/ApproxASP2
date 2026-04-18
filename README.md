@@ -1,5 +1,5 @@
 ## ApproxASP
-Approximate counting of answer sets via answer set solver clingo. The related publication: [ApproxASP](https://ojs.aaai.org/index.php/AAAI/article/view/20518)
+Approximate counting of answer sets via answer set solver clingo and Gauss-Jordan Elimination. The related publication: [ApproxASP](https://ojs.aaai.org/index.php/AAAI/article/view/20518)
 
 ### Clone
 clone the repo with submodules:
@@ -44,7 +44,7 @@ e.g.,
 ```
 
 ### Benchmark and Artifacts
-The benchmark and artifact used in our AAAI 2022 paper evaluation is available [here](https://zenodo.org/records/19608413).
+The benchmark and artifact used in our AAAI 2022 paper evaluation is available [here](https://zenodo.org/records/19643118).
 
 ### Reference
 Please cite our work if you use it:
