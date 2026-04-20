@@ -44,7 +44,7 @@ e.g.,
 ```
 
 ### Benchmark and Artifacts
-The benchmark and artifact used in our AAAI 2022 paper evaluation is available [here](https://zenodo.org/records/19643118).
+The benchmark and artifact used in our AAAI 2022 paper evaluation is available [here](https://zenodo.org/records/19665703).
 
 ### Reference
 Please cite our work if you use it:
