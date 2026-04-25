@@ -43,7 +43,7 @@ using std::endl;
 using namespace std::chrono;
 std::list<int> numHashList, numCountList, medianComputeList;
 //TODO fix!!!
-#define TIMEOUT 1000
+#define TIMEOUT 5000
 
 int findMin(std::list<int> numList)
 {
@@ -242,12 +242,11 @@ SATCount LogSATSearch(clingo_control_t* control, Configuration* con, int m_prev)
             if (abs(m_value - m_prev) < 2 && m_prev != 0) {
                 lo_index = m_value;
                 m_value++;
-            // } else if ((lo_index + (m_value - lo_index) * 2) >= hi_index - 1) {
-            //     lo_index = m_value;
-            //     m_value = (lo_index + hi_index) >> 1;
-            } else {
+            } else if ((lo_index + (m_value - lo_index) * 2) >= hi_index - 1) {
                 lo_index = m_value;
                 m_value = (lo_index + hi_index) >> 1;
+            } else {
+                m_value = lo_index + (m_value - lo_index) * 2;
             }
         }
 
